@@ -1,0 +1,6 @@
+name = "wandering-snow-3f00"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+# No public vars — OPENAI_API_KEY is a Secret
