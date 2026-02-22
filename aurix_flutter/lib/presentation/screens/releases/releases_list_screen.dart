@@ -6,6 +6,7 @@ import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 
 final myReleasesProvider = FutureProvider<List<ReleaseModel>>((ref) async {
   final user = ref.watch(currentUserProvider);
@@ -402,7 +403,7 @@ class _ReleaseRow extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         _ActionBtn(icon: Icons.edit, onTap: onEdit),
-                        _ActionBtn(icon: Icons.monitoring, onTap: onAnalytics),
+                        _ActionBtn(icon: Icons.bar_chart, onTap: onAnalytics),
                         _ActionBtn(icon: Icons.more_vert, onTap: () {}),
                       ],
                     ),
@@ -433,7 +434,7 @@ class _ReleaseRow extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       _ActionBtn(icon: Icons.edit, onTap: onEdit),
-                      _ActionBtn(icon: Icons.monitoring, onTap: onAnalytics),
+                      _ActionBtn(icon: Icons.bar_chart, onTap: onAnalytics),
                       _ActionBtn(icon: Icons.more_vert, onTap: () {}),
                     ],
                   ),

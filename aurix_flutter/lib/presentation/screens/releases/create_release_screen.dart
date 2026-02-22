@@ -203,11 +203,9 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: kIsWeb && _coverFile!.bytes != null
+                        child: _coverFile!.bytes != null
                             ? Image.memory(_coverFile!.bytes!, height: 120, width: 120, fit: BoxFit.cover)
-                            : _coverFile!.path != null
-                                ? Image.file(File(_coverFile!.path!), height: 120, width: 120, fit: BoxFit.cover)
-                                : const SizedBox.shrink(),
+                            : const SizedBox.shrink(),
                       ),
                     ),
                   OutlinedButton.icon(
