@@ -43,6 +43,8 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen>
   late final Animation<Offset> _formSlide;
   late final Animation<double> _footerFade;
   late final Animation<double> _taglineFade;
+  int _glowCycles = 0;
+  int _btnCycles = 0;
 
   @override
   void initState() {
@@ -59,11 +61,34 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen>
     _glowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
-    )..repeat(reverse: true);
+    );
+    _glowController.addStatusListener((status) {
+      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+        _glowCycles++;
+        if (_glowCycles < 6) {
+          if (status == AnimationStatus.completed) {
+            _glowController.reverse();
+          } else {
+            _glowController.forward();
+          }
+        }
+      }
+    });
+    _glowController.forward();
+
     _btnShimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
-    )..repeat();
+    );
+    _btnShimmerController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _btnCycles++;
+        if (_btnCycles < 3) {
+          _btnShimmerController.forward(from: 0);
+        }
+      }
+    });
+    _btnShimmerController.forward();
 
     _logoScale = Tween<double>(begin: 0.3, end: 1.0).animate(
       CurvedAnimation(parent: _logoController, curve: Curves.elasticOut),

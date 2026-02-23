@@ -22,6 +22,9 @@ class _LandingPageState extends State<LandingPage>
   late final Animation<double> _heroFade;
   late final Animation<Offset> _heroSlide;
 
+  int _shimmerCycles = 0;
+  static const _maxShimmerCycles = 3;
+
   @override
   void initState() {
     super.initState();
@@ -33,7 +36,16 @@ class _LandingPageState extends State<LandingPage>
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
-    )..repeat();
+    );
+    _shimmerController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _shimmerCycles++;
+        if (_shimmerCycles < _maxShimmerCycles) {
+          _shimmerController.forward(from: 0);
+        }
+      }
+    });
+    _shimmerController.forward();
 
     _heroFade = CurvedAnimation(
       parent: _heroController,
@@ -88,16 +100,18 @@ class _LandingPageState extends State<LandingPage>
             left: 0,
             right: 0,
             height: 600,
-            child: AnimatedBuilder(
-              animation: _shimmerController,
-              builder: (context, _) {
-                return CustomPaint(
-                  painter: _HeroGlowPainter(
-                    progress: _shimmerController.value,
-                    fade: _heroFade.value,
-                  ),
-                );
-              },
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: _heroController,
+                builder: (context, _) {
+                  return CustomPaint(
+                    painter: _HeroGlowPainter(
+                      progress: 0.5,
+                      fade: _heroFade.value,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
           CustomScrollView(
@@ -127,38 +141,40 @@ class _LandingPageState extends State<LandingPage>
       ),
       child: Row(
         children: [
-          AnimatedBuilder(
-            animation: _shimmerController,
-            builder: (context, _) {
-              final t = _shimmerController.value;
-              return ShaderMask(
-                shaderCallback: (bounds) => LinearGradient(
-                  colors: [
-                    AurixTokens.orange,
-                    AurixTokens.orange.withValues(alpha: 0.6),
-                    Colors.white,
-                    AurixTokens.orange.withValues(alpha: 0.6),
-                    AurixTokens.orange,
-                  ],
-                  stops: [
-                    0.0,
-                    math.max(0, t - 0.15),
-                    t,
-                    math.min(1, t + 0.15),
-                    1.0,
-                  ],
-                ).createShader(bounds),
-                child: const Text(
-                  'AURIX',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 4,
+          RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _shimmerController,
+              builder: (context, _) {
+                final t = _shimmerController.value;
+                return ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [
+                      AurixTokens.orange,
+                      AurixTokens.orange.withValues(alpha: 0.6),
+                      Colors.white,
+                      AurixTokens.orange.withValues(alpha: 0.6),
+                      AurixTokens.orange,
+                    ],
+                    stops: [
+                      0.0,
+                      math.max(0, t - 0.15),
+                      t,
+                      math.min(1, t + 0.15),
+                      1.0,
+                    ],
+                  ).createShader(bounds),
+                  child: const Text(
+                    'AURIX',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 4,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
           const Spacer(),
           TextButton(
