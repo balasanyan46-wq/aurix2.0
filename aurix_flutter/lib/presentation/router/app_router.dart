@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
-import 'package:aurix_flutter/presentation/screens/splash_screen.dart';
 import 'package:aurix_flutter/presentation/screens/auth/login_screen.dart';
 import 'package:aurix_flutter/presentation/screens/auth/register_screen.dart';
 import 'package:aurix_flutter/features/app_shell/app_shell_scaffold.dart';
@@ -30,6 +29,7 @@ import 'package:aurix_flutter/features/legal/presentation/legal_history_page.dar
 import 'package:aurix_flutter/features/index/presentation/screens/index_home_screen.dart';
 import 'package:aurix_flutter/features/index/presentation/screens/artist_index_profile_screen.dart';
 import 'package:aurix_flutter/features/index_engine/presentation/index_engine_debug_screen.dart';
+import 'package:aurix_flutter/presentation/landing/landing_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -39,14 +39,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoading = authState.isLoading;
       final hasUser = authState.valueOrNull?.session != null;
-      final isLoggingIn = state.matchedLocation == '/login' || state.matchedLocation == '/register';
+      final loc = state.matchedLocation;
+      final isPublic = loc == '/' || loc == '/login' || loc == '/register';
       if (isLoading) return null;
-      if (!hasUser && !isLoggingIn) return '/login';
-      if (hasUser && (isLoggingIn || state.matchedLocation == '/')) return '/home';
+      if (!hasUser && !isPublic) return '/';
+      if (hasUser && isPublic) return '/home';
       return null;
     },
     routes: [
-      GoRoute(path: '/', builder: (_, __) => const SplashScreen()),
+      GoRoute(path: '/', builder: (_, __) => const LandingPage()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
       ShellRoute(

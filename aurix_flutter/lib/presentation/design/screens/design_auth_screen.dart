@@ -7,7 +7,8 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 
 /// Экран входа/регистрации для Design mode.
 class DesignAuthScreen extends ConsumerStatefulWidget {
-  const DesignAuthScreen({super.key});
+  final bool startOnRegister;
+  const DesignAuthScreen({super.key, this.startOnRegister = false});
 
   @override
   ConsumerState<DesignAuthScreen> createState() => _DesignAuthScreenState();
@@ -21,7 +22,7 @@ bool _isValidPhone(String s) {
 
 class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen>
     with TickerProviderStateMixin {
-  bool _isRegister = false;
+  late bool _isRegister = widget.startOnRegister;
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();

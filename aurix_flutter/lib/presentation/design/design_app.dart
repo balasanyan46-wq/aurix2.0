@@ -6,6 +6,7 @@ import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/presentation/design/design_shell.dart';
 import 'package:aurix_flutter/presentation/design/screens/design_auth_screen.dart';
+import 'package:aurix_flutter/presentation/landing/landing_page.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
 /// Design mode app. При настроенном Supabase — требуется вход.
@@ -20,11 +21,14 @@ class DesignApp extends ConsumerWidget {
 
     final home = hasSupabase
         ? authState.when(
-            data: (state) => state.session != null ? const DesignShell() : const DesignAuthScreen(),
+            data: (state) =>
+                state.session != null ? const DesignShell() : const _UnauthFlow(),
             loading: () => const Scaffold(
-              body: Center(child: CircularProgressIndicator(color: AurixTokens.orange)),
+              body: Center(
+                child: CircularProgressIndicator(color: AurixTokens.orange),
+              ),
             ),
-            error: (_, __) => const DesignAuthScreen(),
+            error: (_, __) => const _UnauthFlow(),
           )
         : const DesignShell();
 
@@ -36,6 +40,56 @@ class DesignApp extends ConsumerWidget {
         locale: locale,
         child: home,
       ),
+    );
+  }
+}
+
+enum _UnauthPage { landing, login, register }
+
+class _UnauthFlow extends StatefulWidget {
+  const _UnauthFlow();
+
+  @override
+  State<_UnauthFlow> createState() => _UnauthFlowState();
+}
+
+class _UnauthFlowState extends State<_UnauthFlow> {
+  _UnauthPage _page = _UnauthPage.landing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Navigator(
+      pages: [
+        MaterialPage(
+          child: _DesignLandingAdapter(
+            onLogin: () => setState(() => _page = _UnauthPage.login),
+            onRegister: () => setState(() => _page = _UnauthPage.register),
+          ),
+        ),
+        if (_page == _UnauthPage.login)
+          const MaterialPage(child: DesignAuthScreen()),
+        if (_page == _UnauthPage.register)
+          MaterialPage(
+            child: DesignAuthScreen(key: const ValueKey('register'), startOnRegister: true),
+          ),
+      ],
+      onDidRemovePage: (_) {
+        setState(() => _page = _UnauthPage.landing);
+      },
+    );
+  }
+}
+
+class _DesignLandingAdapter extends StatelessWidget {
+  final VoidCallback onLogin;
+  final VoidCallback onRegister;
+  const _DesignLandingAdapter({required this.onLogin, required this.onRegister});
+
+  @override
+  Widget build(BuildContext context) {
+    return LandingPage(
+      onLogin: onLogin,
+      onRegister: onRegister,
     );
   }
 }
