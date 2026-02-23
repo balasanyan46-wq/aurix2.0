@@ -5,6 +5,8 @@ import 'package:aurix_flutter/data/repositories/release_repository.dart';
 import 'package:aurix_flutter/data/repositories/file_repository.dart';
 import 'package:aurix_flutter/data/repositories/track_repository.dart';
 import 'package:aurix_flutter/data/repositories/report_repository.dart';
+import 'package:aurix_flutter/data/repositories/admin_log_repository.dart';
+import 'package:aurix_flutter/data/repositories/support_ticket_repository.dart';
 import 'package:aurix_flutter/features/legal/data/legal_repository.dart';
 import 'package:aurix_flutter/features/index/data/repositories/index_repository.dart';
 import 'package:aurix_flutter/features/index/data/repositories/mock_index_repository.dart';
@@ -28,6 +30,8 @@ final releaseRepositoryProvider = Provider<ReleaseRepository>((ref) => ReleaseRe
 final fileRepositoryProvider = Provider<FileRepository>((ref) => FileRepository());
 final trackRepositoryProvider = Provider<TrackRepository>((ref) => TrackRepository());
 final reportRepositoryProvider = Provider<ReportRepository>((ref) => ReportRepository());
+final adminLogRepositoryProvider = Provider<AdminLogRepository>((ref) => AdminLogRepository());
+final supportTicketRepositoryProvider = Provider<SupportTicketRepository>((ref) => SupportTicketRepository());
 final legalRepositoryProvider = Provider<LegalRepository>((ref) => LegalRepository());
 
 final indexEngineRepositoryProvider = Provider<engine.MockIndexEngineRepository>((ref) =>

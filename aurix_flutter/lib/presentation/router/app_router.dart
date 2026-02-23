@@ -11,8 +11,7 @@ import 'package:aurix_flutter/features/profile/presentation/profile_gate.dart';
 import 'package:aurix_flutter/presentation/screens/releases/releases_list_screen.dart';
 import 'package:aurix_flutter/presentation/screens/releases/release_detail_screen.dart';
 import 'package:aurix_flutter/presentation/screens/releases/create_release_screen.dart';
-import 'package:aurix_flutter/presentation/screens/admin/admin_screen.dart';
-import 'package:aurix_flutter/presentation/screens/admin/admin_releases_screen.dart';
+import 'package:aurix_flutter/presentation/screens/admin/admin_panel.dart';
 import 'package:aurix_flutter/presentation/screens/studio/studio_screen.dart';
 import 'package:aurix_flutter/presentation/screens/subscription/subscription_route_screen.dart';
 import 'package:aurix_flutter/screens/home/home_screen.dart';
@@ -152,12 +151,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/admin',
             pageBuilder: (context, state) {
               final tab = state.uri.queryParameters['tab'];
-              return NoTransitionPage(child: AdminScreen(initialTab: tab));
+              return NoTransitionPage(child: AdminPanel(initialTab: tab));
             },
-          ),
-          GoRoute(
-            path: '/admin/releases',
-            redirect: (_, __) => '/admin',
           ),
         ],
       ),

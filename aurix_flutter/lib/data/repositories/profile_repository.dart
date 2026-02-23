@@ -107,4 +107,18 @@ class ProfileRepository {
     final res = await supabase.from('profiles').select().order('created_at', ascending: false);
     return (res as List).map((e) => ProfileModel.fromJson(e as Map<String, dynamic>)).toList();
   }
+
+  Future<void> updateRole(String userId, String role) async {
+    await supabase.from('profiles').update({
+      'role': role,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq(_pkCol, userId);
+  }
+
+  Future<void> updateAccountStatus(String userId, String status) async {
+    await supabase.from('profiles').update({
+      'account_status': status,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).eq(_pkCol, userId);
+  }
 }

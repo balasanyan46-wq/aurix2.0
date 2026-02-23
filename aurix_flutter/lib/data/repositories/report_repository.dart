@@ -76,6 +76,17 @@ class ReportRepository {
     await supabase.from('report_rows').update({'track_id': trackId}).eq('id', rowId);
   }
 
+  Future<List<ReportRowModel>> getAllReportRows() async {
+    final res = await supabase
+        .from('report_rows')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(5000);
+    return (res as List)
+        .map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Match report rows to tracks by ISRC. Returns count of matched.
   Future<int> matchReportRowsByIsrc(String reportId) async {
     final rows = await getReportRows(reportId);
