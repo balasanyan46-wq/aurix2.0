@@ -109,15 +109,18 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen> {
     return Scaffold(
       backgroundColor: AurixTokens.bg0,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                   Text(
                     'AURIX',
                     style: TextStyle(
@@ -234,10 +237,42 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen> {
                       style: TextStyle(color: AurixTokens.orange),
                     ),
                   ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Center(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'AURIX',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' • by Armen Balasanyan',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
+        ),
+          ],
         ),
       ),
     );
