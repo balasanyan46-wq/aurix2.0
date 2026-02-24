@@ -7,7 +7,7 @@ import 'package:aurix_flutter/data/models/team_member_model.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
-final _teamProvider = FutureProvider.autoDispose<List<TeamMemberModel>>((ref) async {
+final _teamProvider = FutureProvider<List<TeamMemberModel>>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return [];
   return ref.read(teamRepositoryProvider).getMyTeam(user.id);

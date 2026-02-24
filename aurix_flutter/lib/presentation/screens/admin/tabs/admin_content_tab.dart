@@ -5,7 +5,7 @@ import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/features/legal/data/legal_template_model.dart';
 
-final _templatesProvider = FutureProvider.autoDispose<List<LegalTemplateModel>>((ref) async {
+final _templatesProvider = FutureProvider<List<LegalTemplateModel>>((ref) async {
   return ref.read(legalRepositoryProvider).fetchTemplates();
 });
 

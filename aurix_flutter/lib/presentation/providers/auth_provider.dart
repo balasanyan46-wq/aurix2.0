@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurix_flutter/core/supabase_client.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
+import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
 
 final authStateProvider = StreamProvider<AuthState>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges;
@@ -32,6 +33,6 @@ final isAdminProvider = FutureProvider<bool>((ref) async {
 });
 
 final hasStudioAccessProvider = FutureProvider<bool>((ref) async {
-  final profile = await ref.watch(currentProfileProvider.future);
-  return profile?.hasStudioAccess ?? false;
+  final plan = ref.watch(effectivePlanProvider);
+  return plan == 'breakthrough' || plan == 'empire';
 });

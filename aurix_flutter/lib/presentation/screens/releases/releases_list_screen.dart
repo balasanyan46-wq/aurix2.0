@@ -5,15 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/config/responsive.dart';
-import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
-import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
-
-final myReleasesProvider = FutureProvider<List<ReleaseModel>>((ref) async {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return [];
-  return ref.watch(releaseRepositoryProvider).getReleasesByOwner(user.id);
-});
 
 class ReleasesListScreen extends ConsumerStatefulWidget {
   const ReleasesListScreen({super.key});
@@ -28,12 +21,12 @@ class _ReleasesListScreenState extends ConsumerState<ReleasesListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final releases = ref.watch(myReleasesProvider);
+    final releases = ref.watch(releasesProvider);
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
 
     return RefreshIndicator(
       color: AurixTokens.orange,
-      onRefresh: () async => ref.invalidate(myReleasesProvider),
+      onRefresh: () async => ref.invalidate(releasesProvider),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.all(isDesktop ? 32 : 20),
@@ -232,7 +225,7 @@ class _ReleasesListScreenState extends ConsumerState<ReleasesListScreen> {
           Text(msg, style: TextStyle(color: AurixTokens.muted, fontSize: 13), textAlign: TextAlign.center),
           const SizedBox(height: 16),
           FilledButton(
-            onPressed: () => ref.invalidate(myReleasesProvider),
+            onPressed: () => ref.invalidate(releasesProvider),
             style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: Colors.black),
             child: const Text('Повторить'),
           ),

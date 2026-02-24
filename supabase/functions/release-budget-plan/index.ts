@@ -41,10 +41,15 @@ serve(async (req: Request) => {
     if (!release) return json({ ok: false, error: "Release not found" }, 404);
     if (release.owner_id !== user.id) return json({ ok: false, error: "Forbidden" }, 403);
 
+    const { data: sub } = await supabase.from("subscriptions")
+      .select("plan")
+      .eq("user_id", user.id).maybeSingle();
+
     const { data: profile } = await supabase.from("profiles")
       .select("plan, artist_name, display_name, name, city, bio")
       .eq("user_id", user.id).single();
-    const plan = profile?.plan ?? "start";
+
+    const plan = sub?.plan ?? profile?.plan ?? "start";
     const isDemo = plan === "start";
 
     const { data: tracks } = await supabase.from("tracks")

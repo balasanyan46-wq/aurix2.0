@@ -359,7 +359,14 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
   Future<void> _changePlan(String newPlan) async {
     setState(() => _loading = true);
     try {
-      await ref.read(profileRepositoryProvider).updatePlan(widget.profile.userId, newPlan);
+      final res = await ref.read(billingServiceProvider).adminAssignPlan(
+            userId: widget.profile.userId,
+            plan: newPlan,
+            billingPeriod: 'monthly',
+          );
+      if (!res.ok) {
+        throw Exception(res.error ?? 'Не удалось назначить тариф');
+      }
       final adminId = ref.read(currentUserProvider)?.id;
       if (adminId != null) {
         await ref.read(adminLogRepositoryProvider).log(

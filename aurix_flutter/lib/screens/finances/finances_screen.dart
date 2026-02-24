@@ -5,14 +5,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/data/models/report_row_model.dart';
-import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
-
-final _userReportRowsProvider = FutureProvider.autoDispose<List<ReportRowModel>>((ref) async {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return [];
-  return ref.read(reportRepositoryProvider).getRowsByUser(user.id);
-});
+import 'package:aurix_flutter/data/providers/reports_provider.dart';
 
 enum _Period { all, year, quarter, month }
 
@@ -40,7 +33,7 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rowsAsync = ref.watch(_userReportRowsProvider);
+    final rowsAsync = ref.watch(userReportRowsProvider);
 
     return rowsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange)),

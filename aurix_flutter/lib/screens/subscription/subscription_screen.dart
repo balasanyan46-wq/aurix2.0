@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/core/plan_config.dart';
@@ -8,6 +9,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
 
 class SubscriptionScreen extends ConsumerStatefulWidget {
   const SubscriptionScreen({super.key});
@@ -46,13 +48,14 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(currentProfileProvider);
     final profile = profileAsync.valueOrNull;
-    final currentSlug = profile?.plan ?? 'start';
+    final subscription = ref.watch(currentSubscriptionProvider).valueOrNull;
+    final currentSlug = subscription?.plan ?? profile?.plan ?? 'start';
     final currentPlan = SubscriptionPlan.fromSlug(currentSlug);
-    final isAdmin = profile?.isAdmin ?? false;
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
 
-    if (!_synced && profile != null) {
-      _isYearly = profile.isYearly;
+    final effectiveBillingPeriod = subscription?.billingPeriod ?? profile?.billingPeriod ?? 'monthly';
+    if (!_synced && (subscription != null || profile != null)) {
+      _isYearly = effectiveBillingPeriod == 'yearly';
       _synced = true;
     }
 
@@ -112,10 +115,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                     return _PlanCard(
                       config: cfg,
                       isCurrent: currentPlan == cfg.plan,
-                      isAdmin: isAdmin,
                       priceLabel: _priceLabel(cfg.plan),
                       savingsLabel: _savingsLabel(cfg.plan),
-                      onSubscribe: () => _confirmUpgrade(context, ref, cfg, currentPlan),
+                      onSubscribe: () => _startCheckout(context, ref, cfg, currentPlan),
                     );
                   }).toList();
 
@@ -206,7 +208,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
   // ── Upgrade dialog ────────────────────────────────────────────────────
 
-  void _confirmUpgrade(BuildContext context, WidgetRef ref, PlanConfig config, SubscriptionPlan currentPlan) {
+  void _startCheckout(BuildContext context, WidgetRef ref, PlanConfig config, SubscriptionPlan currentPlan) {
     final newPlan = config.plan;
     final price = _priceLabel(newPlan);
     final billingPeriod = _isYearly ? 'yearly' : 'monthly';
@@ -218,7 +220,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
         backgroundColor: AurixTokens.bg1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Перейти на ${newPlan.label}?',
+          'Перейти к оплате: ${newPlan.label}?',
           style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w700),
         ),
         content: Column(
@@ -251,25 +253,38 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
           FilledButton(
             onPressed: () async {
               Navigator.of(dialogCtx).pop();
-              final user = ref.read(currentUserProvider);
-              if (user == null) return;
-              await ref.read(profileRepositoryProvider).updatePlan(
-                    user.id,
-                    newPlan.slug,
+              final result = await ref.read(billingServiceProvider).createCheckoutSession(
+                    plan: newPlan.slug,
                     billingPeriod: billingPeriod,
                   );
-              ref.invalidate(currentProfileProvider);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('План обновлён на ${newPlan.label}')),
-                );
+              if (!context.mounted) return;
+
+              if (result.ok && (result.url?.isNotEmpty ?? false)) {
+                final uri = Uri.tryParse(result.url!);
+                if (uri == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Не удалось открыть оплату.')),
+                  );
+                  return;
+                }
+                final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+                if (!ok && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Не удалось открыть ссылку оплаты.')),
+                  );
+                }
+                return;
               }
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(result.error ?? 'Оплата скоро будет доступна.')),
+              );
             },
             style: FilledButton.styleFrom(
               backgroundColor: AurixTokens.orange,
               foregroundColor: Colors.black,
             ),
-            child: const Text('Подтвердить'),
+            child: const Text('Перейти к оплате'),
           ),
         ],
       ),
@@ -355,7 +370,6 @@ const _kPurple = Color(0xFF8B5CF6);
 class _PlanCard extends StatefulWidget {
   final PlanConfig config;
   final bool isCurrent;
-  final bool isAdmin;
   final String priceLabel;
   final String? savingsLabel;
   final VoidCallback onSubscribe;
@@ -363,7 +377,6 @@ class _PlanCard extends StatefulWidget {
   const _PlanCard({
     required this.config,
     required this.isCurrent,
-    required this.isAdmin,
     required this.priceLabel,
     this.savingsLabel,
     required this.onSubscribe,
@@ -580,15 +593,15 @@ class _PlanCardState extends State<_PlanCard> {
   Widget _buildButton() {
     if (widget.isCurrent) {
       return OutlinedButton(
-        onPressed: widget.isAdmin ? widget.onSubscribe : null,
+        onPressed: null,
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 16),
-          side: BorderSide(color: widget.isAdmin ? AurixTokens.orange : AurixTokens.muted.withValues(alpha: 0.3)),
+          side: BorderSide(color: AurixTokens.muted.withValues(alpha: 0.3)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
         child: Text(
-          widget.isAdmin ? 'Текущий (изменить)' : 'Текущий план',
-          style: TextStyle(color: widget.isAdmin ? AurixTokens.orange : AurixTokens.muted),
+          'Текущий тариф',
+          style: TextStyle(color: AurixTokens.muted),
         ),
       );
     }
@@ -602,7 +615,7 @@ class _PlanCardState extends State<_PlanCard> {
           side: BorderSide(color: AurixTokens.muted.withValues(alpha: 0.3)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        child: const Text('Начать с базового'),
+        child: const Text('Перейти к оплате'),
       );
     }
 
@@ -623,7 +636,7 @@ class _PlanCardState extends State<_PlanCard> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
-          child: const Text('Оформить'),
+          child: const Text('Перейти к оплате'),
         ),
       );
     }
@@ -638,7 +651,7 @@ class _PlanCardState extends State<_PlanCard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
       ),
-      child: const Text('Оформить'),
+      child: const Text('Перейти к оплате'),
     );
   }
 }

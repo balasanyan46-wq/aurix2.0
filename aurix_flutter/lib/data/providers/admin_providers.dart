@@ -28,7 +28,7 @@ String humanizeSupabaseError(Object e) {
   return 'Ошибка: $short';
 }
 
-final allProfilesProvider = FutureProvider.autoDispose<List<ProfileModel>>((ref) async {
+final allProfilesProvider = FutureProvider<List<ProfileModel>>((ref) async {
   try {
     return await ref.read(profileRepositoryProvider).getAllProfiles();
   } catch (e) {
@@ -36,7 +36,7 @@ final allProfilesProvider = FutureProvider.autoDispose<List<ProfileModel>>((ref)
   }
 });
 
-final allReleasesAdminProvider = FutureProvider.autoDispose<List<ReleaseModel>>((ref) async {
+final allReleasesAdminProvider = FutureProvider<List<ReleaseModel>>((ref) async {
   try {
     return await ref.read(releaseRepositoryProvider).getAllReleases();
   } catch (e) {
@@ -44,7 +44,7 @@ final allReleasesAdminProvider = FutureProvider.autoDispose<List<ReleaseModel>>(
   }
 });
 
-final allReportRowsProvider = FutureProvider.autoDispose<List<ReportRowModel>>((ref) async {
+final allReportRowsProvider = FutureProvider<List<ReportRowModel>>((ref) async {
   try {
     return await ref.read(reportRepositoryProvider).getAllReportRows();
   } catch (e) {
@@ -52,7 +52,7 @@ final allReportRowsProvider = FutureProvider.autoDispose<List<ReportRowModel>>((
   }
 });
 
-final adminReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) async {
+final adminReportsProvider = FutureProvider<List<ReportModel>>((ref) async {
   try {
     return await ref.read(reportRepositoryProvider).getReports();
   } catch (e) {
@@ -60,7 +60,7 @@ final adminReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref)
   }
 });
 
-final adminLogsProvider = FutureProvider.autoDispose<List<AdminLogModel>>((ref) async {
+final adminLogsProvider = FutureProvider<List<AdminLogModel>>((ref) async {
   try {
     return await ref.read(adminLogRepositoryProvider).getLogs(limit: 100);
   } catch (e) {
@@ -68,7 +68,7 @@ final adminLogsProvider = FutureProvider.autoDispose<List<AdminLogModel>>((ref) 
   }
 });
 
-final allTicketsProvider = FutureProvider.autoDispose<List<SupportTicketModel>>((ref) async {
+final allTicketsProvider = FutureProvider<List<SupportTicketModel>>((ref) async {
   try {
     return await ref.read(supportTicketRepositoryProvider).getAllTickets();
   } catch (e) {

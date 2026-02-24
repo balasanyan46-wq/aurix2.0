@@ -6,15 +6,8 @@ import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/data/models/report_row_model.dart';
-import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
-import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
-
-final _userReportRowsProvider = FutureProvider.autoDispose<List<ReportRowModel>>((ref) async {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return [];
-  return ref.read(reportRepositoryProvider).getRowsByUser(user.id);
-});
+import 'package:aurix_flutter/data/providers/reports_provider.dart';
 
 enum _CampaignStage { preSave, releaseWeek, postRelease }
 
@@ -105,7 +98,7 @@ class _PromotionScreenState extends ConsumerState<PromotionScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
-    final rows = ref.watch(_userReportRowsProvider).valueOrNull ?? [];
+    final rows = ref.watch(userReportRowsProvider).valueOrNull ?? [];
     final releases = ref.watch(releasesProvider).valueOrNull ?? [];
     final totalStreams = rows.fold<int>(0, (s, r) => s + r.streams);
     final totalRevenue = rows.fold<double>(0, (s, r) => s + r.revenue);

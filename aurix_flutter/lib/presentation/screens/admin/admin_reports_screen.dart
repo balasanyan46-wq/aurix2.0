@@ -9,7 +9,7 @@ import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/services/csv_report_parser.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
-final reportsListProvider = FutureProvider.autoDispose((ref) async {
+final reportsListProvider = FutureProvider((ref) async {
   final isAdmin = await ref.watch(isAdminProvider.future);
   if (!isAdmin) return <_ReportWithCount>[];
   final repo = ref.watch(reportRepositoryProvider);

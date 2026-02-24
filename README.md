@@ -72,6 +72,12 @@ flutter run -d macos \
 4. Нажми **Run** (или Ctrl+Enter). Внизу должно появиться сообщение об успешном выполнении.
 5. Открой **supabase/migrations/002_storage_policies.sql**, скопируй весь текст в **новый** запрос в SQL Editor и снова нажми **Run**.
 
+Дальше выполни миграции (каждый файл — в отдельном запросе):
+- `supabase/migrations/014_plan_slugs_migration.sql`
+- `supabase/migrations/024_profiles_billing_period.sql`
+- `supabase/migrations/025_subscriptions_table_and_rls.sql`
+- `supabase/migrations/026_lock_profile_subscription_fields.sql`
+
 Если при выполнении **002_storage_policies.sql** появится ошибка про `storage.buckets` (например что такого таблицы нет или нельзя вставлять) — тогда buckets созданы вручную через Storage (шаг 5), и нужно выполнить только **политики для storage.objects**. В таком случае открой 002, удали блок `insert into storage.buckets ...` и выполни оставшуюся часть файла (все `create policy ...`).
 
 ### 7. Запуск Flutter-приложения
@@ -116,6 +122,18 @@ flutter run -d macos \
 - **Релизы**: список своих релизов, создание релиза (название, тип single/ep/album, дата, жанр, язык, explicit), статус draft → submitted. Экран деталей релиза.
 - **Загрузка файлов**: обложка (jpg/png) в bucket `covers`, трек (mp3/wav/flac) в bucket `tracks`. Пути сохраняются в таблицу `files`.
 - **Админ**: если в таблице `profiles` у пользователя `role = 'admin'`, он видит раздел «Админ» и список всех релизов, может менять статус (submitted / in_review / approved / rejected) и добавлять заметку (admin_note).
+
+---
+
+## Проверка: «план нельзя менять вручную»
+
+- **Обычный пользователь (не admin)**:
+  - Открой `/subscription` и нажми на любой тариф → должно открываться «оплата/checkout», но **план в БД не меняется**.
+  - Попробуй из браузера (Supabase client / REST) выполнить `update public.profiles set plan='empire' ...` → запрос должен упасть с ошибкой (trigger блокирует).
+  - Попробуй `update public.subscriptions set plan='empire' ...` → запрос должен упасть (RLS deny).
+
+- **Админ**:
+  - В админке открой пользователя → «План» → выбери тариф → запрос идёт в Edge Function `admin-subscriptions-assign`, план меняется в `subscriptions` и синхронизируется в `profiles`.
 
 ---
 

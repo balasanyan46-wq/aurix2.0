@@ -7,14 +7,8 @@ import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/data/models/report_row_model.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
-import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/data/providers/reports_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
-
-final _userReportRowsProvider = FutureProvider.autoDispose<List<ReportRowModel>>((ref) async {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return [];
-  return ref.read(reportRepositoryProvider).getRowsByUser(user.id);
-});
 
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
@@ -22,7 +16,7 @@ class AnalyticsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final releasesAsync = ref.watch(releasesProvider);
-    final rowsAsync = ref.watch(_userReportRowsProvider);
+    final rowsAsync = ref.watch(userReportRowsProvider);
     final releases = releasesAsync.valueOrNull ?? [];
     final rows = rowsAsync.valueOrNull ?? [];
 

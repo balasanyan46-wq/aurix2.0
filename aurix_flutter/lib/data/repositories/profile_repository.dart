@@ -115,14 +115,6 @@ class ProfileRepository {
     await supabase.from('profiles').update(updates).eq(_pkCol, id);
   }
 
-  Future<void> updatePlan(String id, String plan, {String billingPeriod = 'monthly'}) async {
-    await supabase.from('profiles').update({
-      'plan': plan,
-      'billing_period': billingPeriod,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq(_pkCol, id);
-  }
-
   bool hasStudioAccess(ProfileModel? profile) => profile?.hasStudioAccess ?? false;
 
   Future<List<ProfileModel>> getAllProfiles() async {

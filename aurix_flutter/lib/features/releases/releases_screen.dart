@@ -6,7 +6,7 @@ import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
-final _releasesProvider = FutureProvider.autoDispose<List<ReleaseModel>>((ref) async {
+final _releasesProvider = FutureProvider<List<ReleaseModel>>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return [];
   return ref.read(releaseRepositoryProvider).getReleasesByOwner(user.id);
