@@ -199,7 +199,7 @@ class AdminDashboardTab extends ConsumerWidget {
             _SectionHeader('РЕЛИЗЫ ПО СТАТУСАМ'),
             const SizedBox(height: 12),
             releasesAsync.when(
-              data: (releases) => _buildStatusBreakdown(releases),
+              data: (releases) => _buildStatusBreakdown(releases, ref),
               loading: () => _loading(),
               error: (e, _) => _errorWidget(e.toString()),
             ),
@@ -332,7 +332,7 @@ class AdminDashboardTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusBreakdown(List<ReleaseModel> releases) {
+  Widget _buildStatusBreakdown(List<ReleaseModel> releases, WidgetRef ref) {
     final statuses = ['draft', 'submitted', 'approved', 'rejected', 'live'];
     final counts = <String, int>{};
     for (final status in statuses) {
@@ -345,7 +345,15 @@ class AdminDashboardTab extends ConsumerWidget {
       children: statuses.map((status) {
         final count = counts[status] ?? 0;
         final label = _getStatusLabel(status);
-        return _StatusChip(label: label, count: count, status: status);
+        return _StatusChip(
+          label: label,
+          count: count,
+          status: status,
+          onTap: () {
+            ref.read(adminReleasesFilterProvider.notifier).state = status;
+            onGoToTab?.call('releases');
+          },
+        );
       }).toList(),
     );
   }
@@ -718,11 +726,12 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.count, required this.status});
+  const _StatusChip({required this.label, required this.count, required this.status, this.onTap});
 
   final String label;
   final int count;
   final String status;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -742,35 +751,42 @@ class _StatusChip extends StatelessWidget {
         chipColor = AurixTokens.textSecondary;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: chipColor.withValues(alpha: 0.1),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: chipColor.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: chipColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: chipColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: chipColor.withValues(alpha: 0.3)),
           ),
-          const SizedBox(width: 6),
-          Text(
-            count.toString(),
-            style: TextStyle(
-              color: chipColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              fontFeatures: AurixTokens.tabularFigures,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: chipColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                count.toString(),
+                style: TextStyle(
+                  color: chipColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: AurixTokens.tabularFigures,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

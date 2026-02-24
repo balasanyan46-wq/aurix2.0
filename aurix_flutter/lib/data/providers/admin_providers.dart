@@ -75,3 +75,7 @@ final allTicketsProvider = FutureProvider.autoDispose<List<SupportTicketModel>>(
     throw Exception(humanizeSupabaseError(e));
   }
 });
+
+/// Shared status filter for AdminReleasesTab.
+/// Dashboard sets this before switching to the releases tab.
+final adminReleasesFilterProvider = StateProvider<String>((ref) => 'all');

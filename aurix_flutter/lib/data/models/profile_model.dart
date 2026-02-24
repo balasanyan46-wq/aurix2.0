@@ -15,6 +15,7 @@ class ProfileModel {
   final String role;
   final String accountStatus;
   final String plan;
+  final String billingPeriod;
 
   const ProfileModel({
     required this.userId,
@@ -32,6 +33,7 @@ class ProfileModel {
     this.role = 'artist',
     this.accountStatus = 'active',
     this.plan = 'start',
+    this.billingPeriod = 'monthly',
   });
 
   String get id => userId;
@@ -60,6 +62,7 @@ class ProfileModel {
       role: json['role'] as String? ?? 'artist',
       accountStatus: json['account_status'] as String? ?? 'active',
       plan: _migratePlanSlug(json['plan'] as String?),
+      billingPeriod: json['billing_period'] as String? ?? 'monthly',
     );
   }
 
@@ -79,7 +82,10 @@ class ProfileModel {
         'role': role,
         'account_status': accountStatus,
         'plan': plan,
+        'billing_period': billingPeriod,
       };
+
+  bool get isYearly => billingPeriod == 'yearly';
 
   ProfileModel copyWith({
     String? name,
@@ -90,6 +96,8 @@ class ProfileModel {
     String? avatarUrl,
     String? displayName,
     String? artistName,
+    String? plan,
+    String? billingPeriod,
   }) {
     return ProfileModel(
       userId: userId,
@@ -106,7 +114,8 @@ class ProfileModel {
       artistName: artistName ?? this.artistName,
       role: role,
       accountStatus: accountStatus,
-      plan: plan,
+      plan: plan ?? this.plan,
+      billingPeriod: billingPeriod ?? this.billingPeriod,
     );
   }
 }

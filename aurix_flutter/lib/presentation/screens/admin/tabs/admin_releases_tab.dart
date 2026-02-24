@@ -21,7 +21,6 @@ class AdminReleasesTab extends ConsumerStatefulWidget {
 }
 
 class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
-  String _statusFilter = 'all';
   String _search = '';
 
   static const _statuses = ['all', 'draft', 'submitted', 'in_review', 'approved', 'rejected', 'live'];
@@ -49,6 +48,7 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
   @override
   Widget build(BuildContext context) {
     final releasesAsync = ref.watch(allReleasesAdminProvider);
+    final statusFilter = ref.watch(adminReleasesFilterProvider);
 
     return Column(
       children: [
@@ -76,13 +76,13 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: _statuses.map((s) {
-                    final isSelected = _statusFilter == s;
+                    final isSelected = statusFilter == s;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
                         label: Text(_statusLabel(s)),
                         selected: isSelected,
-                        onSelected: (_) => setState(() => _statusFilter = s),
+                        onSelected: (_) => ref.read(adminReleasesFilterProvider.notifier).state = s,
                         selectedColor: AurixTokens.orange.withValues(alpha: 0.2),
                         backgroundColor: AurixTokens.bg2,
                         labelStyle: TextStyle(
@@ -106,7 +106,7 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
           child: releasesAsync.when(
             data: (releases) {
               var filtered = releases.where((r) {
-                if (_statusFilter != 'all' && r.status != _statusFilter) return false;
+                if (statusFilter != 'all' && r.status != statusFilter) return false;
                 if (_search.isNotEmpty) {
                   final t = r.title.toLowerCase();
                   final a = (r.artist ?? '').toLowerCase();
