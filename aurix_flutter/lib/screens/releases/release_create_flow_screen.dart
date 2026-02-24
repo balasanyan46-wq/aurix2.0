@@ -72,7 +72,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
         r = await repo.createRelease(
           ownerId: user.id,
           title: _titleController.text.trim().isEmpty ? 'Новый релиз' : _titleController.text.trim(),
-          artist: _artistController.text.trim().isEmpty ? null : _artistController.text.trim(),
+          artist: _artistController.text.trim().isEmpty ? 'Unknown Artist' : _artistController.text.trim(),
           releaseType: _releaseType,
           releaseDate: _releaseDate,
           genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
@@ -83,7 +83,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
       } else {
         await repo.updateRelease(r.id,
           title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-          artist: _artistController.text.trim().isEmpty ? null : _artistController.text.trim(),
+          artist: _artistController.text.trim().isEmpty ? 'Unknown Artist' : _artistController.text.trim(),
           releaseType: _releaseType,
           releaseDate: _releaseDate,
           genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
@@ -137,7 +137,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
         release = await repo.createRelease(
           ownerId: user.id,
           title: _titleController.text.trim().isEmpty ? 'Новый релиз' : _titleController.text.trim(),
-          artist: _artistController.text.trim().isEmpty ? null : _artistController.text.trim(),
+          artist: _artistController.text.trim().isEmpty ? 'Unknown Artist' : _artistController.text.trim(),
           releaseType: _releaseType,
           releaseDate: _releaseDate,
           genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
@@ -147,7 +147,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
       } else {
         await repo.updateRelease(release.id,
           title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-          artist: _artistController.text.trim().isEmpty ? null : _artistController.text.trim(),
+          artist: _artistController.text.trim().isEmpty ? 'Unknown Artist' : _artistController.text.trim(),
           releaseType: _releaseType,
           releaseDate: _releaseDate,
           genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
@@ -191,7 +191,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
         release = await repo.createRelease(
           ownerId: user.id,
           title: _titleController.text.trim().isEmpty ? 'Новый релиз' : _titleController.text.trim(),
-          artist: _artistController.text.trim().isEmpty ? null : _artistController.text.trim(),
+          artist: _artistController.text.trim().isEmpty ? 'Unknown Artist' : _artistController.text.trim(),
           releaseType: _releaseType,
           releaseDate: _releaseDate,
           genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
@@ -415,7 +415,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
                 final r = await repo.createRelease(
                   ownerId: user.id,
                   title: _titleController.text.trim().isEmpty ? 'Новый релиз' : _titleController.text.trim(),
-                  artist: _artistController.text.trim().isEmpty ? null : _artistController.text.trim(),
+                  artist: _artistController.text.trim().isEmpty ? 'Unknown Artist' : _artistController.text.trim(),
                   releaseType: _releaseType,
                   releaseDate: _releaseDate,
                   genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
@@ -429,7 +429,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
             } else {
               await ref.read(releaseRepositoryProvider).updateRelease(_createdRelease!.id,
                 title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-                artist: _artistController.text.trim().isEmpty ? null : _artistController.text.trim(),
+                artist: _artistController.text.trim().isEmpty ? 'Unknown Artist' : _artistController.text.trim(),
                 releaseType: _releaseType,
                 releaseDate: _releaseDate,
                 genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
