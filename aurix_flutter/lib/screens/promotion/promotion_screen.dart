@@ -82,18 +82,21 @@ class _PromotionScreenState extends ConsumerState<PromotionScreen> {
           ],
       };
 
+  String _taskKey(String day) => '${_stage.name}:$day';
+
   double _progress() {
     final tasks = _tasksForStage();
     if (tasks.isEmpty) return 0;
-    return tasks.where((t) => _doneTasks.contains(t.day)).length / tasks.length;
+    return tasks.where((t) => _doneTasks.contains(_taskKey(t.day))).length / tasks.length;
   }
 
   void _toggleTask(String day) {
+    final key = _taskKey(day);
     setState(() {
-      if (_doneTasks.contains(day)) {
-        _doneTasks.remove(day);
+      if (_doneTasks.contains(key)) {
+        _doneTasks.remove(key);
       } else {
-        _doneTasks.add(day);
+        _doneTasks.add(key);
       }
     });
     _saveTasks();
@@ -237,7 +240,7 @@ class _PromotionScreenState extends ConsumerState<PromotionScreen> {
           const SizedBox(height: 20),
           ...tasks.asMap().entries.map((e) {
             final t = e.value;
-            final isDone = _doneTasks.contains(t.day);
+            final isDone = _doneTasks.contains(_taskKey(t.day));
             return InkWell(
               onTap: () => _toggleTask(t.day),
               borderRadius: BorderRadius.circular(8),

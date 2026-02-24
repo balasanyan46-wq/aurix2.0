@@ -27,8 +27,6 @@ class ReportRepository {
     String? fileName,
     String? fileUrl,
     String? createdBy,
-    String? userId,
-    String? releaseId,
   }) async {
     final payload = <String, dynamic>{
       'period_start': periodStart.toIso8601String().split('T').first,
@@ -39,8 +37,6 @@ class ReportRepository {
     if (fileName != null) payload['file_name'] = fileName;
     if (fileUrl != null) payload['file_url'] = fileUrl;
     if (createdBy != null) payload['created_by'] = createdBy;
-    if (userId != null) payload['user_id'] = userId;
-    if (releaseId != null) payload['release_id'] = releaseId;
     logSupabaseRequest(table: 'reports', operation: 'insert', payload: payload);
     final res = await supabase.from('reports').insert(payload).select().single();
     return ReportModel.fromJson(res as Map<String, dynamic>);
@@ -52,13 +48,11 @@ class ReportRepository {
 
   Future<void> addReportRows(
     String reportId,
-    List<Map<String, dynamic>> rows, {
-    String? userId,
-    String? releaseId,
-  }) async {
+    List<Map<String, dynamic>> rows,
+  ) async {
     if (rows.isEmpty) return;
     final payloads = rows.map((r) {
-      final m = <String, dynamic>{
+      return <String, dynamic>{
         'report_id': reportId,
         'report_date': r['report_date'],
         'track_title': r['track_title'],
@@ -70,9 +64,6 @@ class ReportRepository {
         'currency': r['currency'] ?? 'USD',
         'raw_row_json': r['raw_row_json'],
       };
-      if (userId != null) m['user_id'] = userId;
-      if (releaseId != null) m['release_id'] = releaseId;
-      return m;
     }).toList();
     await supabase.from('report_rows').insert(payloads);
   }
@@ -86,11 +77,12 @@ class ReportRepository {
     return (res as List).map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// Returns report rows for tracks owned by the given user.
+  /// Relies on RLS policy to filter rows visible to the user.
   Future<List<ReportRowModel>> getRowsByUser(String userId) async {
     final res = await supabase
         .from('report_rows')
         .select()
-        .eq('user_id', userId)
         .order('created_at', ascending: false)
         .limit(5000);
     return (res as List).map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();

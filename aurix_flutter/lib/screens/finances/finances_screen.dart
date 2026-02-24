@@ -40,9 +40,9 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(_userReportRowsProvider);
+    final rowsAsync = ref.watch(_userReportRowsProvider);
 
-    return async.when(
+    return rowsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange)),
       error: (e, _) => Center(child: Text('Ошибка: $e', style: TextStyle(color: AurixTokens.muted))),
       data: (allRows) {

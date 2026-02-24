@@ -452,16 +452,9 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
         periodEnd: periodEnd,
         fileName: file.name,
         createdBy: admin.id,
-        userId: _selectedUser!.userId,
-        releaseId: _selectedRelease!.id,
       );
       await repo.updateReportStatus(report.id, 'parsing');
-      await repo.addReportRows(
-        report.id,
-        rows,
-        userId: _selectedUser!.userId,
-        releaseId: _selectedRelease!.id,
-      );
+      await repo.addReportRows(report.id, rows);
       final matched = await repo.matchReportRowsByIsrc(report.id);
       await repo.updateReportStatus(report.id, 'ready');
 

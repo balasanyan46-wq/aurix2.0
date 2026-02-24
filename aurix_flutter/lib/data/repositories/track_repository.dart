@@ -25,12 +25,10 @@ class TrackRepository {
     String version = 'original',
     bool explicit = false,
   }) async {
-    final userId = supabase.auth.currentUser?.id;
     final data = <String, dynamic>{
       'release_id': releaseId,
       'audio_path': audioPath,
       'audio_url': audioUrl,
-      if (userId != null) 'user_id': userId,
     };
     if (title != null) data['title'] = title;
     if (version != 'original') data['version'] = version;
