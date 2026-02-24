@@ -14,6 +14,46 @@ class ToolService {
     'playlist-pitch-pack': 'playlist-pitch-pack',
   };
 
+  Future<String?> _refreshAccessToken() async {
+    try {
+      final res = await supabase.auth.refreshSession();
+      final token = res.session?.accessToken ?? supabase.auth.currentSession?.accessToken;
+      debugPrint('[ToolService] refreshSession: token=${token != null ? "ok" : "null"}');
+      return token;
+    } catch (e) {
+      debugPrint('[ToolService] refreshSession error: $e');
+      return supabase.auth.currentSession?.accessToken;
+    }
+  }
+
+  Future<http.Response> _postWithAuthRetry(Uri url, Map<String, dynamic> body) async {
+    Future<http.Response> doPost(String token) {
+      return http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'apikey': AppConfig.supabaseAnonKey,
+        },
+        body: jsonEncode(body),
+      );
+    }
+
+    final token = supabase.auth.currentSession?.accessToken;
+    if (token == null) {
+      return http.Response('{"ok":false,"error":"Not authenticated"}', 401);
+    }
+
+    var res = await doPost(token);
+    if (res.statusCode != 401) return res;
+
+    // Token may be expired; refresh and retry once.
+    final refreshed = await _refreshAccessToken();
+    if (refreshed == null || refreshed == token) return res;
+    res = await doPost(refreshed);
+    return res;
+  }
+
   Future<ToolResultModel?> getSaved(String releaseId, String toolKey) async {
     try {
       final uid = supabase.auth.currentUser?.id;
@@ -135,12 +175,6 @@ class ToolService {
   Future<({bool ok, bool isDemo, Map<String, dynamic> data, String? error})>
       generate(String releaseId, String toolKey, Map<String, dynamic> inputs) async {
     try {
-      final token = supabase.auth.currentSession?.accessToken;
-      if (token == null) {
-        debugPrint('[ToolService] generate($toolKey): no token');
-        return (ok: false, isDemo: false, data: <String, dynamic>{}, error: 'Not authenticated');
-      }
-
       final richContext = await _buildRichContext(releaseId);
 
       final enrichedInputs = <String, dynamic>{
@@ -152,20 +186,22 @@ class ToolService {
       final url = Uri.parse('${AppConfig.supabaseUrl}/functions/v1/$fnName');
       debugPrint('[ToolService] generate($toolKey) POST $url');
 
-      final response = await http.post(
+      final response = await _postWithAuthRetry(
         url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-          'apikey': AppConfig.supabaseAnonKey,
-        },
-        body: jsonEncode({'releaseId': releaseId, 'inputs': enrichedInputs}),
+        {'releaseId': releaseId, 'inputs': enrichedInputs},
       );
 
       debugPrint('[ToolService] generate($toolKey) status=${response.statusCode}');
       debugPrint('[ToolService] generate($toolKey) body=${response.body.length > 500 ? response.body.substring(0, 500) : response.body}');
 
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      Map<String, dynamic> body;
+      try {
+        body = (jsonDecode(response.body) as Map).cast<String, dynamic>();
+      } catch (e) {
+        final raw = response.body.trim();
+        final msg = raw.isEmpty ? 'HTTP ${response.statusCode}' : raw;
+        return (ok: false, isDemo: false, data: <String, dynamic>{}, error: msg);
+      }
 
       if (response.statusCode == 200 && body['ok'] == true) {
         return (
@@ -176,7 +212,19 @@ class ToolService {
         );
       }
 
-      final errorMsg = body['error'] as String? ?? 'Unknown error (${response.statusCode})';
+      if (response.statusCode == 401) {
+        return (
+          ok: false,
+          isDemo: false,
+          data: <String, dynamic>{},
+          error: 'Сессия истекла. Перезайдите в аккаунт.',
+        );
+      }
+
+      final errorMsg =
+          (body['error'] as String?) ??
+          (body['message'] as String?) ??
+          'Unknown error (${response.statusCode})';
       return (ok: false, isDemo: false, data: <String, dynamic>{}, error: errorMsg);
     } catch (e, st) {
       debugPrint('[ToolService] generate($toolKey) error: $e');
