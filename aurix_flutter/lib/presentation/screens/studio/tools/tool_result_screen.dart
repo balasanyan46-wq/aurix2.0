@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
+import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 
-class ToolResultScreen extends ConsumerWidget {
+class ToolResultScreen extends ConsumerStatefulWidget {
   final ReleaseModel release;
   final String toolKey;
   final Map<String, dynamic> data;
@@ -18,7 +19,14 @@ class ToolResultScreen extends ConsumerWidget {
     required this.isDemo,
   });
 
-  String get _title => switch (toolKey) {
+  @override
+  ConsumerState<ToolResultScreen> createState() => _ToolResultScreenState();
+}
+
+class _ToolResultScreenState extends ConsumerState<ToolResultScreen> {
+  bool _regenerating = false;
+
+  String get _title => switch (widget.toolKey) {
     'growth-plan' => 'Карта роста',
     'budget-plan' => 'Бюджет-план',
     'release-packaging' => 'AI-Упаковка',
@@ -27,31 +35,72 @@ class ToolResultScreen extends ConsumerWidget {
     _ => 'Результат',
   };
 
+  Map<String, dynamic> get data => widget.data;
+
+  Future<void> _regenerate() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Пересоздать?'),
+        content: const Text('Текущий результат будет удалён. AI сгенерирует новый, персональный ответ.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Пересоздать')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    setState(() => _regenerating = true);
+    await ref.read(toolServiceProvider).deleteSaved(widget.release.id, widget.toolKey);
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    if (_regenerating) {
+      return Scaffold(
+        appBar: AppBar(title: Text('$_title: ${widget.release.title}')),
+        body: const Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Удаляем старый результат...'),
+          ]),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('$_title: ${release.title}'),
+        title: Text('$_title: ${widget.release.title}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Сгенерировать заново',
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _regenerate,
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (isDemo) _demoBanner(context),
-          ...switch (toolKey) {
+          if (widget.isDemo) _demoBanner(context),
+          ...switch (widget.toolKey) {
             'growth-plan' => _buildGrowthPlan(context),
             'budget-plan' => _buildBudgetPlan(context),
             'release-packaging' => _buildPackaging(context),
             'content-plan-14' => _buildContentPlan(context),
             'playlist-pitch-pack' => _buildPitchPack(context),
-            _ => [Text('Неизвестный инструмент: $toolKey')],
+            _ => [Text('Неизвестный инструмент: ${widget.toolKey}')],
           },
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _regenerate,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Пересоздать результат'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          ),
           const SizedBox(height: 32),
         ],
       ),

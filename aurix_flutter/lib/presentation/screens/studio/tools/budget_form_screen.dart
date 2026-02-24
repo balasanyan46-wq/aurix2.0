@@ -22,11 +22,15 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
   String _releaseType = 'single';
   String _goal = 'streams';
   String _region = 'RU';
+  String _experience = 'beginner';
   bool _hasDesigner = false;
   bool _hasVideo = false;
   bool _hasPR = false;
+  bool _hasSMM = false;
   bool _noTargetAds = false;
   bool _noBloggers = false;
+  bool _noFanpages = false;
+  final _priorityCtrl = TextEditingController();
 
   static const _currencies = [('RUB', '₽ Рубли'), ('AMD', '֏ Драмы'), ('USD', '\$ Доллары')];
   static const _releaseTypes = [('single', 'Сингл'), ('ep', 'EP'), ('album', 'Альбом')];
@@ -36,18 +40,41 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
     ('followers', 'Подписчики'),
     ('brand', 'Бренд'),
   ];
-  static const _regions = [('RU', 'Россия'), ('AM', 'Армения'), ('GLOBAL', 'Глобально')];
+  static const _regions = [('RU', 'Россия'), ('AM', 'Армения'), ('GLOBAL', 'Глобально'), ('CIS', 'СНГ')];
+  static const _experiences = [
+    ('beginner', 'Начинающий (1-3 релиза)'),
+    ('intermediate', 'Средний (4-10 релизов)'),
+    ('advanced', 'Опытный (10+ релизов)'),
+  ];
 
   @override
   void initState() {
     super.initState();
     _releaseType = widget.release.releaseType;
+    _prefill();
     _checkForSaved();
+  }
+
+  void _prefill() {
+    final r = widget.release;
+    if (r.language != null) {
+      final lang = r.language!.toLowerCase();
+      if (lang.contains('arm') || lang.contains('hy')) {
+        _region = 'AM';
+        _currency = 'AMD';
+        _budgetController.text = '50000';
+      } else if (lang.contains('en')) {
+        _region = 'GLOBAL';
+        _currency = 'USD';
+        _budgetController.text = '300';
+      }
+    }
   }
 
   @override
   void dispose() {
     _budgetController.dispose();
+    _priorityCtrl.dispose();
     super.dispose();
   }
 
@@ -88,8 +115,19 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
       'releaseType': _releaseType,
       'goal': _goal,
       'region': _region,
-      'team': {'hasDesigner': _hasDesigner, 'hasVideo': _hasVideo, 'hasPR': _hasPR},
-      'constraints': {'noTargetAds': _noTargetAds, 'noBloggers': _noBloggers},
+      'experience': _experience,
+      'priority': _priorityCtrl.text.trim(),
+      'team': {
+        'hasDesigner': _hasDesigner,
+        'hasVideo': _hasVideo,
+        'hasPR': _hasPR,
+        'hasSMM': _hasSMM,
+      },
+      'constraints': {
+        'noTargetAds': _noTargetAds,
+        'noBloggers': _noBloggers,
+        'noFanpages': _noFanpages,
+      },
     };
 
     final result = await ref.read(toolServiceProvider).generate(widget.release.id, 'budget-plan', inputs);
@@ -126,19 +164,21 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('Бюджет: ${widget.release.title}')),
       body: _loading
-          ? const Center(
+          ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Рассчитываем бюджет...'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text('Рассчитываем бюджет для «${widget.release.title}»...'),
                 ],
               ),
             )
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                _releaseInfoBanner(),
+                const SizedBox(height: 20),
                 _sectionTitle('Общий бюджет'),
                 const SizedBox(height: 8),
                 Row(
@@ -178,6 +218,18 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
                   )).toList(),
                 ),
                 const SizedBox(height: 20),
+                _sectionTitle('Опыт'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: _experiences.map((e) => ChoiceChip(
+                    label: Text(e.$2),
+                    selected: _experience == e.$1,
+                    onSelected: (v) { if (v) setState(() => _experience = e.$1); },
+                  )).toList(),
+                ),
+                const SizedBox(height: 20),
                 _sectionTitle('Цель'),
                 const SizedBox(height: 8),
                 Wrap(
@@ -200,6 +252,17 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
                     selected: _region == r.$1,
                     onSelected: (v) { if (v) setState(() => _region = r.$1); },
                   )).toList(),
+                ),
+                const SizedBox(height: 20),
+                _sectionTitle('Приоритет в расходах (опционально)'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _priorityCtrl,
+                  decoration: const InputDecoration(
+                    hintText: 'Например: хочу вложиться в таргет VK, или акцент на обложку и визуал',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
                 ),
                 const SizedBox(height: 20),
                 _sectionTitle('Ваша команда'),
@@ -225,6 +288,13 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
+                CheckboxListTile(
+                  title: const Text('Есть SMM-специалист'),
+                  value: _hasSMM,
+                  onChanged: (v) => setState(() => _hasSMM = v ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
                 const SizedBox(height: 20),
                 _sectionTitle('Ограничения'),
                 const SizedBox(height: 8),
@@ -242,6 +312,13 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
+                CheckboxListTile(
+                  title: const Text('Без фанпейджей/ботов'),
+                  value: _noFanpages,
+                  onChanged: (v) => setState(() => _noFanpages = v ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
                 const SizedBox(height: 32),
                 FilledButton.icon(
                   onPressed: _generate,
@@ -255,6 +332,31 @@ class _BudgetFormScreenState extends ConsumerState<BudgetFormScreen> {
                 const SizedBox(height: 24),
               ],
             ),
+    );
+  }
+
+  Widget _releaseInfoBanner() {
+    final r = widget.release;
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.2)),
+      ),
+      child: Row(children: [
+        if (r.coverUrl != null)
+          ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(r.coverUrl!, width: 48, height: 48, fit: BoxFit.cover))
+        else
+          Container(width: 48, height: 48, decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)), child: Icon(Icons.album_rounded, color: cs.primary)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(r.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+          Text([r.artist ?? '', r.genre ?? '', r.releaseType].where((s) => s.isNotEmpty).join(' · '),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurface.withValues(alpha: 0.6))),
+        ])),
+      ]),
     );
   }
 

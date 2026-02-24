@@ -3,10 +3,14 @@ class ReleaseModel {
   final String ownerId;
   final String title;
   final String? artist;
-  final String releaseType; // single, ep, album
+  final String releaseType;
   final DateTime? releaseDate;
   final String? genre;
   final String? language;
+  final bool explicit;
+  final String? upc;
+  final String? label;
+  final int? copyrightYear;
   final String status;
   final String? coverUrl;
   final String? coverPath;
@@ -22,6 +26,10 @@ class ReleaseModel {
     this.releaseDate,
     this.genre,
     this.language,
+    this.explicit = false,
+    this.upc,
+    this.label,
+    this.copyrightYear,
     required this.status,
     this.coverUrl,
     this.coverPath,
@@ -39,6 +47,10 @@ class ReleaseModel {
       releaseDate: json['release_date'] != null ? DateTime.parse(json['release_date'] as String) : null,
       genre: json['genre'] as String?,
       language: json['language'] as String?,
+      explicit: json['explicit'] as bool? ?? false,
+      upc: json['upc'] as String?,
+      label: json['label'] as String?,
+      copyrightYear: json['copyright_year'] as int?,
       status: json['status'] as String? ?? 'draft',
       coverUrl: json['cover_url'] as String?,
       coverPath: json['cover_path'] as String?,
@@ -56,6 +68,10 @@ class ReleaseModel {
         'release_date': releaseDate?.toIso8601String().split('T').first,
         'genre': genre,
         'language': language,
+        'explicit': explicit,
+        'upc': upc,
+        'label': label,
+        'copyright_year': copyrightYear,
         'status': status,
         'cover_url': coverUrl,
         'cover_path': coverPath,
@@ -70,6 +86,10 @@ class ReleaseModel {
     DateTime? releaseDate,
     String? genre,
     String? language,
+    bool? explicit,
+    String? upc,
+    String? label,
+    int? copyrightYear,
     String? status,
     String? coverUrl,
     String? coverPath,
@@ -83,6 +103,10 @@ class ReleaseModel {
       releaseDate: releaseDate ?? this.releaseDate,
       genre: genre ?? this.genre,
       language: language ?? this.language,
+      explicit: explicit ?? this.explicit,
+      upc: upc ?? this.upc,
+      label: label ?? this.label,
+      copyrightYear: copyrightYear ?? this.copyrightYear,
       status: status ?? this.status,
       coverUrl: coverUrl ?? this.coverUrl,
       coverPath: coverPath ?? this.coverPath,
@@ -93,4 +117,10 @@ class ReleaseModel {
 
   bool get isDraft => status == 'draft';
   bool get isSubmitted => status == 'submitted';
+  bool get isLive => status == 'live';
+
+  bool get isComplete =>
+      title.isNotEmpty &&
+      (artist?.isNotEmpty ?? false) &&
+      releaseType.isNotEmpty;
 }

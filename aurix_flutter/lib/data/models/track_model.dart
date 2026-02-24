@@ -4,6 +4,7 @@ class TrackModel {
   final String audioPath;
   final String audioUrl;
   final String? title;
+  final String? isrc;
   final int trackNumber;
   final String version;
   final bool explicit;
@@ -15,6 +16,7 @@ class TrackModel {
     required this.audioPath,
     required this.audioUrl,
     this.title,
+    this.isrc,
     required this.trackNumber,
     this.version = 'original',
     required this.explicit,
@@ -28,6 +30,7 @@ class TrackModel {
       audioPath: (json['audio_path'] ?? json['path']) as String,
       audioUrl: (json['audio_url'] ?? json['file_url'] ?? json['url']) as String,
       title: json['title'] as String?,
+      isrc: json['isrc'] as String?,
       trackNumber: json['track_number'] as int? ?? 0,
       version: json['version'] as String? ?? 'original',
       explicit: json['explicit'] as bool? ?? false,

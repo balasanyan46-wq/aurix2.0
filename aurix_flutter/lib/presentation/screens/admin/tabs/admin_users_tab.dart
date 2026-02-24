@@ -406,19 +406,52 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
   @override
   Widget build(BuildContext context) {
     final p = widget.profile;
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(p.displayNameOrName, style: const TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(p.email.isNotEmpty ? p.email : '—', style: const TextStyle(color: AurixTokens.muted, fontSize: 13)),
-          if (p.phone != null && p.phone!.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(p.phone!, style: const TextStyle(color: AurixTokens.muted, fontSize: 13)),
-          ],
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: AurixTokens.orange.withValues(alpha: 0.2),
+                child: Text(
+                  p.displayNameOrName.isNotEmpty ? p.displayNameOrName[0].toUpperCase() : '?',
+                  style: const TextStyle(color: AurixTokens.orange, fontWeight: FontWeight.w800, fontSize: 22),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(p.displayNameOrName, style: const TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700)),
+                    if (p.artistName != null && p.artistName!.isNotEmpty && p.artistName != p.displayNameOrName)
+                      Text('Псевдоним: ${p.artistName}', style: const TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: AurixTokens.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                child: Text(_planLabel(p.plan).toUpperCase(), style: TextStyle(color: AurixTokens.orange, fontSize: 10, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Contact info
+          _contactRow(Icons.email_outlined, p.email.isNotEmpty ? p.email : '—'),
+          if (p.phone != null && p.phone!.isNotEmpty) _contactRow(Icons.phone_outlined, p.phone!),
+          if (p.city != null && p.city!.isNotEmpty) _contactRow(Icons.location_on_outlined, p.city!),
+          if (p.name != null && p.name!.isNotEmpty) _contactRow(Icons.badge_outlined, 'ФИО: ${p.name}'),
+          if (p.gender != null && p.gender!.isNotEmpty)
+            _contactRow(Icons.person_outline, 'Пол: ${p.gender == 'male' ? 'Мужской' : p.gender == 'female' ? 'Женский' : p.gender!}'),
+          if (p.bio != null && p.bio!.isNotEmpty) _contactRow(Icons.info_outline, p.bio!),
+          _contactRow(Icons.calendar_today, 'Регистрация: ${p.createdAt.day}.${p.createdAt.month}.${p.createdAt.year}'),
+
           if (_statsLoaded) ...[
             const SizedBox(height: 16),
             Row(
@@ -463,6 +496,17 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
       ),
     );
   }
+
+  Widget _contactRow(IconData icon, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      children: [
+        Icon(icon, size: 14, color: AurixTokens.muted),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(color: AurixTokens.text, fontSize: 12))),
+      ],
+    ),
+  );
 
   Widget _miniStat(String label, String value, IconData icon) {
     return Expanded(

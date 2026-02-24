@@ -21,6 +21,7 @@ class TrackRepository {
     required String audioPath,
     required String audioUrl,
     String? title,
+    String? isrc,
     int trackNumber = 0,
     String version = 'original',
     bool explicit = false,
@@ -31,6 +32,7 @@ class TrackRepository {
       'audio_url': audioUrl,
     };
     if (title != null) data['title'] = title;
+    if (isrc != null && isrc.trim().isNotEmpty) data['isrc'] = isrc.trim().toUpperCase();
     if (version != 'original') data['version'] = version;
     if (explicit) data['explicit'] = explicit;
     if (id != null) data['id'] = id;
@@ -42,6 +44,12 @@ class TrackRepository {
       debugPrint('[TrackRepository] addTrack error: ${formatSupabaseError(e)}');
       rethrow;
     }
+  }
+
+  Future<void> updateTrackIsrc(String trackId, String? isrc) async {
+    await supabase.from('tracks').update({
+      'isrc': isrc?.trim().toUpperCase(),
+    }).eq('id', trackId);
   }
 
   Future<void> deleteTrack(String id) async {

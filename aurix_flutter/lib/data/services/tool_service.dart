@@ -35,6 +35,103 @@ class ToolService {
     }
   }
 
+  /// Собирает полный контекст об артисте и релизе для персонализации AI.
+  Future<Map<String, dynamic>> _buildRichContext(String releaseId) async {
+    final ctx = <String, dynamic>{};
+    try {
+      final uid = supabase.auth.currentUser?.id;
+
+      // 1. Профиль артиста
+      if (uid != null) {
+        final profileRes = await supabase
+            .from('profiles')
+            .select()
+            .eq('user_id', uid)
+            .maybeSingle();
+        if (profileRes != null) {
+          ctx['artist'] = {
+            'name': profileRes['artist_name'] ?? profileRes['display_name'] ?? profileRes['name'] ?? '',
+            'real_name': profileRes['name'] ?? '',
+            'city': profileRes['city'] ?? '',
+            'bio': profileRes['bio'] ?? '',
+            'plan': profileRes['plan'] ?? 'start',
+          };
+        }
+      }
+
+      // 2. Данные релиза
+      final releaseRes = await supabase
+          .from('releases')
+          .select()
+          .eq('id', releaseId)
+          .maybeSingle();
+      if (releaseRes != null) {
+        ctx['release'] = {
+          'title': releaseRes['title'] ?? '',
+          'artist': releaseRes['artist'] ?? '',
+          'genre': releaseRes['genre'] ?? '',
+          'language': releaseRes['language'] ?? '',
+          'release_type': releaseRes['release_type'] ?? '',
+          'release_date': releaseRes['release_date'] ?? '',
+          'upc': releaseRes['upc'] ?? '',
+          'label': releaseRes['label'] ?? '',
+          'explicit': releaseRes['explicit'] ?? false,
+        };
+      }
+
+      // 3. Треки релиза
+      final tracksRes = await supabase
+          .from('tracks')
+          .select()
+          .eq('release_id', releaseId)
+          .order('track_number');
+      if (tracksRes is List && tracksRes.isNotEmpty) {
+        ctx['tracks'] = (tracksRes as List).map((t) => {
+              'title': t['title'] ?? '',
+              'isrc': t['isrc'] ?? '',
+              'version': t['version'] ?? 'original',
+              'explicit': t['explicit'] ?? false,
+            }).toList();
+      }
+
+      // 4. Другие релизы артиста (для понимания каталога)
+      if (uid != null) {
+        final otherReleases = await supabase
+            .from('releases')
+            .select('title, artist, genre, release_type, status')
+            .eq('owner_id', uid)
+            .neq('id', releaseId)
+            .order('created_at', ascending: false)
+            .limit(10);
+        if (otherReleases is List && otherReleases.isNotEmpty) {
+          ctx['catalog'] = (otherReleases as List)
+              .map((r) => '${r['artist'] ?? ''} — ${r['title']} (${r['release_type']}, ${r['status']})')
+              .toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[ToolService] _buildRichContext error: $e');
+    }
+    return ctx;
+  }
+
+  Future<bool> deleteSaved(String releaseId, String toolKey) async {
+    try {
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) return false;
+      await supabase
+          .from('release_tools')
+          .delete()
+          .eq('release_id', releaseId)
+          .eq('user_id', uid)
+          .eq('tool_key', toolKey);
+      return true;
+    } catch (e) {
+      debugPrint('[ToolService] deleteSaved($toolKey) error: $e');
+      return false;
+    }
+  }
+
   Future<({bool ok, bool isDemo, Map<String, dynamic> data, String? error})>
       generate(String releaseId, String toolKey, Map<String, dynamic> inputs) async {
     try {
@@ -43,6 +140,13 @@ class ToolService {
         debugPrint('[ToolService] generate($toolKey): no token');
         return (ok: false, isDemo: false, data: <String, dynamic>{}, error: 'Not authenticated');
       }
+
+      final richContext = await _buildRichContext(releaseId);
+
+      final enrichedInputs = <String, dynamic>{
+        ...inputs,
+        'context': richContext,
+      };
 
       final fnName = _functionMap[toolKey] ?? toolKey;
       final url = Uri.parse('${AppConfig.supabaseUrl}/functions/v1/$fnName');
@@ -55,7 +159,7 @@ class ToolService {
           'Content-Type': 'application/json',
           'apikey': AppConfig.supabaseAnonKey,
         },
-        body: jsonEncode({'releaseId': releaseId, 'inputs': inputs}),
+        body: jsonEncode({'releaseId': releaseId, 'inputs': enrichedInputs}),
       );
 
       debugPrint('[ToolService] generate($toolKey) status=${response.statusCode}');

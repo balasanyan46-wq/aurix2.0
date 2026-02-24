@@ -27,15 +27,32 @@ serve(async (req: Request) => {
     if (!releaseId || !inputs) return json({ ok: false, error: "Missing releaseId or inputs" }, 400);
 
     const { data: release, error: relErr } = await supabase
-      .from("releases").select("owner_id, title, artist, genre, release_type")
+      .from("releases")
+      .select("owner_id, title, artist, genre, release_type, release_date, language, label, explicit")
       .eq("id", releaseId).single();
     if (relErr || !release) return json({ ok: false, error: "Release not found" }, 404);
     if (release.owner_id !== user.id) return json({ ok: false, error: "Forbidden" }, 403);
 
     const { data: profile } = await supabase
-      .from("profiles").select("plan").eq("user_id", user.id).single();
+      .from("profiles")
+      .select("plan, artist_name, display_name, name, city, bio")
+      .eq("user_id", user.id).single();
     const plan = profile?.plan ?? "start";
     const isDemo = plan === "start";
+
+    const { data: tracks } = await supabase
+      .from("tracks")
+      .select("title, isrc, version, explicit, track_number")
+      .eq("release_id", releaseId)
+      .order("track_number");
+
+    const { data: otherReleases } = await supabase
+      .from("releases")
+      .select("title, artist, genre, release_type, status")
+      .eq("owner_id", user.id)
+      .neq("id", releaseId)
+      .order("created_at", { ascending: false })
+      .limit(10);
 
     const cfRes = await fetch(`${workerUrl}/v1/tools/playlist-pitch-pack`, {
       method: "POST",
@@ -43,7 +60,19 @@ serve(async (req: Request) => {
         "Content-Type": "application/json",
         "X-AURIX-INTERNAL-KEY": internalKey,
       },
-      body: JSON.stringify({ release, inputs }),
+      body: JSON.stringify({
+        release,
+        inputs,
+        profile: profile ? {
+          artist_name: profile.artist_name ?? profile.display_name ?? profile.name ?? "",
+          real_name: profile.name ?? "",
+          city: profile.city ?? "",
+          bio: profile.bio ?? "",
+          plan,
+        } : { plan },
+        tracks: tracks ?? [],
+        catalog: otherReleases ?? [],
+      }),
     });
     const cfBody = await cfRes.json() as any;
     if (!cfBody.ok) return json({ ok: false, error: cfBody.error ?? "AI generation failed" }, 502);

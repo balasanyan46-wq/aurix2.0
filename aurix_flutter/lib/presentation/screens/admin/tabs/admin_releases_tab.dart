@@ -8,6 +8,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/models/track_model.dart';
 import 'package:aurix_flutter/data/models/admin_note_model.dart';
+import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
@@ -263,8 +264,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
   bool _loadingTracks = true;
   List<TrackModel> _tracks = [];
   List<AdminNoteModel>? _notes;
-  String? _ownerName;
-  String? _ownerEmail;
+  ProfileModel? _ownerProfile;
 
   // Editable metadata
   late TextEditingController _titleCtrl;
@@ -317,10 +317,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
     try {
       final profile = await ref.read(profileRepositoryProvider).getProfile(widget.release.ownerId);
       if (profile != null && mounted) {
-        setState(() {
-          _ownerName = profile.displayNameOrName;
-          _ownerEmail = profile.email;
-        });
+        setState(() => _ownerProfile = profile);
       }
     } catch (_) {}
   }
@@ -563,7 +560,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
         const SizedBox(height: 20),
 
         // --- Tracks ---
-        _section('ТРЕКИ'),
+        _section('ТРЕКИ (${_tracks.length})'),
         const SizedBox(height: 8),
         if (_loadingTracks)
           const Padding(
@@ -591,32 +588,63 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
         const SizedBox(height: 20),
 
         // --- Owner info ---
-        _section('ВЛАДЕЛЕЦ'),
+        _section('АРТИСТ / ВЛАДЕЛЕЦ'),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: AurixTokens.bg2, borderRadius: BorderRadius.circular(10)),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AurixTokens.orange.withValues(alpha: 0.2),
-                child: const Icon(Icons.person, color: AurixTokens.orange, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+          child: _ownerProfile == null
+              ? const Text('Загрузка...', style: TextStyle(color: AurixTokens.muted, fontSize: 13))
+              : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_ownerName ?? 'Загрузка...', style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w600, fontSize: 14)),
-                    if (_ownerEmail != null)
-                      Text(_ownerEmail!, style: const TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: AurixTokens.orange.withValues(alpha: 0.2),
+                          child: Text(
+                            _ownerProfile!.displayNameOrName.isNotEmpty
+                                ? _ownerProfile!.displayNameOrName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(color: AurixTokens.orange, fontWeight: FontWeight.w700, fontSize: 16),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_ownerProfile!.displayNameOrName, style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w700, fontSize: 15)),
+                              if (_ownerProfile!.artistName != null && _ownerProfile!.artistName != _ownerProfile!.displayNameOrName)
+                                Text('Псевдоним: ${_ownerProfile!.artistName}', style: const TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AurixTokens.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _ownerProfile!.plan.toUpperCase(),
+                            style: TextStyle(color: AurixTokens.orange, fontSize: 10, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _ownerRow(Icons.email_outlined, _ownerProfile!.email.isNotEmpty ? _ownerProfile!.email : '—'),
+                    if (_ownerProfile!.phone != null && _ownerProfile!.phone!.isNotEmpty)
+                      _ownerRow(Icons.phone_outlined, _ownerProfile!.phone!),
+                    if (_ownerProfile!.city != null && _ownerProfile!.city!.isNotEmpty)
+                      _ownerRow(Icons.location_on_outlined, _ownerProfile!.city!),
+                    if (_ownerProfile!.bio != null && _ownerProfile!.bio!.isNotEmpty)
+                      _ownerRow(Icons.info_outline, _ownerProfile!.bio!),
+                    _ownerRow(Icons.badge_outlined, 'Роль: ${_ownerProfile!.role} · Статус: ${_ownerProfile!.accountStatus}'),
                   ],
                 ),
-              ),
-              Text(r.ownerId.substring(0, 8), style: const TextStyle(color: AurixTokens.muted, fontSize: 10, fontFamily: 'monospace')),
-            ],
-          ),
         ),
 
         const SizedBox(height: 20),
@@ -636,6 +664,9 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
         const SizedBox(height: 8),
         _infoRow('Тип', _releaseTypeLabel(r.releaseType)),
         _infoRow('Дата релиза', r.releaseDate != null ? DateFormat('dd.MM.yyyy').format(r.releaseDate!) : '—'),
+        _infoRow('UPC / EAN', r.upc ?? '—'),
+        _infoRow('Лейбл', r.label ?? '—'),
+        _infoRow('Explicit', r.explicit ? 'Да' : 'Нет'),
         _infoRow('Создан', DateFormat('dd.MM.yyyy HH:mm').format(r.createdAt)),
         _infoRow('Обновлён', DateFormat('dd.MM.yyyy HH:mm').format(r.updatedAt)),
 
@@ -737,6 +768,17 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
       ],
     );
   }
+
+  Widget _ownerRow(IconData icon, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      children: [
+        Icon(icon, size: 14, color: AurixTokens.muted),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: const TextStyle(color: AurixTokens.text, fontSize: 12))),
+      ],
+    ),
+  );
 
   Widget _section(String text) => Text(
     text,
@@ -868,9 +910,12 @@ class _TrackRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '$ext · ${track.version}${track.explicit ? ' · Explicit' : ''}',
+                  '$ext · ${track.version}${track.explicit ? ' · Explicit' : ''}'
+                  '${track.isrc != null && track.isrc!.isNotEmpty ? ' · ISRC: ${track.isrc}' : ''}',
                   style: const TextStyle(color: AurixTokens.muted, fontSize: 11),
                 ),
+                if (track.isrc == null || track.isrc!.isEmpty)
+                  Text('⚠ ISRC не указан', style: TextStyle(color: Colors.orange[300], fontSize: 10)),
               ],
             ),
           ),

@@ -9,6 +9,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart' show currentProfileProvider, currentUserProvider, authRepositoryProvider;
+import 'package:aurix_flutter/features/profile/presentation/profile_gate.dart' show profileNeedsFillProvider;
 
 /// Full profile form with AURIX theme. Optional [isMandatory] blocks back navigation.
 /// [onBack] for DesignShell (no GoRouter); when null, uses context.pop().
@@ -112,10 +113,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
       await repo.upsertMyProfile(profile);
       ref.invalidate(currentProfileProvider);
+      ref.invalidate(profileNeedsFillProvider);
       if (mounted) {
         _showSnack('Сохранено');
         setState(() => _loading = false);
-        if (widget.isMandatory) context.go('/home');
+        if (widget.isMandatory) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          if (mounted) context.go('/home');
+        }
       }
     } catch (e) {
       final msg = formatSupabaseError(e);
@@ -183,8 +188,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             onPressed: () {
                               if (widget.onBack != null) {
                                 widget.onBack!();
-                              } else {
+                              } else if (context.canPop()) {
                                 context.pop();
+                              } else {
+                                context.go('/home');
                               }
                             },
                           ),

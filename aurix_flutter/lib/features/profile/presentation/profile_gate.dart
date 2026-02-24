@@ -27,7 +27,7 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
     final isAuthRoute = widget.location == '/login' || widget.location == '/register';
     if (isProfileRoute || isAuthRoute) return widget.child;
 
-    final needsFill = ref.watch(_profileNeedsFillProvider);
+    final needsFill = ref.watch(profileNeedsFillProvider);
     return needsFill.when(
       data: (needs) {
         if (needs == true && !_redirected) {
@@ -44,12 +44,22 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
   }
 }
 
-final _profileNeedsFillProvider = FutureProvider<bool>((ref) async {
+final profileNeedsFillProvider = FutureProvider<bool>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return false;
-  final repo = ref.read(profileRepositoryProvider);
-  final profile = await repo.ensureProfile();
-  if (profile == null) return true;
-  final name = profile.name?.trim();
-  return name == null || name.isEmpty;
+  final profileAsync = ref.watch(currentProfileProvider);
+  final profile = profileAsync.valueOrNull;
+  if (profile == null) {
+    final repo = ref.read(profileRepositoryProvider);
+    final fetched = await repo.ensureProfile();
+    if (fetched == null) return true;
+    final hasName = (fetched.artistName?.trim().isNotEmpty ?? false) ||
+        (fetched.name?.trim().isNotEmpty ?? false) ||
+        (fetched.displayName?.trim().isNotEmpty ?? false);
+    return !hasName;
+  }
+  final hasName = (profile.artistName?.trim().isNotEmpty ?? false) ||
+      (profile.name?.trim().isNotEmpty ?? false) ||
+      (profile.displayName?.trim().isNotEmpty ?? false);
+  return !hasName;
 });

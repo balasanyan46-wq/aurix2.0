@@ -141,6 +141,39 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
     }
   }
 
+  Future<void> _editIsrc(TrackModel track) async {
+    final controller = TextEditingController(text: track.isrc ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ISRC код'),
+        content: TextField(
+          controller: controller,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(
+            labelText: 'ISRC',
+            hintText: 'QZDA72198362',
+            helperText: 'Нужен для привязки финансовых отчётов',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null) return;
+    try {
+      await ref.read(trackRepositoryProvider).updateTrackIsrc(track.id, result.trim().isEmpty ? null : result.trim());
+      ref.invalidate(releaseTracksProvider(widget.releaseId));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ISRC сохранён')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+    }
+  }
+
   Future<void> _deleteTrack(TrackModel track) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -262,6 +295,9 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
                                   if (r.releaseDate != null) _infoChip('Дата', DateFormat('dd.MM.yyyy').format(r.releaseDate!)),
                                   if (r.genre != null) _infoChip('Жанр', r.genre!),
                                   if (r.language != null) _infoChip('Язык', r.language!),
+                                  if (r.upc != null) _infoChip('UPC', r.upc!),
+                                  if (r.label != null) _infoChip('Лейбл', r.label!),
+                                  if (r.explicit) _infoChip('', 'Explicit'),
                                 ],
                               ),
                             ),
@@ -356,13 +392,32 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
                                 child: ListTile(
                                   leading: const Icon(Icons.audiotrack),
                                   title: Text(t.title ?? t.audioPath.split('/').last),
-                                  subtitle: Text(t.audioPath.split('/').last),
-                                  trailing: canEdit
-                                      ? IconButton(
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(t.audioPath.split('/').last),
+                                      if (t.isrc != null && t.isrc!.isNotEmpty)
+                                        Text('ISRC: ${t.isrc}', style: TextStyle(color: cs.primary, fontSize: 12, fontWeight: FontWeight.w500))
+                                      else if (canEdit)
+                                        Text('ISRC не указан', style: TextStyle(color: cs.error.withValues(alpha: 0.7), fontSize: 12)),
+                                    ],
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (canEdit)
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_note, size: 20),
+                                          tooltip: 'Редактировать ISRC',
+                                          onPressed: () => _editIsrc(t),
+                                        ),
+                                      if (canEdit)
+                                        IconButton(
                                           icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
                                           onPressed: () => _deleteTrack(t),
-                                        )
-                                      : null,
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               )).toList(),
                             );

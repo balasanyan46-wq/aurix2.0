@@ -34,6 +34,9 @@ class ReleaseRepository {
     String? genre,
     String? language,
     bool explicit = false,
+    String? upc,
+    String? label,
+    int? copyrightYear,
     String? coverUrl,
     String? coverPath,
   }) async {
@@ -48,6 +51,9 @@ class ReleaseRepository {
     if (releaseDate != null) payload['release_date'] = releaseDate.toIso8601String().split('T').first;
     if (genre != null) payload['genre'] = genre;
     if (language != null) payload['language'] = language;
+    if (upc != null && upc.isNotEmpty) payload['upc'] = upc;
+    if (label != null && label.isNotEmpty) payload['label'] = label;
+    if (copyrightYear != null) payload['copyright_year'] = copyrightYear;
     if (coverUrl != null) payload['cover_url'] = coverUrl;
     if (coverPath != null) payload['cover_path'] = coverPath;
 
@@ -69,6 +75,10 @@ class ReleaseRepository {
     DateTime? releaseDate,
     String? genre,
     String? language,
+    bool? explicit,
+    String? upc,
+    String? label,
+    int? copyrightYear,
     String? status,
     String? coverUrl,
     String? coverPath,
@@ -80,6 +90,10 @@ class ReleaseRepository {
     if (releaseDate != null) updates['release_date'] = releaseDate.toIso8601String().split('T').first;
     if (genre != null) updates['genre'] = genre;
     if (language != null) updates['language'] = language;
+    if (explicit != null) updates['explicit'] = explicit;
+    if (upc != null) updates['upc'] = upc;
+    if (label != null) updates['label'] = label;
+    if (copyrightYear != null) updates['copyright_year'] = copyrightYear;
     if (status != null) updates['status'] = status;
     if (coverUrl != null) updates['cover_url'] = coverUrl;
     if (coverPath != null) updates['cover_path'] = coverPath;
