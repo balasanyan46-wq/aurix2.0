@@ -37,6 +37,8 @@ class ProfileRepository {
     final now = DateTime.now().toIso8601String();
     final data = <String, dynamic>{
       _pkCol: user.id,
+      'artist_name': profile.artistName,
+      'display_name': profile.displayName,
       'name': profile.name,
       'city': profile.city,
       'phone': profile.phone,

@@ -28,7 +28,7 @@ class ReleaseRepository {
   Future<ReleaseModel> createRelease({
     required String ownerId,
     required String title,
-    String? artist,
+    required String artist,
     required String releaseType,
     DateTime? releaseDate,
     String? genre,
@@ -40,11 +40,11 @@ class ReleaseRepository {
     final payload = <String, dynamic>{
       'owner_id': ownerId,
       'title': title,
+      'artist': artist.isEmpty ? 'Unknown Artist' : artist,
       'release_type': releaseType,
       'status': 'draft',
       'explicit': explicit,
     };
-    if (artist != null) payload['artist'] = artist;
     if (releaseDate != null) payload['release_date'] = releaseDate.toIso8601String().split('T').first;
     if (genre != null) payload['genre'] = genre;
     if (language != null) payload['language'] = language;

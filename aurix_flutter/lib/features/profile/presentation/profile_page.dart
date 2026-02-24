@@ -26,6 +26,8 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
+  final _artistNameController = TextEditingController();
+  final _displayNameController = TextEditingController();
   final _nameController = TextEditingController();
   final _cityController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -44,6 +46,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   @override
   void dispose() {
+    _artistNameController.dispose();
+    _displayNameController.dispose();
     _nameController.dispose();
     _cityController.dispose();
     _phoneController.dispose();
@@ -55,7 +59,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void _fillFromProfile(ProfileModel? profile) {
     if (profile == null || _initialFillDone) return;
     _initialFillDone = true;
-    _nameController.text = profile.name ?? profile.displayName ?? profile.artistName ?? '';
+    _artistNameController.text = profile.artistName ?? '';
+    _displayNameController.text = profile.displayName ?? '';
+    _nameController.text = profile.name ?? '';
     _cityController.text = profile.city ?? '';
     _phoneController.text = profile.phone ?? '';
     _bioController.text = profile.bio ?? '';
@@ -95,6 +101,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 email: user.email ?? '',
               ))
           .copyWith(
+        artistName: _artistNameController.text.trim().isEmpty ? null : _artistNameController.text.trim(),
+        displayName: _displayNameController.text.trim().isEmpty ? null : _displayNameController.text.trim(),
         name: _nameController.text.trim().isEmpty ? null : _nameController.text.trim(),
         city: _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
         phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
@@ -201,11 +209,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                     const SizedBox(height: 20),
                     _buildField(
-                      controller: _nameController,
-                      label: 'Имя / псевдоним',
-                      hint: 'Обязательно',
+                      controller: _artistNameController,
+                      label: 'Имя артиста / псевдоним',
+                      hint: 'Как вас будут видеть слушатели',
                       validator: _validateName,
                       autofocus: true,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildField(
+                      controller: _displayNameController,
+                      label: 'Отображаемое имя',
+                      hint: 'Имя в интерфейсе',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildField(
+                      controller: _nameController,
+                      label: 'Настоящее имя',
+                      hint: '',
                     ),
                     const SizedBox(height: 16),
                     _buildField(

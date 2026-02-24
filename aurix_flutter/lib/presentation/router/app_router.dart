@@ -5,7 +5,6 @@ import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/presentation/screens/auth/login_screen.dart';
 import 'package:aurix_flutter/presentation/screens/auth/register_screen.dart';
 import 'package:aurix_flutter/features/app_shell/app_shell_scaffold.dart';
-import 'package:aurix_flutter/features/profile/profile_screen.dart';
 import 'package:aurix_flutter/features/profile/presentation/profile_page.dart';
 import 'package:aurix_flutter/features/profile/presentation/profile_gate.dart';
 import 'package:aurix_flutter/presentation/screens/releases/releases_list_screen.dart';
@@ -131,7 +130,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/settings',
-            pageBuilder: (context, state) => const NoTransitionPage(child: ProfileScreen()),
+            pageBuilder: (context, state) => const NoTransitionPage(child: SettingsScreen()),
           ),
           GoRoute(
             path: '/index',
