@@ -8,6 +8,14 @@ import 'package:printing/printing.dart';
 
 /// Генерация PDF и share/download через Printing.
 class LegalPdfService {
+  static pw.Font? _regularFont;
+  static pw.Font? _boldFont;
+
+  static Future<void> _ensureFonts() async {
+    _regularFont ??= await PdfGoogleFonts.notoSansRegular();
+    _boldFont ??= await PdfGoogleFonts.notoSansBold();
+  }
+
   static String _fileName(String title) {
     final safe = title.replaceAll(RegExp(r'[^\w\s\-а-яА-ЯёЁ]'), '').replaceAll(RegExp(r'\s+'), '_');
     final truncated = safe.length > 60 ? safe.substring(0, 60) : safe;
@@ -20,7 +28,10 @@ class LegalPdfService {
     required String title,
     required String body,
   }) async {
-    final pdf = pw.Document();
+    await _ensureFonts();
+
+    final baseStyle = pw.TextStyle(font: _regularFont, fontBold: _boldFont);
+    final pdf = pw.Document(theme: pw.ThemeData.withFont(base: _regularFont!, bold: _boldFont!));
     final dateStr = DateFormat('dd.MM.yyyy').format(DateTime.now());
     final lines = body.split('\n');
     final chunks = <String>[];
@@ -43,25 +54,25 @@ class LegalPdfService {
         header: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Text(title, style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-            pw.Text('Дата генерации: $dateStr', style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+            pw.Text(title, style: baseStyle.copyWith(fontSize: 10, color: PdfColors.grey700)),
+            pw.Text('Дата генерации: $dateStr', style: baseStyle.copyWith(fontSize: 9, color: PdfColors.grey600)),
           ],
         ),
         footer: (context) => pw.Container(
           alignment: pw.Alignment.centerRight,
           child: pw.Text(
             'Стр. ${context.pageNumber} из ${context.pagesCount}',
-            style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
+            style: baseStyle.copyWith(fontSize: 9, color: PdfColors.grey600),
           ),
         ),
         build: (context) => [
-          pw.Header(level: 0, child: pw.Text(title, style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold))),
+          pw.Header(level: 0, child: pw.Text(title, style: baseStyle.copyWith(fontSize: 16, fontWeight: pw.FontWeight.bold))),
           pw.SizedBox(height: 8),
-          pw.Text('Дата: $dateStr', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+          pw.Text('Дата: $dateStr', style: baseStyle.copyWith(fontSize: 10, color: PdfColors.grey700)),
           pw.SizedBox(height: 16),
           ...chunks.map((c) => pw.Padding(
                 padding: const pw.EdgeInsets.only(bottom: 8),
-                child: pw.Text(c, style: pw.TextStyle(fontSize: 11)),
+                child: pw.Text(c, style: baseStyle.copyWith(fontSize: 11)),
               )),
         ],
       ),

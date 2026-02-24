@@ -2,7 +2,7 @@
 create table if not exists public.support_messages (
   id uuid primary key default gen_random_uuid(),
   ticket_id uuid references public.support_tickets(id) on delete cascade not null,
-  sender_id uuid references public.profiles(user_id) on delete cascade not null,
+  sender_id uuid references public.profiles(id) on delete cascade not null,
   sender_role text not null default 'user' check (sender_role in ('user', 'admin')),
   body text not null,
   created_at timestamptz default now()
@@ -22,7 +22,7 @@ create policy "Users read own ticket messages"
       where t.id = ticket_id and t.user_id = auth.uid()
     )
     or exists (
-      select 1 from public.profiles p where p.user_id = auth.uid() and p.role = 'admin'
+      select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'
     )
   );
 
@@ -36,7 +36,7 @@ create policy "Users insert own ticket messages"
         select 1 from public.support_tickets t where t.id = ticket_id and t.user_id = auth.uid()
       )
       or sender_role = 'admin' and exists (
-        select 1 from public.profiles p where p.user_id = auth.uid() and p.role = 'admin'
+        select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'
       )
     )
   );

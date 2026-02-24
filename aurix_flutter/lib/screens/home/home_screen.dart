@@ -60,6 +60,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onViewReleases: widget.onViewReleases ?? () => appState.navigateTo(AppScreen.releases),
             onCreateRelease: widget.onCreateRelease ?? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReleaseCreateFlowScreen())),
           ),
+          const SizedBox(height: 24),
+          const HomeTrustBanner(),
         ],
       ),
     );

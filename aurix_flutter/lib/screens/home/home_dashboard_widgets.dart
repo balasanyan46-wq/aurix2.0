@@ -422,6 +422,133 @@ class _LeaderRow extends StatelessWidget {
   }
 }
 
+/// V2 Trust Banner — блок доверия и безопасности.
+class HomeTrustBanner extends StatelessWidget {
+  const HomeTrustBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AurixTokens.bg1,
+        border: Border.all(color: AurixTokens.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.verified_user_outlined, color: AurixTokens.positive, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                'БЕЗОПАСНОСТЬ И ДОВЕРИЕ',
+                style: TextStyle(
+                  color: AurixTokens.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(child: _TrustItem(
+                icon: Icons.lock_outline,
+                title: 'Ваши релизы защищены',
+                desc: 'Все файлы хранятся в зашифрованном облаке с резервным копированием',
+              )),
+              const SizedBox(width: 16),
+              Expanded(child: _TrustItem(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Заработки в безопасности',
+                desc: 'Прозрачная система отчётности и выплат без скрытых комиссий',
+              )),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _TrustItem(
+                icon: Icons.copyright_outlined,
+                title: 'Интеллектуальная собственность',
+                desc: '100% прав остаётся у вас. Мы не претендуем на авторские права',
+              )),
+              const SizedBox(width: 16),
+              Expanded(child: _TrustItem(
+                icon: Icons.gavel_outlined,
+                title: 'Юридическая защита',
+                desc: 'Готовые договоры и шаблоны для защиты ваших интересов',
+              )),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AurixTokens.positive.withValues(alpha: 0.06),
+              border: Border.all(color: AurixTokens.positive.withValues(alpha: 0.2)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.shield_outlined, color: AurixTokens.positive, size: 24),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'AURIX — лицензированный дистрибьютор. Ваша музыка, ваши деньги, ваши права. Мы только помогаем вам расти.',
+                    style: TextStyle(color: AurixTokens.text, fontSize: 13, height: 1.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrustItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String desc;
+
+  const _TrustItem({required this.icon, required this.title, required this.desc});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AurixTokens.accent.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: AurixTokens.accent, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(desc, style: TextStyle(color: AurixTokens.muted, fontSize: 12, height: 1.4)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// V2 Active Release — минималистичный статус.
 class HomeActiveRelease extends ConsumerWidget {
   final VoidCallback onViewReleases;
