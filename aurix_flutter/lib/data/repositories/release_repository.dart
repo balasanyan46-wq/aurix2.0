@@ -108,4 +108,56 @@ class ReleaseRepository {
       'note': note,
     });
   }
+
+  /// Полное удаление релиза: Storage (обложка + треки) → tracks → admin_notes → releases
+  Future<void> deleteReleaseFully(String releaseId) async {
+    logSupabaseRequest(table: 'releases', operation: 'delete_full', payload: {'id': releaseId});
+
+    final release = await getRelease(releaseId);
+    if (release == null) return;
+
+    // 1. Получить все треки
+    final tracksRes = await supabase.from('tracks').select().eq('release_id', releaseId);
+    final tracks = (tracksRes as List).cast<Map<String, dynamic>>();
+
+    // 2. Удалить аудиофайлы из Storage
+    final trackPaths = tracks
+        .map((t) => t['audio_path'] as String?)
+        .where((p) => p != null && p.isNotEmpty)
+        .cast<String>()
+        .toList();
+    if (trackPaths.isNotEmpty) {
+      try {
+        await supabase.storage.from('tracks').remove(trackPaths);
+      } catch (e) {
+        debugPrint('[ReleaseRepository] delete track files error: $e');
+      }
+    }
+
+    // 3. Удалить обложку из Storage
+    if (release.coverPath != null && release.coverPath!.isNotEmpty) {
+      try {
+        await supabase.storage.from('covers').remove([release.coverPath!]);
+      } catch (e) {
+        debugPrint('[ReleaseRepository] delete cover error: $e');
+      }
+    }
+
+    // 4. Удалить записи треков из БД
+    try {
+      await supabase.from('tracks').delete().eq('release_id', releaseId);
+    } catch (e) {
+      debugPrint('[ReleaseRepository] delete tracks rows error: $e');
+    }
+
+    // 5. Удалить заметки админа
+    try {
+      await supabase.from('admin_notes').delete().eq('release_id', releaseId);
+    } catch (e) {
+      debugPrint('[ReleaseRepository] delete admin_notes error: $e');
+    }
+
+    // 6. Удалить сам релиз
+    await supabase.from('releases').delete().eq('id', releaseId);
+  }
 }

@@ -21,6 +21,7 @@ class CreateReleaseScreen extends ConsumerStatefulWidget {
 class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _artistController = TextEditingController();
   String _releaseType = 'single';
   DateTime? _releaseDate;
   final _genreController = TextEditingController();
@@ -34,6 +35,7 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _artistController.dispose();
     _genreController.dispose();
     _languageController.dispose();
     super.dispose();
@@ -102,6 +104,7 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
       final release = await repo.createRelease(
         ownerId: userId,
         title: _titleController.text.trim(),
+        artist: _artistController.text.trim(),
         releaseType: _releaseType,
         releaseDate: _releaseDate,
         genre: _genreController.text.trim().isEmpty ? null : _genreController.text.trim(),
@@ -170,6 +173,12 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
                     controller: _titleController,
                     decoration: const InputDecoration(labelText: 'Название релиза *'),
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите название' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _artistController,
+                    decoration: const InputDecoration(labelText: 'Артист *'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите имя артиста' : null,
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(

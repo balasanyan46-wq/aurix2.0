@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/core/app_state.dart';
+import 'package:aurix_flutter/core/enums.dart';
 import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_backdrop.dart';
@@ -11,6 +12,7 @@ import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/core/admin_config.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/ai/ai_assistant_overlay.dart';
 
 /// Shell: sidebar (desktop) / Drawer (mobile) + topbar + content.
 class AppShellScaffold extends ConsumerStatefulWidget {
@@ -57,24 +59,41 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
           ),
         ),
         body: SafeArea(
-          child: Row(
+          child: Stack(
             children: [
-              if (isDesktop)
-                _Sidebar(
-                  currentLocation: widget.currentLocation,
-                  isAdmin: isAdmin,
-                ),
-              Expanded(
-                child: Column(
-                  children: [
-                    _TopBar(
+              Row(
+                children: [
+                  if (isDesktop)
+                    _Sidebar(
                       currentLocation: widget.currentLocation,
-                      onMenuTap: isDesktop ? null : () => _scaffoldKey.currentState?.openDrawer(),
+                      isAdmin: isAdmin,
                     ),
-                    Expanded(
-                      child: widget.child,
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _TopBar(
+                          currentLocation: widget.currentLocation,
+                          onMenuTap: isDesktop ? null : () => _scaffoldKey.currentState?.openDrawer(),
+                        ),
+                        Expanded(
+                          child: widget.child,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              Positioned(
+                right: 16,
+                bottom: 16,
+                width: isDesktop ? 420 : (MediaQuery.sizeOf(context).width * 0.9).clamp(280.0, 420.0),
+                height: isDesktop ? 560 : 400,
+                child: AiAssistantOverlay(
+                  page: widget.currentLocation.startsWith('/releases/create') ? 'release_form' : 'cabinet',
+                  onNavigate: (screen, [releaseId]) {
+                    final path = _screenToPath(screen, releaseId);
+                    if (context.mounted) context.go(path);
+                  },
                 ),
               ),
             ],
@@ -84,6 +103,26 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
     );
   }
 }
+
+String _screenToPath(AppScreen screen, [String? releaseId]) => switch (screen) {
+      AppScreen.home => '/home',
+      AppScreen.releases => '/releases',
+      AppScreen.uploadRelease => '/releases/create',
+      AppScreen.releaseDetails => '/releases/${releaseId ?? ''}',
+      AppScreen.analytics => '/stats',
+      AppScreen.promotion => '/promo',
+      AppScreen.studioAi => '/ai',
+      AppScreen.services => '/services',
+      AppScreen.finances => '/finance',
+      AppScreen.team => '/team',
+      AppScreen.subscription => '/subscription',
+      AppScreen.support => '/support',
+      AppScreen.settings => '/settings',
+      AppScreen.profile => '/profile',
+      AppScreen.aurixIndex => '/index',
+      AppScreen.admin => '/admin',
+      AppScreen.legal => '/legal',
+    };
 
 class _NavGroup {
   final String? titleKey;
@@ -95,7 +134,7 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
   _NavGroup(titleKey: null, items: [
     _NavItem(path: '/home', icon: Icons.home_rounded, labelKey: 'home'),
     _NavItem(path: '/releases', icon: Icons.album_rounded, labelKey: 'releases'),
-    _NavItem(path: '/index', icon: Icons.leaderboard_rounded, label: 'Aurix Index'),
+    _NavItem(path: '/index', icon: Icons.leaderboard_rounded, label: 'Aurix Рейтинг'),
   ]),
   _NavGroup(titleKey: 'navGroupManagement', items: [
     _NavItem(path: '/team', icon: Icons.groups_rounded, labelKey: 'team'),
@@ -104,7 +143,6 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     if (isAdmin) _NavItem(path: '/admin', icon: Icons.admin_panel_settings_rounded, labelKey: 'admin'),
   ]),
   _NavGroup(titleKey: 'navGroupTools', items: [
-    _NavItem(path: '/upload', icon: Icons.upload_rounded, labelKey: 'uploadRelease'),
     _NavItem(path: '/stats', icon: Icons.analytics_rounded, labelKey: 'statistics'),
     _NavItem(path: '/promo', icon: Icons.rocket_launch_rounded, labelKey: 'promo'),
     _NavItem(path: '/ai', icon: Icons.auto_awesome, labelKey: 'studioAi'),
@@ -114,7 +152,6 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     _NavItem(path: '/legal', icon: Icons.description_outlined, label: 'Юридические документы'),
     _NavItem(path: '/support', icon: Icons.support_agent_rounded, labelKey: 'support'),
     _NavItem(path: '/profile', icon: Icons.person_rounded, labelKey: 'profile'),
-    _NavItem(path: '/settings', icon: Icons.settings_rounded, labelKey: 'settings'),
   ]),
 ];
 
@@ -388,7 +425,7 @@ class _TopBar extends ConsumerWidget {
     if (loc == '/upload' || loc == '/releases/create') return L10n.t(context, 'uploadRelease');
     if (loc == '/stats') return L10n.t(context, 'statistics');
     if (loc == '/promo') return L10n.t(context, 'promo');
-    if (loc.startsWith('/index')) return 'Aurix Index';
+    if (loc.startsWith('/index')) return 'Aurix Рейтинг';
     if (loc == '/ai') return L10n.t(context, 'studioAi');
     if (loc == '/finance') return L10n.t(context, 'finances');
     if (loc == '/team') return L10n.t(context, 'team');

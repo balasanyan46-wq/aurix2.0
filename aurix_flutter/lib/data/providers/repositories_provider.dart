@@ -7,6 +7,7 @@ import 'package:aurix_flutter/data/repositories/track_repository.dart';
 import 'package:aurix_flutter/data/repositories/report_repository.dart';
 import 'package:aurix_flutter/data/repositories/admin_log_repository.dart';
 import 'package:aurix_flutter/data/repositories/support_ticket_repository.dart';
+import 'package:aurix_flutter/data/repositories/team_repository.dart';
 import 'package:aurix_flutter/features/legal/data/legal_repository.dart';
 import 'package:aurix_flutter/features/index/data/repositories/index_repository.dart';
 import 'package:aurix_flutter/features/index/data/repositories/mock_index_repository.dart';
@@ -16,8 +17,14 @@ import 'package:aurix_flutter/features/index_engine/data/repositories/mock_index
 import 'package:aurix_flutter/features/index_engine/index_engine_service.dart';
 import 'package:aurix_flutter/data/services/auth_service.dart';
 import 'package:aurix_flutter/data/services/release_export_service.dart';
+import 'package:aurix_flutter/data/services/growth_plan_service.dart';
+import 'package:aurix_flutter/data/services/budget_plan_service.dart';
+import 'package:aurix_flutter/data/services/tool_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+final growthPlanServiceProvider = Provider<GrowthPlanService>((ref) => GrowthPlanService());
+final budgetPlanServiceProvider = Provider<BudgetPlanService>((ref) => BudgetPlanService());
+final toolServiceProvider = Provider<ToolService>((ref) => ToolService());
 
 final releaseExportServiceProvider = Provider<ReleaseExportService>((ref) =>
     ReleaseExportService(
@@ -32,6 +39,7 @@ final trackRepositoryProvider = Provider<TrackRepository>((ref) => TrackReposito
 final reportRepositoryProvider = Provider<ReportRepository>((ref) => ReportRepository());
 final adminLogRepositoryProvider = Provider<AdminLogRepository>((ref) => AdminLogRepository());
 final supportTicketRepositoryProvider = Provider<SupportTicketRepository>((ref) => SupportTicketRepository());
+final teamRepositoryProvider = Provider<TeamRepository>((ref) => TeamRepository());
 final legalRepositoryProvider = Provider<LegalRepository>((ref) => LegalRepository());
 
 final indexEngineRepositoryProvider = Provider<engine.MockIndexEngineRepository>((ref) =>

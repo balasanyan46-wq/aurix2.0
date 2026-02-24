@@ -3,4 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
 [vars]
-# No public vars — OPENAI_API_KEY is a Secret
+# OPENAI_API_KEY → set via `wrangler secret put OPENAI_API_KEY`
+# AURIX_INTERNAL_KEY → set via `wrangler secret put AURIX_INTERNAL_KEY`
+
+[[kv_namespaces]]
+binding = "AURIX_CACHE"
+id = "0f1a0c885e844f22aacf65422ee1f470"

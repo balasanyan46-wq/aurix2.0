@@ -7,6 +7,7 @@ import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
+import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 
 /// Release Workspace — табы: Overview, Tracks, Metadata, Splits, Launch Plan, Review.
 class ReleaseWorkspaceScreen extends ConsumerWidget {
@@ -232,14 +233,14 @@ class _LaunchPlanTab extends StatelessWidget {
   }
 }
 
-class _ReviewTab extends StatelessWidget {
+class _ReviewTab extends ConsumerWidget {
   final ReleaseModel release;
   final bool canSubmit;
 
   const _ReviewTab({required this.release, required this.canSubmit});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: AurixGlassCard(
@@ -249,16 +250,61 @@ class _ReviewTab extends StatelessWidget {
           children: [
             Text('Проверка', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 20),
-            Text('Проверьте данные перед отправкой.', style: TextStyle(color: AurixTokens.muted)),
+            Text(
+              release.isSubmitted
+                  ? 'Релиз уже отправлен на модерацию.'
+                  : 'Проверьте данные перед отправкой.',
+              style: TextStyle(color: AurixTokens.muted),
+            ),
             const SizedBox(height: 24),
             AurixButton(
-              text: 'Отправить на модерацию',
-              icon: Icons.send_rounded,
-              onPressed: canSubmit ? () {} : null,
+              text: release.isSubmitted ? 'Отправлено' : 'Отправить на модерацию',
+              icon: release.isSubmitted ? Icons.check_rounded : Icons.send_rounded,
+              onPressed: canSubmit && !release.isSubmitted
+                  ? () => _submit(context, ref)
+                  : null,
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _submit(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: Text('Отправить на модерацию?', style: TextStyle(color: AurixTokens.text)),
+        content: Text(
+          '«${release.title}» будет отправлен на проверку. После отправки редактирование будет недоступно.',
+          style: TextStyle(color: AurixTokens.muted),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Отмена', style: TextStyle(color: AurixTokens.muted))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange),
+            child: const Text('Отправить'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await ref.read(releaseRepositoryProvider).submitRelease(release.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Релиз отправлен на модерацию')),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка: $e')),
+        );
+      }
+    }
   }
 }

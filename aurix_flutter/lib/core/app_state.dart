@@ -13,7 +13,7 @@ class AppState extends ChangeNotifier {
   String _searchQuery = '';
   UserRole _currentUserRole = UserRole.artist;
   bool _isSubscribed = true;
-  SubscriptionPlan _subscriptionPlan = SubscriptionPlan.pro;
+  SubscriptionPlan _subscriptionPlan = SubscriptionPlan.breakthrough;
   AppLocale _locale = AppLocale.ru;
 
   AppScreen get currentScreen => _currentScreen;
@@ -49,7 +49,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
   bool get canSubmitRelease =>
-      _isSubscribed && (_subscriptionPlan == SubscriptionPlan.studio || _subscriptionPlan == SubscriptionPlan.pro || (_subscriptionPlan == SubscriptionPlan.basic && _activeReleasesThisMonth < 1));
+      _isSubscribed && (_subscriptionPlan == SubscriptionPlan.empire || _subscriptionPlan == SubscriptionPlan.breakthrough || (_subscriptionPlan == SubscriptionPlan.start && _activeReleasesThisMonth < 1));
   int _activeReleasesThisMonth = 0; // mock: 0 for pro = unlimited, 1 for basic limit
 
   int get activeReleasesThisMonth => _activeReleasesThisMonth;
@@ -65,7 +65,7 @@ class AppState extends ChangeNotifier {
     if (_isSubscribed != subscribed || _subscriptionPlan != plan) {
       _isSubscribed = subscribed;
       _subscriptionPlan = plan;
-      _activeReleasesThisMonth = plan == SubscriptionPlan.basic ? 1 : 0;
+      _activeReleasesThisMonth = plan == SubscriptionPlan.start ? 1 : 0;
       notifyListeners();
     }
   }

@@ -11,7 +11,7 @@ class TrackRepository {
         .from('tracks')
         .select()
         .eq('release_id', releaseId)
-        .order('track_number', ascending: true);
+        .order('created_at', ascending: true);
     return (res as List).map((e) => TrackModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
@@ -25,17 +25,16 @@ class TrackRepository {
     String version = 'original',
     bool explicit = false,
   }) async {
+    final userId = supabase.auth.currentUser?.id;
     final data = <String, dynamic>{
       'release_id': releaseId,
-      'path': audioPath,
-      'file_url': audioUrl,
       'audio_path': audioPath,
       'audio_url': audioUrl,
-      'title': title,
-      'track_number': trackNumber,
-      'version': version,
-      'explicit': explicit,
+      if (userId != null) 'user_id': userId,
     };
+    if (title != null) data['title'] = title;
+    if (version != 'original') data['version'] = version;
+    if (explicit) data['explicit'] = explicit;
     if (id != null) data['id'] = id;
     logSupabaseRequest(table: 'tracks', operation: 'insert', payload: data, userId: supabase.auth.currentUser?.id);
     try {

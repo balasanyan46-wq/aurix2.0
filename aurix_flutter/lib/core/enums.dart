@@ -33,8 +33,38 @@ ArtistLevel artistLevelFromScore(int score, int rankOverall) {
   return ArtistLevel.rising;
 }
 
-/// Subscription plan (mock)
-enum SubscriptionPlan { basic, pro, studio }
+/// Subscription plan slugs stored in DB: start / breakthrough / empire
+enum SubscriptionPlan {
+  start,
+  breakthrough,
+  empire;
+
+  /// DB slug = enum name
+  String get slug => name;
+
+  /// Russian display label
+  String get label {
+    switch (this) {
+      case SubscriptionPlan.start: return 'Старт';
+      case SubscriptionPlan.breakthrough: return 'Прорыв';
+      case SubscriptionPlan.empire: return 'Империя';
+    }
+  }
+
+  /// Resolve from DB string. Falls back to [start] for unknown/legacy values.
+  static SubscriptionPlan fromSlug(String? raw) {
+    switch (raw) {
+      case 'start': return SubscriptionPlan.start;
+      case 'breakthrough': return SubscriptionPlan.breakthrough;
+      case 'empire': return SubscriptionPlan.empire;
+      // legacy migration fallbacks
+      case 'base': case 'basic': case 'BASE': return SubscriptionPlan.start;
+      case 'pro': case 'PRO': return SubscriptionPlan.breakthrough;
+      case 'studio': case 'STUDIO': return SubscriptionPlan.empire;
+      default: return SubscriptionPlan.start;
+    }
+  }
+}
 
 /// Release status flow: Draft → In Review → Approved → Scheduled → Live
 enum ReleaseStatus {

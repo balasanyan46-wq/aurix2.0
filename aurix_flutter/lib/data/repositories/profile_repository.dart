@@ -1,8 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:aurix_flutter/data/supabase_client.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
 
 class ProfileRepository {
-  /// PK column: 'user_id' per schema. Use 'id' if your table uses id.
   static const String _pkCol = 'user_id';
   /// Профиль текущего пользователя. Требует auth.
   Future<ProfileModel?> getMyProfile() async {
@@ -55,20 +55,39 @@ class ProfileRepository {
     return ProfileModel.fromJson(res as Map<String, dynamic>);
   }
 
-  /// Minimal upsert for auth (signup/signin). Inserts user_id, created_at, updated_at.
-  Future<void> upsertProfile({
+  /// Upsert for auth signup only. Creates profile with initial plan.
+  Future<void> createProfile({
     required String id,
     required String email,
     String? displayName,
+    String? name,
     String? phone,
-    String plan = 'base',
+    String plan = 'start',
   }) async {
     final now = DateTime.now().toIso8601String();
-    await supabase.from('profiles').upsert({
+    final data = <String, dynamic>{
       _pkCol: id,
-      'created_at': now,
+      'email': email,
+      'plan': plan,
       'updated_at': now,
-    }, onConflict: _pkCol);
+      'created_at': now,
+    };
+    if (displayName != null) data['display_name'] = displayName;
+    if (name != null) data['name'] = name;
+    if (phone != null && phone.isNotEmpty) data['phone'] = phone;
+    await supabase.from('profiles').upsert(data, onConflict: _pkCol);
+  }
+
+  /// Update email on signin without overwriting plan, role, or other fields.
+  Future<void> touchProfile(String id, String email) async {
+    final existing = await getProfile(id);
+    if (existing != null) {
+      final updates = <String, dynamic>{'updated_at': DateTime.now().toIso8601String()};
+      if (email.isNotEmpty) updates['email'] = email;
+      await supabase.from('profiles').update(updates).eq(_pkCol, id);
+    } else {
+      await createProfile(id: id, email: email);
+    }
   }
 
   Future<void> updateProfile(
@@ -105,7 +124,9 @@ class ProfileRepository {
 
   Future<List<ProfileModel>> getAllProfiles() async {
     final res = await supabase.from('profiles').select().order('created_at', ascending: false);
-    return (res as List).map((e) => ProfileModel.fromJson(e as Map<String, dynamic>)).toList();
+    final list = (res as List).map((e) => ProfileModel.fromJson(e as Map<String, dynamic>)).toList();
+    debugPrint('[ProfileRepository] getAllProfiles: ${list.length} profiles loaded');
+    return list;
   }
 
   Future<void> updateRole(String userId, String role) async {

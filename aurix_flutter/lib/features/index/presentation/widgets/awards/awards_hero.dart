@@ -71,7 +71,7 @@ class AwardsHero extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Главная премия независимой сцены. Номинанты на основе Aurix Index.',
+                      'Главная премия независимой сцены. Номинанты на основе Aurix Рейтинг.',
                       style: TextStyle(
                         color: AurixTokens.muted,
                         fontSize: 15,

@@ -50,7 +50,7 @@ class _PaywallScreen extends StatelessWidget {
               Icon(Icons.lock_outline, size: 64, color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 24),
               Text(
-                'Studio AI доступен в планах Pro и Studio',
+                'Studio AI доступен в планах Прорыв и Империя',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge,
               ),

@@ -212,7 +212,7 @@ List<_NavItem> _navItems(BuildContext context, bool isAdmin) => [
       _NavItem(screen: AppScreen.legal, icon: Icons.gavel_rounded, label: L10n.t(context, 'legal')),
       if (isAdmin) _NavItem(screen: AppScreen.admin, icon: Icons.admin_panel_settings_rounded, label: L10n.t(context, 'management')),
       _NavItem(screen: AppScreen.profile, icon: Icons.person_rounded, label: L10n.t(context, 'profile')),
-      _NavItem(screen: AppScreen.aurixIndex, icon: Icons.leaderboard_rounded, label: 'Aurix Index'),
+      _NavItem(screen: AppScreen.aurixIndex, icon: Icons.leaderboard_rounded, label: 'Aurix Рейтинг'),
       _NavItem(screen: AppScreen.settings, icon: Icons.settings_rounded, label: L10n.t(context, 'settings')),
     ];
 

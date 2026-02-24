@@ -6,7 +6,6 @@ import 'package:aurix_flutter/ai/ai_service.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
-import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 
 /// Aurix Studio AI — чистый чат. mode="studio", page="studio", context={}.
 class StudioAiScreen extends ConsumerStatefulWidget {
@@ -113,20 +112,21 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(L10n.t(context, 'studioAi')),
-        actions: [
-          if (_history.isNotEmpty)
-            IconButton(
-              onPressed: _loading ? null : _clearChat,
-              icon: Icon(Icons.clear_all, color: AurixTokens.orange),
-              tooltip: L10n.t(context, 'clearChat'),
-            ),
-        ],
-      ),
-      body: Column(
+    return Column(
         children: [
+          if (_history.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12, top: 4),
+                child: IconButton(
+                  onPressed: _loading ? null : _clearChat,
+                  icon: Icon(Icons.clear_all, color: AurixTokens.orange, size: 20),
+                  tooltip: L10n.t(context, 'clearChat'),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
           Expanded(
             child: _history.isEmpty && !_loading
                 ? Center(
@@ -252,8 +252,7 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 }
 

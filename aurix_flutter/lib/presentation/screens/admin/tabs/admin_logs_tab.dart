@@ -13,6 +13,7 @@ class AdminLogsTab extends ConsumerStatefulWidget {
 
 class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
   String _actionFilter = 'all';
+  String _search = '';
 
   static const _actions = [
     'all',
@@ -58,7 +59,23 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           color: AurixTokens.bg1,
-          child: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(
+                style: const TextStyle(color: AurixTokens.text, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Поиск по действиям...',
+                  hintStyle: const TextStyle(color: AurixTokens.muted, fontSize: 14),
+                  prefixIcon: const Icon(Icons.search, color: AurixTokens.muted, size: 20),
+                  filled: true, fillColor: AurixTokens.bg2,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                onChanged: (v) => setState(() => _search = v.toLowerCase()),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: _actions.map((a) {
@@ -83,13 +100,23 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
               }).toList(),
             ),
           ),
+            ],
+          ),
         ),
         Expanded(
           child: logsAsync.when(
             data: (logs) {
-              final filtered = _actionFilter == 'all'
+              var filtered = _actionFilter == 'all'
                   ? logs
                   : logs.where((l) => l.action == _actionFilter).toList();
+              if (_search.isNotEmpty) {
+                filtered = filtered.where((l) {
+                  return l.actionLabel.toLowerCase().contains(_search) ||
+                      l.targetType.toLowerCase().contains(_search) ||
+                      (l.targetId?.toLowerCase().contains(_search) ?? false) ||
+                      l.details.values.any((v) => v.toString().toLowerCase().contains(_search));
+                }).toList();
+              }
 
               if (filtered.isEmpty) {
                 return Center(
@@ -166,7 +193,10 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
               );
             },
             loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange)),
-            error: (e, _) => Center(child: Text('Ошибка: $e', style: TextStyle(color: AurixTokens.muted))),
+            error: (e, _) => _ErrorRetry(
+              message: e.toString(),
+              onRetry: () => ref.invalidate(adminLogsProvider),
+            ),
           ),
         ),
       ],
@@ -184,4 +214,38 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
         'report_imported' => 'Импорт',
         _ => action,
       };
+}
+
+class _ErrorRetry extends StatelessWidget {
+  const _ErrorRetry({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 40, color: Colors.redAccent.withValues(alpha: 0.6)),
+            const SizedBox(height: 12),
+            Text(
+              message.replaceAll('Exception: ', ''),
+              style: const TextStyle(color: AurixTokens.muted, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Повторить'),
+              style: TextButton.styleFrom(foregroundColor: AurixTokens.orange),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

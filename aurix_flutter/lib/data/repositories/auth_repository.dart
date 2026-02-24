@@ -13,6 +13,7 @@ class AuthRepository {
     required String email,
     required String password,
     required String phone,
+    String? name,
   }) async {
     await supabase.auth.signUp(
       email: email,
@@ -22,12 +23,12 @@ class AuthRepository {
     final user = supabase.auth.currentUser;
     if (user != null) {
       try {
-        await profileRepository.upsertProfile(
+        await profileRepository.createProfile(
           id: user.id,
           email: user.email ?? email,
-          displayName: null,
+          name: name,
           phone: phone,
-          plan: 'base',
+          plan: 'start',
         );
       } catch (e) {
         final msg = e.toString().toLowerCase();
@@ -47,12 +48,7 @@ class AuthRepository {
     await supabase.auth.signInWithPassword(email: email, password: password);
     final user = supabase.auth.currentUser;
     if (user != null) {
-      await profileRepository.upsertProfile(
-        id: user.id,
-        email: user.email ?? email,
-        displayName: null,
-        plan: 'base',
-      );
+      await profileRepository.touchProfile(user.id, user.email ?? email);
     }
   }
 

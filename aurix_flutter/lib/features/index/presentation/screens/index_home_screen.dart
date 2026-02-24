@@ -52,7 +52,7 @@ class _IndexHomeScreenState extends ConsumerState<IndexHomeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AURIX INDEX',
+                  'AURIX РЕЙТИНГ',
                   style: TextStyle(
                     color: AurixTokens.text,
                     fontSize: 28,

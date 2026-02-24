@@ -255,7 +255,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           side: BorderSide(color: AurixTokens.orange.withValues(alpha: 0.5)),
                         ),
                         icon: const Icon(Icons.leaderboard_rounded, size: 18),
-                        label: const Text('View Aurix Index'),
+                        label: const Text('Aurix Рейтинг'),
                       ),
                       const SizedBox(height: 24),
                       OutlinedButton.icon(

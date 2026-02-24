@@ -103,7 +103,7 @@ class _ProfileHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text('${score.score}', style: TextStyle(color: AurixTokens.orange, fontSize: 40, fontWeight: FontWeight.w800)),
-                  Text('Aurix Index', style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                  Text('Aurix Рейтинг', style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
                   if (score.trendDelta != 0)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),

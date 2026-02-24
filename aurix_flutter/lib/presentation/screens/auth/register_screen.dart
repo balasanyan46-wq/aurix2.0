@@ -19,6 +19,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -30,6 +31,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
@@ -43,11 +45,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _loading = true;
     });
     try {
+      final name = _nameController.text.trim();
       final email = _emailController.text.trim();
       final phone = _phoneController.text.trim();
       final password = _passwordController.text;
       final confirm = _confirmController.text;
-      if (email.isEmpty || password.isEmpty) {
+      if (name.isEmpty || email.isEmpty || password.isEmpty) {
         setState(() {
           _error = 'Заполните все поля';
           _loading = false;
@@ -75,7 +78,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         });
         return;
       }
-      await ref.read(authRepositoryProvider).signUp(email: email, password: password, phone: phone);
+      await ref.read(authRepositoryProvider).signUp(email: email, password: password, phone: phone, name: name);
       if (mounted) {
         setState(() {
           _loading = false;
@@ -128,6 +131,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    TextFormField(
+                      controller: _nameController,
+                      keyboardType: TextInputType.name,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(labelText: 'Имя и фамилия'),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите имя' : null,
+                    ),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,

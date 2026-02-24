@@ -10,6 +10,8 @@ class ReportRowModel {
   final double revenue;
   final String currency;
   final String? trackId;
+  final String? userId;
+  final String? releaseId;
   final Map<String, dynamic>? rawRowJson;
   final DateTime createdAt;
 
@@ -25,6 +27,8 @@ class ReportRowModel {
     this.revenue = 0,
     this.currency = 'USD',
     this.trackId,
+    this.userId,
+    this.releaseId,
     this.rawRowJson,
     required this.createdAt,
   });
@@ -42,6 +46,8 @@ class ReportRowModel {
       revenue: (json['revenue'] as num?)?.toDouble() ?? 0,
       currency: json['currency'] as String? ?? 'USD',
       trackId: json['track_id'] as String?,
+      userId: json['user_id'] as String?,
+      releaseId: json['release_id'] as String?,
       rawRowJson: json['raw_row_json'] as Map<String, dynamic>?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );

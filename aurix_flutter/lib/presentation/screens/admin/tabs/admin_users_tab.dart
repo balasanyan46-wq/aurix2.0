@@ -58,7 +58,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                   children: [
                     _filterChip('Роль', _roleFilter, ['all', 'artist', 'admin'], (v) => setState(() => _roleFilter = v)),
                     const SizedBox(width: 8),
-                    _filterChip('План', _planFilter, ['all', 'base', 'pro', 'studio'], (v) => setState(() => _planFilter = v)),
+                    _filterChip('План', _planFilter, ['all', 'start', 'breakthrough', 'empire'], (v) => setState(() => _planFilter = v)),
                     const SizedBox(width: 8),
                     _filterChip('Статус', _statusFilter, ['all', 'active', 'suspended'], (v) => setState(() => _statusFilter = v)),
                   ],
@@ -109,6 +109,16 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
     );
   }
 
+  static String _chipLabel(String raw) {
+    switch (raw) {
+      case 'all': return 'Все';
+      case 'start': return 'Старт';
+      case 'breakthrough': return 'Прорыв';
+      case 'empire': return 'Империя';
+      default: return raw;
+    }
+  }
+
   Widget _filterChip(String label, String current, List<String> options, ValueChanged<String> onSelect) {
     return PopupMenuButton<String>(
       onSelected: onSelect,
@@ -117,7 +127,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
       itemBuilder: (_) => options.map((o) => PopupMenuItem(
         value: o,
         child: Text(
-          o == 'all' ? 'Все' : o,
+          _chipLabel(o),
           style: TextStyle(
             color: current == o ? AurixTokens.orange : AurixTokens.text,
             fontSize: 13,
@@ -135,7 +145,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '$label: ${current == "all" ? "Все" : current}',
+              '$label: ${_chipLabel(current)}',
               style: TextStyle(
                 color: current != 'all' ? AurixTokens.orange : AurixTokens.muted,
                 fontSize: 12,
@@ -205,16 +215,38 @@ class _UserCard extends StatelessWidget {
                     style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    profile.email.isNotEmpty ? profile.email : '—',
-                    style: const TextStyle(color: AurixTokens.muted, fontSize: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.email_outlined, size: 12, color: AurixTokens.muted),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          profile.email.isNotEmpty ? profile.email : '—',
+                          style: const TextStyle(color: AurixTokens.muted, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
+                  if (profile.phone != null && profile.phone!.isNotEmpty) ...[
+                    const SizedBox(height: 1),
+                    Row(
+                      children: [
+                        const Icon(Icons.phone_outlined, size: 12, color: AurixTokens.muted),
+                        const SizedBox(width: 4),
+                        Text(
+                          profile.phone!,
+                          style: const TextStyle(color: AurixTokens.muted, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
             _badge(profile.role, profile.role == 'admin' ? AurixTokens.orange : AurixTokens.muted),
             const SizedBox(width: 6),
-            _badge(profile.plan, AurixTokens.positive),
+            _badge(_planBadgeLabel(profile.plan), AurixTokens.positive),
             const SizedBox(width: 6),
             if (profile.accountStatus == 'suspended')
               _badge('blocked', Colors.redAccent),
@@ -227,6 +259,15 @@ class _UserCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static String _planBadgeLabel(String plan) {
+    switch (plan) {
+      case 'start': return 'Старт';
+      case 'breakthrough': return 'Прорыв';
+      case 'empire': return 'Империя';
+      default: return plan;
+    }
   }
 
   Widget _badge(String text, Color color) {
@@ -255,6 +296,33 @@ class _UserActionsSheet extends ConsumerStatefulWidget {
 
 class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
   bool _loading = false;
+  int _releasesCount = 0;
+  double _totalRevenue = 0;
+  int _totalStreams = 0;
+  bool _statsLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserStats();
+  }
+
+  Future<void> _loadUserStats() async {
+    try {
+      final releases = ref.read(allReleasesAdminProvider).valueOrNull ?? [];
+      final rows = ref.read(allReportRowsProvider).valueOrNull ?? [];
+      final uid = widget.profile.userId;
+      if (mounted) {
+        setState(() {
+          _releasesCount = releases.where((r) => r.ownerId == uid).length;
+          final userRows = rows.where((r) => r.userId == uid);
+          _totalRevenue = userRows.fold<double>(0, (s, r) => s + r.revenue);
+          _totalStreams = userRows.fold<int>(0, (s, r) => s + r.streams);
+          _statsLoaded = true;
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _changeRole(String newRole) async {
     setState(() => _loading = true);
@@ -276,6 +344,15 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
       }
       setState(() => _loading = false);
+    }
+  }
+
+  String _planLabel(String plan) {
+    switch (plan) {
+      case 'start': return 'Старт';
+      case 'breakthrough': return 'Прорыв';
+      case 'empire': return 'Империя';
+      default: return 'Старт';
     }
   }
 
@@ -337,7 +414,23 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
         children: [
           Text(p.displayNameOrName, style: const TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(p.email, style: const TextStyle(color: AurixTokens.muted, fontSize: 13)),
+          Text(p.email.isNotEmpty ? p.email : '—', style: const TextStyle(color: AurixTokens.muted, fontSize: 13)),
+          if (p.phone != null && p.phone!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(p.phone!, style: const TextStyle(color: AurixTokens.muted, fontSize: 13)),
+          ],
+          if (_statsLoaded) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _miniStat('Релизы', '$_releasesCount', Icons.album_rounded),
+                const SizedBox(width: 10),
+                _miniStat('Доход', '\$${_totalRevenue.toStringAsFixed(2)}', Icons.payments_rounded),
+                const SizedBox(width: 10),
+                _miniStat('Стримы', _totalStreams > 1000 ? '${(_totalStreams / 1000).toStringAsFixed(1)}K' : '$_totalStreams', Icons.headphones_rounded),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           if (_loading)
             const Center(child: CircularProgressIndicator(color: AurixTokens.orange))
@@ -347,10 +440,10 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
               if (p.role != 'artist') _actionBtn('Сделать артистом', () => _changeRole('artist')),
             ]),
             const SizedBox(height: 12),
-            _actionRow('План', p.plan, [
-              if (p.plan != 'base') _actionBtn('Base', () => _changePlan('base')),
-              if (p.plan != 'pro') _actionBtn('Pro', () => _changePlan('pro')),
-              if (p.plan != 'studio') _actionBtn('Studio', () => _changePlan('studio')),
+            _actionRow('План', _planLabel(p.plan), [
+              if (p.plan != 'start') _actionBtn('Старт', () => _changePlan('start')),
+              if (p.plan != 'breakthrough') _actionBtn('Прорыв', () => _changePlan('breakthrough')),
+              if (p.plan != 'empire') _actionBtn('Империя', () => _changePlan('empire')),
             ]),
             const SizedBox(height: 12),
             _actionRow(
@@ -367,6 +460,27 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
           ],
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+  Widget _miniStat(String label, String value, IconData icon) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AurixTokens.bg2,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 16, color: AurixTokens.orange),
+            const SizedBox(height: 4),
+            Text(value, style: const TextStyle(color: AurixTokens.text, fontSize: 14, fontWeight: FontWeight.w700, fontFeatures: AurixTokens.tabularFigures)),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(color: AurixTokens.muted, fontSize: 10)),
+          ],
+        ),
       ),
     );
   }

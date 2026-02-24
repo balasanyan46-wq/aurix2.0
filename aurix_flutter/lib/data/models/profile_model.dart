@@ -31,12 +31,12 @@ class ProfileModel {
     this.artistName,
     this.role = 'artist',
     this.accountStatus = 'active',
-    this.plan = 'base',
+    this.plan = 'start',
   });
 
   String get id => userId;
 
-  bool get hasStudioAccess => plan == 'pro' || plan == 'studio';
+  bool get hasStudioAccess => plan == 'breakthrough' || plan == 'empire';
   bool get isAdmin => role == 'admin';
   bool get isActive => accountStatus == 'active';
 
@@ -59,7 +59,7 @@ class ProfileModel {
       artistName: json['artist_name'] as String?,
       role: json['role'] as String? ?? 'artist',
       accountStatus: json['account_status'] as String? ?? 'active',
-      plan: json['plan'] as String? ?? 'base',
+      plan: _migratePlanSlug(json['plan'] as String?),
     );
   }
 
@@ -108,5 +108,16 @@ class ProfileModel {
       accountStatus: accountStatus,
       plan: plan,
     );
+  }
+}
+
+/// Normalize legacy DB values to new slugs (client-side safety net).
+String _migratePlanSlug(String? raw) {
+  switch (raw) {
+    case 'start': case 'breakthrough': case 'empire': return raw!;
+    case 'base': case 'basic': case 'BASE': return 'start';
+    case 'pro': case 'PRO': return 'breakthrough';
+    case 'studio': case 'STUDIO': return 'empire';
+    default: return 'start';
   }
 }

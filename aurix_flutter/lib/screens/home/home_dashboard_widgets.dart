@@ -48,7 +48,7 @@ class HomeIndexHero extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'AURIX INDEX',
+                  'AURIX РЕЙТИНГ',
                   style: TextStyle(
                     color: AurixTokens.muted,
                     fontSize: 11,

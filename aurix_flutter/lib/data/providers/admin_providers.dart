@@ -7,26 +7,71 @@ import 'package:aurix_flutter/data/models/admin_log_model.dart';
 import 'package:aurix_flutter/data/models/support_ticket_model.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 
+String humanizeSupabaseError(Object e) {
+  final msg = e.toString();
+  if (msg.contains('permission denied') ||
+      msg.contains('row-level security') ||
+      msg.contains('RLS') ||
+      msg.contains('401') ||
+      msg.contains('403') ||
+      msg.contains('JWTExpired') ||
+      msg.contains('new row violates row-level security')) {
+    return 'Нет доступа. Проверь role в profiles = admin.';
+  }
+  if (msg.contains('relation') && msg.contains('does not exist')) {
+    return 'Таблица не найдена. Выполните SQL-миграцию в Supabase.';
+  }
+  if (msg.contains('Failed host lookup') || msg.contains('SocketException') || msg.contains('Connection')) {
+    return 'Нет связи с сервером. Проверьте интернет.';
+  }
+  final short = msg.length > 120 ? '${msg.substring(0, 117)}...' : msg;
+  return 'Ошибка: $short';
+}
+
 final allProfilesProvider = FutureProvider.autoDispose<List<ProfileModel>>((ref) async {
-  return ref.read(profileRepositoryProvider).getAllProfiles();
+  try {
+    return await ref.read(profileRepositoryProvider).getAllProfiles();
+  } catch (e) {
+    throw Exception(humanizeSupabaseError(e));
+  }
 });
 
 final allReleasesAdminProvider = FutureProvider.autoDispose<List<ReleaseModel>>((ref) async {
-  return ref.read(releaseRepositoryProvider).getAllReleases();
+  try {
+    return await ref.read(releaseRepositoryProvider).getAllReleases();
+  } catch (e) {
+    throw Exception(humanizeSupabaseError(e));
+  }
 });
 
 final allReportRowsProvider = FutureProvider.autoDispose<List<ReportRowModel>>((ref) async {
-  return ref.read(reportRepositoryProvider).getAllReportRows();
+  try {
+    return await ref.read(reportRepositoryProvider).getAllReportRows();
+  } catch (e) {
+    throw Exception(humanizeSupabaseError(e));
+  }
 });
 
 final adminReportsProvider = FutureProvider.autoDispose<List<ReportModel>>((ref) async {
-  return ref.read(reportRepositoryProvider).getReports();
+  try {
+    return await ref.read(reportRepositoryProvider).getReports();
+  } catch (e) {
+    throw Exception(humanizeSupabaseError(e));
+  }
 });
 
 final adminLogsProvider = FutureProvider.autoDispose<List<AdminLogModel>>((ref) async {
-  return ref.read(adminLogRepositoryProvider).getLogs(limit: 100);
+  try {
+    return await ref.read(adminLogRepositoryProvider).getLogs(limit: 100);
+  } catch (e) {
+    throw Exception(humanizeSupabaseError(e));
+  }
 });
 
 final allTicketsProvider = FutureProvider.autoDispose<List<SupportTicketModel>>((ref) async {
-  return ref.read(supportTicketRepositoryProvider).getAllTickets();
+  try {
+    return await ref.read(supportTicketRepositoryProvider).getAllTickets();
+  } catch (e) {
+    throw Exception(humanizeSupabaseError(e));
+  }
 });

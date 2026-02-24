@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:aurix_flutter/config/app_mode.dart';
 import 'package:aurix_flutter/presentation/design/design_app.dart';
 import 'package:aurix_flutter/app.dart';
@@ -10,6 +11,7 @@ import 'package:aurix_flutter/core/supabase_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('ru', null);
   await initSupabase();
   if (kDesignMode) {
     FlutterError.onError = (details) {

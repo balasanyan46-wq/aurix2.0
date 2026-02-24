@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_dashboard_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_users_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_releases_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_finance_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_content_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_analytics_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_logs_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_support_tab.dart';
 
@@ -25,6 +27,7 @@ const _tabs = [
   _TabDef('users', 'Пользователи', Icons.people_rounded),
   _TabDef('releases', 'Релизы', Icons.album_rounded),
   _TabDef('finance', 'Финансы', Icons.payments_rounded),
+  _TabDef('analytics', 'Аналитика', Icons.bar_chart_rounded),
   _TabDef('content', 'Контент', Icons.description_rounded),
   _TabDef('logs', 'Логи', Icons.history_rounded),
   _TabDef('support', 'Поддержка', Icons.support_agent_rounded),
@@ -51,6 +54,22 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
       vsync: this,
       initialIndex: idx >= 0 ? idx : 0,
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != null && widget.initialTab != oldWidget.initialTab) {
+      final idx = _tabs.indexWhere((t) => t.key == widget.initialTab);
+      if (idx >= 0 && idx != _tc.index) {
+        _tc.animateTo(idx);
+      }
+    }
+  }
+
+  void goToTab(String key) {
+    final idx = _tabs.indexWhere((t) => t.key == key);
+    if (idx >= 0) _tc.animateTo(idx);
   }
 
   @override
@@ -85,6 +104,21 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
     );
   }
 
+  void _refreshAll() {
+    ref.invalidate(allReleasesAdminProvider);
+    ref.invalidate(allProfilesProvider);
+    ref.invalidate(allReportRowsProvider);
+    ref.invalidate(adminLogsProvider);
+    ref.invalidate(allTicketsProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Данные обновлены'),
+        duration: Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Widget _buildDesktop(BuildContext context) {
     return Scaffold(
       backgroundColor: AurixTokens.bg0,
@@ -96,7 +130,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
           onPressed: () => context.go('/home'),
         ),
         title: const Text(
-          'ADMIN PANEL',
+          'ПАНЕЛЬ УПРАВЛЕНИЯ',
           style: TextStyle(
             color: AurixTokens.text,
             fontWeight: FontWeight.w800,
@@ -104,6 +138,14 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
             letterSpacing: 1.5,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AurixTokens.text),
+            tooltip: 'Обновить данные',
+            onPressed: _refreshAll,
+          ),
+          const SizedBox(width: 8),
+        ],
         bottom: TabBar(
           controller: _tc,
           isScrollable: true,
@@ -133,14 +175,15 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
       ),
       body: TabBarView(
         controller: _tc,
-        children: const [
-          AdminDashboardTab(),
-          AdminUsersTab(),
-          AdminReleasesTab(),
-          AdminFinanceTab(),
-          AdminContentTab(),
-          AdminLogsTab(),
-          AdminSupportTab(),
+        children: [
+          AdminDashboardTab(onGoToTab: goToTab),
+          const AdminUsersTab(),
+          const AdminReleasesTab(),
+          const AdminFinanceTab(),
+          const AdminAnalyticsTab(),
+          const AdminContentTab(),
+          const AdminLogsTab(),
+          const AdminSupportTab(),
         ],
       ),
     );
@@ -157,7 +200,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
           onPressed: () => context.go('/home'),
         ),
         title: const Text(
-          'ADMIN',
+          'ПАНЕЛЬ УПРАВЛЕНИЯ',
           style: TextStyle(
             color: AurixTokens.text,
             fontWeight: FontWeight.w800,
@@ -165,6 +208,14 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
             letterSpacing: 1.5,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AurixTokens.text),
+            tooltip: 'Обновить данные',
+            onPressed: _refreshAll,
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       drawer: Drawer(
         backgroundColor: AurixTokens.bg1,
@@ -175,7 +226,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
-                  'ADMIN PANEL',
+                  'ПАНЕЛЬ УПРАВЛЕНИЯ',
                   style: TextStyle(
                     color: AurixTokens.orange,
                     fontSize: 14,
@@ -220,14 +271,15 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
         builder: (context, _) {
           return IndexedStack(
             index: _tc.index,
-            children: const [
-              AdminDashboardTab(),
-              AdminUsersTab(),
-              AdminReleasesTab(),
-              AdminFinanceTab(),
-              AdminContentTab(),
-              AdminLogsTab(),
-              AdminSupportTab(),
+            children: [
+              AdminDashboardTab(onGoToTab: goToTab),
+              const AdminUsersTab(),
+              const AdminReleasesTab(),
+              const AdminFinanceTab(),
+              const AdminAnalyticsTab(),
+              const AdminContentTab(),
+              const AdminLogsTab(),
+              const AdminSupportTab(),
             ],
           );
         },

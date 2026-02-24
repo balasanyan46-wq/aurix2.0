@@ -7,6 +7,8 @@ class ReportModel {
   final String? fileUrl;
   final String status;
   final String? createdBy;
+  final String? userId;
+  final String? releaseId;
   final DateTime createdAt;
 
   const ReportModel({
@@ -18,6 +20,8 @@ class ReportModel {
     this.fileUrl,
     this.status = 'uploaded',
     this.createdBy,
+    this.userId,
+    this.releaseId,
     required this.createdAt,
   });
 
@@ -31,6 +35,8 @@ class ReportModel {
       fileUrl: json['file_url'] as String?,
       status: json['status'] as String? ?? 'uploaded',
       createdBy: json['created_by'] as String?,
+      userId: json['user_id'] as String?,
+      releaseId: json['release_id'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }

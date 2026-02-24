@@ -112,7 +112,7 @@ class ArtistIndexProfileScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text('${score.score}', style: TextStyle(color: AurixTokens.accent, fontSize: 48, fontWeight: FontWeight.w800, fontFeatures: AurixTokens.tabularFigures)),
-                                Text('AURIX INDEX', style: TextStyle(color: AurixTokens.muted, fontSize: 11, letterSpacing: 1)),
+                                Text('AURIX РЕЙТИНГ', style: TextStyle(color: AurixTokens.muted, fontSize: 11, letterSpacing: 1)),
                                 if (score.trendDelta != 0)
                                   Text(
                                     '${score.trendDelta > 0 ? '+' : ''}${score.trendDelta}',

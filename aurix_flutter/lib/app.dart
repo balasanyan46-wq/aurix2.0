@@ -14,6 +14,7 @@ class AurixApp extends ConsumerWidget {
       locale: AppLocale.ru,
       child: MaterialApp.router(
         title: 'Aurix',
+        debugShowCheckedModeBanner: false,
         theme: aurixDarkTheme(),
         darkTheme: aurixDarkTheme(),
         themeMode: ThemeMode.dark,
