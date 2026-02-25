@@ -3,7 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
-import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'growth_plan_form_screen.dart';
+import 'budget_form_screen.dart';
+import 'packaging_form_screen.dart';
+import 'content_plan_form_screen.dart';
+import 'pitch_pack_form_screen.dart';
 
 class ToolResultScreen extends ConsumerStatefulWidget {
   final ReleaseModel release;
@@ -24,8 +28,6 @@ class ToolResultScreen extends ConsumerStatefulWidget {
 }
 
 class _ToolResultScreenState extends ConsumerState<ToolResultScreen> {
-  bool _regenerating = false;
-
   String get _title => switch (widget.toolKey) {
     'growth-plan' => 'Карта роста',
     'budget-plan' => 'Бюджет-план',
@@ -37,55 +39,74 @@ class _ToolResultScreenState extends ConsumerState<ToolResultScreen> {
 
   Map<String, dynamic> get data => widget.data;
 
-  Future<void> _regenerate() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Пересоздать?'),
-        content: const Text('Текущий результат будет удалён. AI сгенерирует новый, персональный ответ.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Пересоздать')),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
-
-    setState(() => _regenerating = true);
-    await ref.read(toolServiceProvider).deleteSaved(widget.release.id, widget.toolKey);
-    if (mounted) Navigator.of(context).pop();
+  void _openTool() {
+    Widget screen;
+    switch (widget.toolKey) {
+      case 'growth-plan':
+        screen = GrowthPlanFormScreen(release: widget.release);
+      case 'budget-plan':
+        screen = BudgetFormScreen(release: widget.release);
+      case 'release-packaging':
+        screen = PackagingFormScreen(release: widget.release);
+      case 'content-plan-14':
+        screen = ContentPlanFormScreen(release: widget.release);
+      case 'playlist-pitch-pack':
+        screen = PitchPackFormScreen(release: widget.release);
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Неизвестный инструмент: ${widget.toolKey}')),
+        );
+        return;
+    }
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => screen));
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_regenerating) {
-      return Scaffold(
-        appBar: AppBar(title: Text('$_title: ${widget.release.title}')),
-        body: const Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Удаляем старый результат...'),
-          ]),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text('$_title: ${widget.release.title}'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Сгенерировать заново',
-            onPressed: _regenerate,
-          ),
+          TextButton.icon(
+            onPressed: _openTool,
+            icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+            label: const Text('Новая генерация'),
+          )
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           if (widget.isDemo) _demoBanner(context),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Генерация обновлена: теперь все AI-инструменты работают через единый Cloudflare Worker. '
+                    'Чтобы сгенерировать заново — откройте инструмент.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: _openTool,
+                  child: const Text('Открыть'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           ...switch (widget.toolKey) {
             'growth-plan' => _buildGrowthPlan(context),
             'budget-plan' => _buildBudgetPlan(context),
@@ -94,13 +115,6 @@ class _ToolResultScreenState extends ConsumerState<ToolResultScreen> {
             'playlist-pitch-pack' => _buildPitchPack(context),
             _ => [Text('Неизвестный инструмент: ${widget.toolKey}')],
           },
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _regenerate,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Пересоздать результат'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-          ),
           const SizedBox(height: 32),
         ],
       ),

@@ -20,12 +20,14 @@ import 'package:aurix_flutter/data/services/release_export_service.dart';
 import 'package:aurix_flutter/data/services/growth_plan_service.dart';
 import 'package:aurix_flutter/data/services/budget_plan_service.dart';
 import 'package:aurix_flutter/data/services/billing_service.dart';
+import 'package:aurix_flutter/data/services/ai_chat_service.dart';
 import 'package:aurix_flutter/data/services/tool_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final growthPlanServiceProvider = Provider<GrowthPlanService>((ref) => GrowthPlanService());
 final budgetPlanServiceProvider = Provider<BudgetPlanService>((ref) => BudgetPlanService());
 final billingServiceProvider = Provider<BillingService>((ref) => BillingService());
+final aiChatServiceProvider = Provider<AiChatService>((ref) => AiChatService());
 final toolServiceProvider = Provider<ToolService>((ref) => ToolService());
 
 final releaseExportServiceProvider = Provider<ReleaseExportService>((ref) =>
