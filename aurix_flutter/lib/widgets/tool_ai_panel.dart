@@ -1,56 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
-import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/data/services/ai_chat_service.dart';
-import 'package:aurix_flutter/presentation/screens/studio/tools/tools_registry.dart';
+import 'package:aurix_flutter/services/ai_chat_service.dart';
+import 'package:aurix_flutter/tools/tools_registry.dart';
 
-typedef ToolFormDataBuilder = Map<String, dynamic> Function();
-
-class ToolAiPanel extends ConsumerStatefulWidget {
-  final String toolId;
-  final ToolFormDataBuilder buildFormData;
+class ToolAiPanel extends StatefulWidget {
+  final ToolDefinition tool;
+  final Map<String, dynamic> Function() buildFormData;
 
   const ToolAiPanel({
     super.key,
-    required this.toolId,
+    required this.tool,
     required this.buildFormData,
   });
 
   @override
-  ConsumerState<ToolAiPanel> createState() => _ToolAiPanelState();
+  State<ToolAiPanel> createState() => _ToolAiPanelState();
 }
 
-class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
+class _ToolAiPanelState extends State<ToolAiPanel> {
+  final _service = AiChatService();
+
   bool _loading = false;
   String? _error;
   String? _reply;
-  String? _selectedQuickPrompt;
+  String? _quick;
 
   Future<void> _generate() async {
     setState(() {
       _loading = true;
       _error = null;
     });
-
     try {
-      final cfg = toolsRegistry[widget.toolId];
-      if (cfg == null) {
-        throw Exception('Неизвестный инструмент: ${widget.toolId}');
-      }
-
       final formData = <String, dynamic>{
         ...widget.buildFormData(),
-        if (_selectedQuickPrompt != null) 'quickPrompt': _selectedQuickPrompt,
+        if (_quick != null) 'quickPrompt': _quick,
       };
-
-      final message = cfg.buildMessage(formData);
-      final reply = await ref.read(aiChatServiceProvider).sendAiChat(
-            message: message,
-            history: const <AiHistoryMessage>[],
-          );
-
+      final message = widget.tool.buildMessage(formData);
+      final reply = await _service.send(message: message, history: const []);
       if (!mounted) return;
       setState(() {
         _reply = reply;
@@ -66,21 +53,21 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
   }
 
   Future<void> _copy() async {
-    final text = _reply;
-    if (text == null || text.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: text));
+    if (_reply == null || _reply!.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: _reply!));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Скопировано')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Скопировано')));
+  }
+
+  void _clear() {
+    setState(() {
+      _error = null;
+      _reply = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final cfg = toolsRegistry[widget.toolId];
-    final title = cfg?.title ?? 'AI';
-    final quickPrompts = cfg?.quickPrompts ?? const <String>[];
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -97,35 +84,42 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  title,
+                  widget.tool.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              if (_reply != null)
+              if (_reply != null) ...[
                 TextButton.icon(
                   onPressed: _copy,
                   icon: const Icon(Icons.copy_rounded, size: 16),
-                  label: const Text('Скопировать'),
+                  label: const Text('Copy'),
                 ),
+                TextButton(
+                  onPressed: _clear,
+                  child: const Text('Clear'),
+                ),
+              ],
             ],
           ),
-
-          if (quickPrompts.isNotEmpty) ...[
+          if (widget.tool.subtitle.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(widget.tool.subtitle, style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+          ],
+          if (widget.tool.quickPrompts.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 6,
-              children: quickPrompts.map((p) {
-                final selected = _selectedQuickPrompt == p;
+              children: widget.tool.quickPrompts.map((p) {
+                final selected = _quick == p;
                 return ChoiceChip(
                   label: Text(p),
                   selected: selected,
-                  onSelected: (v) => setState(() => _selectedQuickPrompt = v ? p : null),
+                  onSelected: (v) => setState(() => _quick = v ? p : null),
                 );
               }).toList(),
             ),
           ],
-
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _loading ? null : _generate,
@@ -144,7 +138,6 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
                   )
                 : const Text('Сгенерировать'),
           ),
-
           if (_error != null) ...[
             const SizedBox(height: 12),
             Container(
@@ -160,9 +153,10 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
               ),
             ),
           ],
-
           if (_reply != null) ...[
             const SizedBox(height: 12),
+            Text('AI-результат', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -172,11 +166,7 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
               ),
               child: SelectableText(
                 _reply!,
-                style: const TextStyle(
-                  color: AurixTokens.text,
-                  fontSize: 13.5,
-                  height: 1.45,
-                ),
+                style: const TextStyle(color: AurixTokens.text, fontSize: 13.5, height: 1.45),
               ),
             ),
           ],

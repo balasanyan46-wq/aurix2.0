@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
-import 'package:aurix_flutter/presentation/screens/studio/tools/tools_registry.dart';
-import 'package:aurix_flutter/presentation/screens/studio/tools/widgets/tool_ai_panel.dart';
+import 'package:aurix_flutter/tools/tools_registry.dart';
+import 'package:aurix_flutter/widgets/tool_ai_panel.dart';
 
 class PackagingFormScreen extends ConsumerStatefulWidget {
   final ReleaseModel release;
@@ -177,7 +177,7 @@ class _PackagingFormScreenState extends ConsumerState<PackagingFormScreen> {
           ),
           const SizedBox(height: 20),
           ToolAiPanel(
-            toolId: toolIdReleasePackaging,
+            tool: toolsRegistry[ToolId.releasePackaging]!,
             buildFormData: () => {
               'release': {
                 'id': widget.release.id,
