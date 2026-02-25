@@ -92,11 +92,11 @@ class _ToolAiPanelState extends State<ToolAiPanel> {
                 TextButton.icon(
                   onPressed: _copy,
                   icon: const Icon(Icons.copy_rounded, size: 16),
-                  label: const Text('Copy'),
+                  label: const Text('Скопировать'),
                 ),
                 TextButton(
                   onPressed: _clear,
-                  child: const Text('Clear'),
+                  child: const Text('Очистить'),
                 ),
               ],
             ],

@@ -30,12 +30,14 @@ class AiChatService {
       throw Exception('AI временно недоступен');
     }
 
-    final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-    final reply = decoded['reply'] as String?;
-    if (reply == null) {
+    try {
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      final reply = decoded['reply'] as String?;
+      if (reply == null) throw const FormatException('Missing reply');
+      return reply;
+    } catch (_) {
       throw Exception('AI временно недоступен');
     }
-    return reply;
   }
 }
 
