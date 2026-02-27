@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/enums.dart';
 import 'package:aurix_flutter/core/l10n.dart';
@@ -20,36 +21,47 @@ class ReleaseOSScreen extends ConsumerWidget {
     final appState = ref.watch(appStateProvider);
     final asyncReleases = ref.watch(releasesProvider);
     final releases = asyncReleases.valueOrNull ?? [];
+    final pad = horizontalPadding(context);
 
     if (asyncReleases.isLoading && releases.isEmpty) {
       return Center(child: CircularProgressIndicator(color: AurixTokens.orange));
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Release OS',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              AurixButton(
-                text: L10n.t(context, 'newRelease'),
-                icon: Icons.add_rounded,
-                onPressed: appState.canSubmitRelease
-                    ? () => Navigator.of(context).push(
-                          PageRouteBuilder(
-                            pageBuilder: (_, __, ___) => const ReleaseCreateFlowScreen(),
-                            transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
-                          ),
-                        )
-                    : () => _showUpgradeModal(context, ref),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, c) {
+              final narrow = c.maxWidth < 520;
+              return Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                runSpacing: 12,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: narrow ? c.maxWidth : 420),
+                    child: Text(
+                      'Release OS',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  AurixButton(
+                    text: L10n.t(context, 'newRelease'),
+                    icon: Icons.add_rounded,
+                    onPressed: appState.canSubmitRelease
+                        ? () => Navigator.of(context).push(
+                              PageRouteBuilder(
+                                pageBuilder: (_, __, ___) => const ReleaseCreateFlowScreen(),
+                                transitionsBuilder: (_, a, __, c) => FadeTransition(opacity: a, child: c),
+                              ),
+                            )
+                        : () => _showUpgradeModal(context, ref),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 8),
           Text(

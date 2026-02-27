@@ -17,7 +17,7 @@ class ReportRepository {
     logSupabaseRequest(table: 'reports', operation: 'select', payload: {'id': id});
     final res = await supabase.from('reports').select().eq('id', id).maybeSingle();
     if (res == null) return null;
-    return ReportModel.fromJson(res as Map<String, dynamic>);
+    return ReportModel.fromJson(res);
   }
 
   Future<ReportModel> createReport({
@@ -39,7 +39,7 @@ class ReportRepository {
     if (createdBy != null) payload['created_by'] = createdBy;
     logSupabaseRequest(table: 'reports', operation: 'insert', payload: payload);
     final res = await supabase.from('reports').insert(payload).select().single();
-    return ReportModel.fromJson(res as Map<String, dynamic>);
+    return ReportModel.fromJson(res);
   }
 
   Future<void> updateReportStatus(String id, String status) async {

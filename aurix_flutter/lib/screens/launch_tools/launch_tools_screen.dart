@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/core/l10n.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
-import 'package:aurix_flutter/design/components/liquid_glass.dart';
 
 /// Launch Tools — Smartlink, Pre-save, Content Kit, Countdown, Promo Checklist.
 class LaunchToolsScreen extends ConsumerWidget {
@@ -11,8 +11,9 @@ class LaunchToolsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pad = horizontalPadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -48,13 +49,27 @@ class LaunchToolsScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           _ContentKitCard(),
           const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: _CountdownCard()),
-              const SizedBox(width: 20),
-              Expanded(child: _PromoChecklistCard()),
-            ],
+          LayoutBuilder(
+            builder: (context, c) {
+              final wide = c.maxWidth > 700;
+              if (wide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _CountdownCard()),
+                    const SizedBox(width: 20),
+                    Expanded(child: _PromoChecklistCard()),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  _CountdownCard(),
+                  const SizedBox(height: 20),
+                  _PromoChecklistCard(),
+                ],
+              );
+            },
           ),
         ],
       ),

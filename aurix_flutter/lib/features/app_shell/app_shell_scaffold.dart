@@ -40,6 +40,12 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
         ref.watch(appStateProvider).isAdmin ||
         (user?.email != null && adminEmails.contains(user!.email!.toLowerCase()));
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final hideTopBar =
+        widget.currentLocation == '/releases/create' ||
+        (widget.currentLocation.startsWith('/releases/') && widget.currentLocation != '/releases') ||
+        widget.currentLocation.startsWith('/legal/') ||
+        widget.currentLocation.startsWith('/index/artist/') ||
+        widget.currentLocation.startsWith('/admin');
 
     return AurixBackdrop(
       child: Scaffold(
@@ -71,10 +77,11 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
                   Expanded(
                     child: Column(
                       children: [
-                        _TopBar(
-                          currentLocation: widget.currentLocation,
-                          onMenuTap: isDesktop ? null : () => _scaffoldKey.currentState?.openDrawer(),
-                        ),
+                        if (!hideTopBar)
+                          _TopBar(
+                            currentLocation: widget.currentLocation,
+                            onMenuTap: isDesktop ? null : () => _scaffoldKey.currentState?.openDrawer(),
+                          ),
                         Expanded(
                           child: widget.child,
                         ),
@@ -111,6 +118,7 @@ String _screenToPath(AppScreen screen, [String? releaseId]) => switch (screen) {
       AppScreen.releaseDetails => '/releases/${releaseId ?? ''}',
       AppScreen.analytics => '/stats',
       AppScreen.promotion => '/promo',
+      AppScreen.progress => '/progress',
       AppScreen.studioAi => '/ai',
       AppScreen.services => '/services',
       AppScreen.finances => '/finance',
@@ -122,6 +130,7 @@ String _screenToPath(AppScreen screen, [String? releaseId]) => switch (screen) {
       AppScreen.aurixIndex => '/index',
       AppScreen.admin => '/admin',
       AppScreen.legal => '/legal',
+      AppScreen.aurixDnk => '/dnk',
     };
 
 class _NavGroup {
@@ -135,6 +144,7 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     _NavItem(path: '/home', icon: Icons.home_rounded, labelKey: 'home'),
     _NavItem(path: '/releases', icon: Icons.album_rounded, labelKey: 'releases'),
     _NavItem(path: '/index', icon: Icons.leaderboard_rounded, label: 'Aurix Рейтинг'),
+    _NavItem(path: '/dnk', icon: Icons.fingerprint, label: 'Aurix DNK'),
   ]),
   _NavGroup(titleKey: 'navGroupManagement', items: [
     _NavItem(path: '/team', icon: Icons.groups_rounded, labelKey: 'team'),
@@ -145,6 +155,7 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
   _NavGroup(titleKey: 'navGroupTools', items: [
     _NavItem(path: '/stats', icon: Icons.analytics_rounded, labelKey: 'statistics'),
     _NavItem(path: '/promo', icon: Icons.rocket_launch_rounded, labelKey: 'promo'),
+    _NavItem(path: '/progress', icon: Icons.calendar_month_rounded, labelKey: 'progress'),
     _NavItem(path: '/ai', icon: Icons.auto_awesome, labelKey: 'studioAi'),
     _NavItem(path: '/services', icon: Icons.build_rounded, labelKey: 'services'),
   ]),
@@ -154,9 +165,6 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     _NavItem(path: '/profile', icon: Icons.person_rounded, labelKey: 'profile'),
   ]),
 ];
-
-List<_NavItem> _appNavItems(bool isAdmin) =>
-    _appNavGroups(isAdmin).expand((g) => g.items).toList();
 
 class _NavDrawerContent extends StatelessWidget {
   final String currentLocation;
@@ -168,9 +176,9 @@ class _NavDrawerContent extends StatelessWidget {
   bool _selected(_NavItem i) =>
       currentLocation == i.path ||
       (currentLocation.startsWith('/releases/') && i.path == '/releases') ||
-      (currentLocation == '/releases/create' && i.path == '/upload') ||
       (currentLocation.startsWith('/legal') && i.path == '/legal') ||
       (currentLocation.startsWith('/index') && i.path == '/index') ||
+      (currentLocation.startsWith('/progress') && i.path == '/progress') ||
       (currentLocation.startsWith('/admin') && i.path == '/admin') ||
       (currentLocation == '/profile' && i.path == '/profile');
 
@@ -220,9 +228,9 @@ class _NavDrawerContent extends StatelessWidget {
 bool _isSelected(String currentLocation, _NavItem i) =>
     currentLocation == i.path ||
     (currentLocation.startsWith('/releases/') && i.path == '/releases') ||
-    (currentLocation == '/releases/create' && i.path == '/upload') ||
     (currentLocation.startsWith('/legal') && i.path == '/legal') ||
     (currentLocation.startsWith('/index') && i.path == '/index') ||
+    (currentLocation.startsWith('/progress') && i.path == '/progress') ||
     (currentLocation.startsWith('/admin') && i.path == '/admin') ||
     (currentLocation == '/profile' && i.path == '/profile');
 

@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/enums.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
-import 'package:aurix_flutter/features/index/data/models/index_score.dart';
 import 'package:aurix_flutter/features/index/presentation/index_notifier.dart';
 import 'package:aurix_flutter/features/index_engine/presentation/providers/artist_insights_provider.dart';
-import 'package:aurix_flutter/screens/releases/release_create_flow_screen.dart';
 
 /// V2 Hero — Index как доминанта. Bloomberg/Forbes feel.
 class HomeIndexHero extends ConsumerWidget {
@@ -33,8 +30,9 @@ class HomeIndexHero extends ConsumerWidget {
     final levelProgress = insights?.progressToNext ?? 0.0;
     final pointsToNext = insights?.pointsToNext ?? 0;
 
+    final isMobile = MediaQuery.sizeOf(context).width < 900;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 20 : 40, vertical: isMobile ? 28 : 48),
       decoration: BoxDecoration(
         color: AurixTokens.bg1,
         border: Border.all(color: AurixTokens.border),
@@ -61,22 +59,24 @@ class HomeIndexHero extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text(
-                      '$myIndex',
-                      style: TextStyle(
-                        color: AurixTokens.text,
-                        fontSize: 72,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -2,
-                        fontFeatures: AurixTokens.tabularFigures,
+                    Flexible(
+                      child: Text(
+                        '$myIndex',
+                        style: TextStyle(
+                          color: AurixTokens.text,
+                          fontSize: isMobile ? 48 : 72,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -2,
+                          fontFeatures: AurixTokens.tabularFigures,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 24),
+                    const SizedBox(width: 16),
                     Text(
                       '${growth >= 0 ? '+' : ''}$growth',
                       style: TextStyle(
                         color: growth >= 0 ? AurixTokens.positive : AurixTokens.muted,
-                        fontSize: 18,
+                        fontSize: isMobile ? 16 : 18,
                         fontWeight: FontWeight.w600,
                         fontFeatures: AurixTokens.tabularFigures,
                       ),
@@ -84,24 +84,16 @@ class HomeIndexHero extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _Tag(label: levelTitle, accent: true),
-                    const SizedBox(width: 12),
                     _Tag(label: '#$myRank', accent: false),
-                    if (insights != null && insights.badges.isNotEmpty) ...[
-                      const SizedBox(width: 12),
-                      ...insights.badges.take(2).map((b) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: _Tag(label: b.title, accent: true),
-                          )),
-                    ] else if (badges.isNotEmpty) ...[
-                      const SizedBox(width: 12),
-                      ...badges.take(2).map((b) => Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: _Tag(label: b, accent: true),
-                          )),
-                    ],
+                    if (insights != null && insights.badges.isNotEmpty)
+                      ...insights.badges.take(2).map((b) => _Tag(label: b.title, accent: true)),
+                    if (insights == null && badges.isNotEmpty)
+                      ...badges.take(2).map((b) => _Tag(label: b, accent: true)),
                   ],
                 ),
                 if (insights != null && pointsToNext > 0) ...[
@@ -128,18 +120,19 @@ class HomeIndexHero extends ConsumerWidget {
                   ),
                 ],
                 const SizedBox(height: 32),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
                   children: [
                     FilledButton(
                       onPressed: onImproveIndex,
                       style: FilledButton.styleFrom(
                         backgroundColor: AurixTokens.accent,
                         foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 14),
                       ),
-                      child: const Text('Улучшить индекс'),
+                      child: Text(isMobile ? 'Улучшить' : 'Улучшить индекс'),
                     ),
-                    const SizedBox(width: 12),
                     OutlinedButton.icon(
                       onPressed: onCreateRelease,
                       icon: const Icon(Icons.add, size: 18),
@@ -428,8 +421,32 @@ class HomeTrustBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 900;
+    final items = [
+      _TrustItem(
+        icon: Icons.lock_outline,
+        title: 'Ваши релизы защищены',
+        desc: 'Файлы в зашифрованном облаке с резервным копированием',
+      ),
+      _TrustItem(
+        icon: Icons.account_balance_wallet_outlined,
+        title: 'Заработки в безопасности',
+        desc: 'Прозрачная отчётность и выплаты без скрытых комиссий',
+      ),
+      _TrustItem(
+        icon: Icons.copyright_outlined,
+        title: 'Интеллектуальная собственность',
+        desc: '100% прав у вас — мы не претендуем на авторские права',
+      ),
+      _TrustItem(
+        icon: Icons.gavel_outlined,
+        title: 'Юридическая защита',
+        desc: 'Готовые договоры для защиты ваших интересов',
+      ),
+    ];
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: AurixTokens.bg1,
         border: Border.all(color: AurixTokens.border),
@@ -442,49 +459,27 @@ class HomeTrustBanner extends StatelessWidget {
             children: [
               Icon(Icons.verified_user_outlined, color: AurixTokens.positive, size: 20),
               const SizedBox(width: 10),
-              Text(
-                'БЕЗОПАСНОСТЬ И ДОВЕРИЕ',
-                style: TextStyle(
-                  color: AurixTokens.muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 2,
+              Flexible(
+                child: Text(
+                  isMobile ? 'БЕЗОПАСНОСТЬ' : 'БЕЗОПАСНОСТЬ И ДОВЕРИЕ',
+                  style: TextStyle(
+                    color: AurixTokens.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 2,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: _TrustItem(
-                icon: Icons.lock_outline,
-                title: 'Ваши релизы защищены',
-                desc: 'Все файлы хранятся в зашифрованном облаке с резервным копированием',
-              )),
-              const SizedBox(width: 16),
-              Expanded(child: _TrustItem(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'Заработки в безопасности',
-                desc: 'Прозрачная система отчётности и выплат без скрытых комиссий',
-              )),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _TrustItem(
-                icon: Icons.copyright_outlined,
-                title: 'Интеллектуальная собственность',
-                desc: '100% прав остаётся у вас. Мы не претендуем на авторские права',
-              )),
-              const SizedBox(width: 16),
-              Expanded(child: _TrustItem(
-                icon: Icons.gavel_outlined,
-                title: 'Юридическая защита',
-                desc: 'Готовые договоры и шаблоны для защиты ваших интересов',
-              )),
-            ],
-          ),
+          if (isMobile)
+            ...items.map((item) => Padding(padding: const EdgeInsets.only(bottom: 12), child: item))
+          else ...[
+            Row(children: [Expanded(child: items[0]), const SizedBox(width: 16), Expanded(child: items[1])]),
+            const SizedBox(height: 16),
+            Row(children: [Expanded(child: items[2]), const SizedBox(width: 16), Expanded(child: items[3])]),
+          ],
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(16),

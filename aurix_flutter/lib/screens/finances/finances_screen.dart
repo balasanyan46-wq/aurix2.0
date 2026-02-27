@@ -6,6 +6,7 @@ import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/data/models/report_row_model.dart';
 import 'package:aurix_flutter/data/providers/reports_provider.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 
 enum _Period { all, year, quarter, month }
 
@@ -58,8 +59,9 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
         final platforms = byPlatform.entries.toList()
           ..sort((a, b) => b.value.revenue.compareTo(a.value.revenue));
 
+        final isMobile = MediaQuery.sizeOf(context).width < kDesktopBreakpoint;
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -69,7 +71,12 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
                 delayMs: 50,
                 child: rows.isEmpty
                     ? _buildEmpty(context)
-                    : _buildContent(context, totalRevenue, totalStreams, platforms, rows, currSymbol),
+                    : LayoutBuilder(
+                        builder: (context, c) {
+                          final isNarrow = c.maxWidth < 420;
+                          return _buildContent(context, totalRevenue, totalStreams, platforms, rows, currSymbol, isNarrow);
+                        },
+                      ),
               ),
             ],
           ),
@@ -78,34 +85,49 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
     );
   }
 
+  static String _compactNumber(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+    return value.toStringAsFixed(2);
+  }
+
+  static String _compactInt(int value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+    return '$value';
+  }
+
   Widget _buildPeriodSelector() {
-    return Row(
-      children: _Period.values.map((p) {
-        final label = switch (p) {
-          _Period.all => 'Всё время',
-          _Period.year => 'Год',
-          _Period.quarter => 'Квартал',
-          _Period.month => 'Месяц',
-        };
-        final selected = _period == p;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: ChoiceChip(
-            label: Text(label),
-            selected: selected,
-            onSelected: (_) => setState(() => _period = p),
-            selectedColor: AurixTokens.orange.withValues(alpha: 0.2),
-            backgroundColor: AurixTokens.bg2,
-            labelStyle: TextStyle(
-              color: selected ? AurixTokens.orange : AurixTokens.muted,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              fontSize: 13,
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _Period.values.map((p) {
+          final label = switch (p) {
+            _Period.all => 'Всё время',
+            _Period.year => 'Год',
+            _Period.quarter => 'Квартал',
+            _Period.month => 'Месяц',
+          };
+          final selected = _period == p;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) => setState(() => _period = p),
+              selectedColor: AurixTokens.orange.withValues(alpha: 0.2),
+              backgroundColor: AurixTokens.bg2,
+              labelStyle: TextStyle(
+                color: selected ? AurixTokens.orange : AurixTokens.muted,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                fontSize: 13,
+              ),
+              side: BorderSide(color: selected ? AurixTokens.orange : AurixTokens.border),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            side: BorderSide(color: selected ? AurixTokens.orange : AurixTokens.border),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -138,19 +160,24 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
     List<MapEntry<String, ({double revenue, int streams})>> platforms,
     List<ReportRowModel> rows,
     String currSymbol,
+    bool isNarrow,
   ) {
-    final fmt = NumberFormat('#,##0.00', 'en_US');
-    final streamFmt = NumberFormat('#,##0', 'en_US');
+    final revenueStr = isNarrow
+        ? '$currSymbol${_compactNumber(totalRevenue)}'
+        : '$currSymbol${NumberFormat('#,##0.00', 'en_US').format(totalRevenue)}';
+    final streamsStr = isNarrow
+        ? _compactInt(totalStreams)
+        : NumberFormat('#,##0', 'en_US').format(totalStreams);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Wrap(
-          spacing: 16,
-          runSpacing: 16,
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            _StatCard(label: 'Общий доход', value: '$currSymbol${fmt.format(totalRevenue)}', icon: Icons.attach_money, color: AurixTokens.orange),
-            _StatCard(label: 'Стримы', value: streamFmt.format(totalStreams), icon: Icons.headphones_rounded, color: Colors.blueAccent),
+            _StatCard(label: 'Общий доход', value: revenueStr, icon: Icons.attach_money, color: AurixTokens.orange),
+            _StatCard(label: 'Стримы', value: streamsStr, icon: Icons.headphones_rounded, color: Colors.blueAccent),
             _StatCard(label: 'Платформы', value: '${platforms.length}', icon: Icons.apps_rounded, color: Colors.purpleAccent),
           ],
         ),
@@ -173,13 +200,16 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(e.key, style: const TextStyle(color: AurixTokens.text, fontSize: 14, fontWeight: FontWeight.w500)),
-                            Text('$currSymbol${fmt.format(e.value.revenue)}  •  ${streamFmt.format(e.value.streams)} стримов',
-                                style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                            Expanded(
+                              child: Text(e.key, style: const TextStyle(color: AurixTokens.text, fontSize: 14, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis, maxLines: 1),
+                            ),
+                            const SizedBox(width: 8),
+                            Text('$currSymbol${_compactNumber(e.value.revenue)}', style: TextStyle(color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w600)),
                           ],
                         ),
+                        const SizedBox(height: 2),
+                        Text('${_compactInt(e.value.streams)} стримов', style: TextStyle(color: AurixTokens.muted, fontSize: 11)),
                         const SizedBox(height: 6),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
@@ -213,10 +243,11 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AurixGlassCard(
-      padding: const EdgeInsets.all(20),
-      child: SizedBox(
-        width: 200,
+      padding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 140, maxWidth: 260),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.all(10),
@@ -224,16 +255,21 @@ class _StatCard extends StatelessWidget {
                 color: color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 22),
             ),
-            const SizedBox(width: 14),
-            Expanded(
+            const SizedBox(width: 12),
+            Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(label, style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
                   const SizedBox(height: 4),
-                  Text(value, style: TextStyle(color: AurixTokens.text, fontSize: 20, fontWeight: FontWeight.w700)),
+                  Text(
+                    value,
+                    style: TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),

@@ -91,22 +91,35 @@ class _ReleasesListScreenState extends ConsumerState<ReleasesListScreen> {
             children: [
               Text(
                 'Мои релизы',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: isDesktop ? null : 22,
+                    ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Управляйте релизами и отслеживайте статусы',
-                style: TextStyle(color: AurixTokens.muted, fontSize: 14),
-              ),
+              if (isDesktop) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Управляйте релизами и отслеживайте статусы',
+                  style: TextStyle(color: AurixTokens.muted, fontSize: 14),
+                ),
+              ],
             ],
           ),
         ),
-        const SizedBox(width: 16),
-        AurixButton(
-          text: 'Создать релиз',
-          icon: Icons.add_rounded,
-          onPressed: () => context.push('/releases/create'),
-        ),
+        const SizedBox(width: 12),
+        isDesktop
+            ? AurixButton(
+                text: 'Создать релиз',
+                icon: Icons.add_rounded,
+                onPressed: () => context.push('/releases/create'),
+              )
+            : IconButton(
+                onPressed: () => context.push('/releases/create'),
+                icon: const Icon(Icons.add_rounded, color: AurixTokens.orange),
+                style: IconButton.styleFrom(
+                  backgroundColor: AurixTokens.orange.withValues(alpha: 0.12),
+                ),
+              ),
       ],
     );
   }
@@ -315,25 +328,15 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            if (r.artist != null && r.artist!.isNotEmpty) ...[
-                              Flexible(
-                                child: Text(
-                                  r.artist!,
-                                  style: TextStyle(color: AurixTokens.muted, fontSize: 13),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text(' · ', style: TextStyle(color: AurixTokens.muted, fontSize: 13)),
-                            ],
-                            Text(typeLabel, style: TextStyle(color: AurixTokens.muted, fontSize: 13)),
-                            if (r.releaseDate != null) ...[
-                              Text(' · ', style: TextStyle(color: AurixTokens.muted, fontSize: 13)),
-                              Text(DateFormat('dd.MM.yy').format(r.releaseDate!), style: TextStyle(color: AurixTokens.muted, fontSize: 13)),
-                            ],
-                          ],
+                        Text(
+                          [
+                            if (r.artist != null && r.artist!.isNotEmpty) r.artist!,
+                            typeLabel,
+                            if (r.releaseDate != null) DateFormat('dd.MM.yy').format(r.releaseDate!),
+                          ].join(' · '),
+                          style: TextStyle(color: AurixTokens.muted, fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),

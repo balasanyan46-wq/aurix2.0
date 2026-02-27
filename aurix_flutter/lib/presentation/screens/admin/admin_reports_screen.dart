@@ -37,14 +37,18 @@ class AdminReportsScreen extends ConsumerStatefulWidget {
 
 class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
   bool _uploading = false;
+  bool _pickingFile = false;
   String? _error;
 
   Future<void> _importCsv() async {
+    if (_uploading || _pickingFile) return;
+    _pickingFile = true;
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv'],
       withData: true,
     );
+    _pickingFile = false;
     if (result == null || result.files.isEmpty) return;
     final file = result.files.single;
     final bytes = file.bytes;

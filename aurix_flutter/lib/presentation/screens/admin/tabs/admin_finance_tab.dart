@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
@@ -23,6 +24,7 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
   ProfileModel? _selectedUser;
   ReleaseModel? _selectedRelease;
   bool _uploading = false;
+  bool _pickingFile = false;
   String? _error;
   String? _success;
 
@@ -34,7 +36,7 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
     final rowsAsync = ref.watch(allReportRowsProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -414,7 +416,10 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
   }
 
   Future<void> _importCsv() async {
+    if (_uploading || _pickingFile) return;
+    _pickingFile = true;
     final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['csv'], withData: true);
+    _pickingFile = false;
     if (result == null || result.files.isEmpty) return;
     final file = result.files.single;
     final bytes = file.bytes;

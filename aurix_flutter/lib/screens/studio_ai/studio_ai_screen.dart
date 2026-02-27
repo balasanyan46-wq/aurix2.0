@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/ai/ai_message.dart';
 import 'package:aurix_flutter/ai/ai_service.dart';
+import 'package:aurix_flutter/ai/ai_persistence_guard.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/l10n.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/core/supabase_diagnostics.dart';
 
 /// Aurix Studio AI — чистый чат. mode="studio", page="studio", context={}.
 class StudioAiScreen extends ConsumerStatefulWidget {
@@ -20,6 +26,8 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
   final ScrollController _chatScrollController = ScrollController();
   final TextEditingController _inputController = TextEditingController();
   bool _loading = false;
+  bool _loaded = false;
+  String? _persistWarning;
 
   static const _makeHarderMessage = 'сделай жестче и короче';
 
@@ -39,6 +47,34 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loaded) return;
+    _loaded = true;
+    unawaited(_loadHistory());
+  }
+
+  Future<void> _loadHistory() async {
+    final repo = ref.read(aiStudioHistoryRepositoryProvider);
+    try {
+      final rows = await repo.getMessages(limit: 60);
+      if (!mounted) return;
+      setState(() {
+        _history
+          ..clear()
+          ..addAll(rows.map((m) => AiMessage(role: m.role, content: m.content)));
+      });
+    } on AiSchemaMissingException {
+      if (!mounted) return;
+      setState(() {
+        _persistWarning = 'Нужно применить миграцию для сохранения чата.';
+      });
+    } catch (e) {
+      debugPrint('[StudioAi] load history error: ${formatSupabaseError(e)}');
+    }
+  }
+
   Future<void> _sendMessage(String message) async {
     final msg = message.trim();
     if (msg.isEmpty || _loading) return;
@@ -53,6 +89,10 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
     final historyForApi = List<AiMessage>.from(_history.skip(1).take(12).toList().reversed);
 
     try {
+      try {
+        await ref.read(aiStudioHistoryRepositoryProvider).append(role: 'user', content: msg);
+      } catch (_) {}
+
       final locale = ref.read(appStateProvider).locale == AppLocale.ru ? 'ru' : 'en';
       final reply = await AiService.send(
         message: msg,
@@ -69,22 +109,33 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
         while (_history.length > 24) { _history.removeLast(); }
         _loading = false;
       });
+      try {
+        await ref.read(aiStudioHistoryRepositoryProvider).append(role: 'assistant', content: reply);
+      } catch (_) {}
       _scrollToBottom();
     } on AiServiceException catch (e) {
       if (!mounted) return;
+      final err = 'Ошибка: ${e.message}';
       setState(() {
-        _history.insert(0, AiMessage(role: 'assistant', content: 'Ошибка: ${e.message}'));
+        _history.insert(0, AiMessage(role: 'assistant', content: err));
         while (_history.length > 24) { _history.removeLast(); }
         _loading = false;
       });
+      try {
+        await ref.read(aiStudioHistoryRepositoryProvider).append(role: 'assistant', content: err);
+      } catch (_) {}
       _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
+      const err = 'Ошибка соединения. Попробуйте позже.';
       setState(() {
-        _history.insert(0, AiMessage(role: 'assistant', content: 'Ошибка соединения. Попробуйте позже.'));
+        _history.insert(0, AiMessage(role: 'assistant', content: err));
         while (_history.length > 24) { _history.removeLast(); }
         _loading = false;
       });
+      try {
+        await ref.read(aiStudioHistoryRepositoryProvider).append(role: 'assistant', content: err);
+      } catch (_) {}
       _scrollToBottom();
     }
   }
@@ -99,6 +150,11 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
 
   void _clearChat() {
     setState(() => _history.clear());
+    unawaited(() async {
+      try {
+        await ref.read(aiStudioHistoryRepositoryProvider).clear();
+      } catch (_) {}
+    }());
   }
 
   void _copyText(String text) {
@@ -114,6 +170,22 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
   Widget build(BuildContext context) {
     return Column(
         children: [
+          if (_persistWarning != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
+                ),
+                child: Text(
+                  _persistWarning!,
+                  style: TextStyle(color: Colors.amber.shade200, fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
           if (_history.isNotEmpty)
             Align(
               alignment: Alignment.centerRight,
@@ -131,7 +203,7 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
             child: _history.isEmpty && !_loading
                 ? Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(horizontalPadding(context)),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [

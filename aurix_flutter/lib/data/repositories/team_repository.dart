@@ -26,7 +26,7 @@ class TeamRepository {
       'role': role,
       'split_percent': splitPercent,
     }).select().single();
-    return TeamMemberModel.fromJson(res as Map<String, dynamic>);
+    return TeamMemberModel.fromJson(res);
   }
 
   Future<void> updateMember(String id, {String? name, String? email, String? role, double? splitPercent}) async {

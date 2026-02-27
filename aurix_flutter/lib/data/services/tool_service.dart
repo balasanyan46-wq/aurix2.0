@@ -125,8 +125,8 @@ class ToolService {
           .select()
           .eq('release_id', releaseId)
           .order('track_number');
-      if (tracksRes is List && tracksRes.isNotEmpty) {
-        ctx['tracks'] = (tracksRes as List).map((t) => {
+      if (tracksRes.isNotEmpty) {
+        ctx['tracks'] = tracksRes.map((t) => {
               'title': t['title'] ?? '',
               'isrc': t['isrc'] ?? '',
               'version': t['version'] ?? 'original',
@@ -143,8 +143,8 @@ class ToolService {
             .neq('id', releaseId)
             .order('created_at', ascending: false)
             .limit(10);
-        if (otherReleases is List && otherReleases.isNotEmpty) {
-          ctx['catalog'] = (otherReleases as List)
+        if (otherReleases.isNotEmpty) {
+          ctx['catalog'] = otherReleases
               .map((r) => '${r['artist'] ?? ''} — ${r['title']} (${r['release_type']}, ${r['status']})')
               .toList();
         }

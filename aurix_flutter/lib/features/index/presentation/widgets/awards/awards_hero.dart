@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
-import 'package:aurix_flutter/features/index/data/models/artist.dart';
 import 'package:aurix_flutter/features/index/data/models/award_nominee.dart';
-import 'package:aurix_flutter/features/index/data/models/index_score.dart';
 import 'package:aurix_flutter/features/index/presentation/widgets/awards/awards_data.dart' show formatNumber, IndexDataLookup;
 
 class AwardsHero extends StatelessWidget {
@@ -120,7 +118,9 @@ class AwardsHero extends StatelessWidget {
                           )
                         : Center(
                             child: Text(
-                              artist.name.substring(0, 1).toUpperCase(),
+                              artist.name.trim().isNotEmpty
+                                  ? artist.name.trim().substring(0, 1).toUpperCase()
+                                  : '?',
                               style: TextStyle(color: AurixTokens.orange, fontSize: 24, fontWeight: FontWeight.w700),
                             ),
                           ),

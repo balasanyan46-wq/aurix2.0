@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
@@ -414,7 +415,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
   Widget build(BuildContext context) {
     final p = widget.profile;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

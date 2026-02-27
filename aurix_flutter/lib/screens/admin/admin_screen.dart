@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/core/admin_config.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
@@ -112,9 +113,9 @@ class _AdminBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
+    final pad = horizontalPadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -122,24 +123,22 @@ class _AdminBody extends StatelessWidget {
           const SizedBox(height: 8),
           Text('Manage releases', style: TextStyle(color: AurixTokens.muted, fontSize: 14)),
           const SizedBox(height: 24),
-          Row(
-            children: [
-              SizedBox(
-                width: 200,
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Фильтр по названию',
-                    hintStyle: TextStyle(color: AurixTokens.muted),
-                    filled: true,
-                    fillColor: AurixTokens.glass(0.08),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  style: const TextStyle(color: AurixTokens.text),
-                  onChanged: onArtistFilterChanged,
+          LayoutBuilder(
+            builder: (context, c) {
+              final narrow = c.maxWidth < 720;
+              final filterField = TextField(
+                decoration: InputDecoration(
+                  hintText: 'Фильтр по названию',
+                  hintStyle: TextStyle(color: AurixTokens.muted),
+                  filled: true,
+                  fillColor: AurixTokens.glass(0.08),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              ),
-              const SizedBox(width: 16),
-              DropdownButton<ReleaseStatus?>(
+                style: const TextStyle(color: AurixTokens.text),
+                onChanged: onArtistFilterChanged,
+              );
+
+              final statusDropdown = DropdownButton<ReleaseStatus?>(
                 value: filterStatus,
                 hint: Text('По статусу', style: TextStyle(color: AurixTokens.muted)),
                 dropdownColor: AurixTokens.bg1,
@@ -148,15 +147,47 @@ class _AdminBody extends StatelessWidget {
                   ...ReleaseStatus.values.map((s) => DropdownMenuItem(value: s, child: Text(s.label))),
                 ],
                 onChanged: onFilterStatusChanged,
-              ),
-              const Spacer(),
-              OutlinedButton.icon(
+              );
+
+              final uploadBtn = OutlinedButton.icon(
                 onPressed: () {},
                 icon: const Icon(Icons.upload_file, size: 18),
                 label: const Text('Upload CSV'),
                 style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.orange),
-              ),
-            ],
+              );
+
+              if (!narrow) {
+                return Row(
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
+                      child: filterField,
+                    ),
+                    const SizedBox(width: 16),
+                    statusDropdown,
+                    const Spacer(),
+                    uploadBtn,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  filterField,
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      statusDropdown,
+                      uploadBtn,
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
           AurixGlassCard(

@@ -91,7 +91,10 @@ class CategoryCompactCard extends StatelessWidget {
       return ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.network(artist.avatarUrl!, fit: BoxFit.cover));
     }
     return Center(
-      child: Text(name.substring(0, 1).toUpperCase(), style: TextStyle(color: AurixTokens.orange, fontSize: 16, fontWeight: FontWeight.w700)),
+      child: Text(
+        name.trim().isNotEmpty ? name.trim().substring(0, 1).toUpperCase() : '?',
+        style: TextStyle(color: AurixTokens.orange, fontSize: 16, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }

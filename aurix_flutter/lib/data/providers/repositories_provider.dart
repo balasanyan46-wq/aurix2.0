@@ -11,6 +11,9 @@ import 'package:aurix_flutter/data/repositories/team_repository.dart';
 import 'package:aurix_flutter/features/legal/data/legal_repository.dart';
 import 'package:aurix_flutter/features/index/data/repositories/index_repository.dart';
 import 'package:aurix_flutter/features/index/data/repositories/mock_index_repository.dart';
+import 'package:aurix_flutter/features/progress/data/repositories/progress_habits_repository.dart';
+import 'package:aurix_flutter/features/progress/data/repositories/progress_checkins_repository.dart';
+import 'package:aurix_flutter/features/progress/data/repositories/progress_daily_notes_repository.dart';
 import 'package:aurix_flutter/features/index_engine/adapters/engine_backed_index_repository.dart';
 import 'package:aurix_flutter/features/index_engine/adapters/index_engine_to_legacy_adapter.dart';
 import 'package:aurix_flutter/features/index_engine/data/repositories/mock_index_repository.dart' as engine;
@@ -21,6 +24,8 @@ import 'package:aurix_flutter/data/services/growth_plan_service.dart';
 import 'package:aurix_flutter/data/services/budget_plan_service.dart';
 import 'package:aurix_flutter/data/services/billing_service.dart';
 import 'package:aurix_flutter/data/services/tool_service.dart';
+import 'package:aurix_flutter/ai/ai_studio_history_repository.dart';
+import 'package:aurix_flutter/ai/ai_tool_results_repository.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final growthPlanServiceProvider = Provider<GrowthPlanService>((ref) => GrowthPlanService());
@@ -43,6 +48,11 @@ final adminLogRepositoryProvider = Provider<AdminLogRepository>((ref) => AdminLo
 final supportTicketRepositoryProvider = Provider<SupportTicketRepository>((ref) => SupportTicketRepository());
 final teamRepositoryProvider = Provider<TeamRepository>((ref) => TeamRepository());
 final legalRepositoryProvider = Provider<LegalRepository>((ref) => LegalRepository());
+final progressHabitsRepositoryProvider = Provider<ProgressHabitsRepository>((ref) => ProgressHabitsRepository());
+final progressCheckinsRepositoryProvider = Provider<ProgressCheckinsRepository>((ref) => ProgressCheckinsRepository());
+final progressDailyNotesRepositoryProvider = Provider<ProgressDailyNotesRepository>((ref) => ProgressDailyNotesRepository());
+final aiStudioHistoryRepositoryProvider = Provider<AiStudioHistoryRepository>((ref) => AiStudioHistoryRepository());
+final aiToolResultsRepositoryProvider = Provider<AiToolResultsRepository>((ref) => AiToolResultsRepository());
 
 final indexEngineRepositoryProvider = Provider<engine.MockIndexEngineRepository>((ref) =>
     engine.MockIndexEngineRepository());

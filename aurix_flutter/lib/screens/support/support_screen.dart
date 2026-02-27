@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:aurix_flutter/core/l10n.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/data/models/support_ticket_model.dart';
@@ -29,7 +30,10 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
 
   Future<void> _loadTickets() async {
     final userId = ref.read(currentUserProvider)?.id;
-    if (userId == null) return;
+    if (userId == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     setState(() => _loading = true);
     try {
       final tickets = await ref.read(supportTicketRepositoryProvider).getMyTickets(userId);
@@ -41,7 +45,12 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
 
   Future<void> _createTicket() async {
     final userId = ref.read(currentUserProvider)?.id;
-    if (userId == null) return;
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Войдите в аккаунт')));
+      }
+      return;
+    }
     final subjectCtrl = TextEditingController();
     final msgCtrl = TextEditingController();
 
@@ -117,6 +126,7 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pad = horizontalPadding(context);
     if (_activeTicket != null) {
       return _ChatView(
         ticket: _activeTicket!,
@@ -130,7 +140,7 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
           child: Row(
             children: [
               Expanded(
@@ -154,7 +164,7 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
         ),
         const SizedBox(height: 8),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: EdgeInsets.symmetric(horizontal: pad),
           child: Text('Ваши обращения в поддержку', style: TextStyle(color: AurixTokens.muted, fontSize: 14)),
         ),
         const SizedBox(height: 16),
@@ -175,7 +185,7 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
                       ),
                     )
                   : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      padding: EdgeInsets.symmetric(horizontal: pad, vertical: 8),
                       itemCount: _tickets.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, i) => _TicketRow(

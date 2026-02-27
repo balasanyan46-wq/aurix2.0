@@ -98,7 +98,7 @@ class IndexNotifier extends StateNotifier<({IndexState state, IndexData? data, S
         ),
         error: null,
       );
-    } catch (e, st) {
+    } catch (e) {
       state = (state: IndexState.error, data: state.data, error: e.toString());
     }
   }

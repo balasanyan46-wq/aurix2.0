@@ -12,8 +12,8 @@ import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/data/repositories/file_repository.dart';
 import 'package:uuid/uuid.dart';
+import 'package:aurix_flutter/features/covers/cover_generator_sheet.dart';
 
 class _TrackEntry {
   PlatformFile file;
@@ -59,6 +59,7 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
   PlatformFile? _coverFile;
   Uint8List? _coverBytes;
   final List<_TrackEntry> _tracks = [];
+  bool _isPicking = false;
 
   @override
   void initState() {
@@ -96,6 +97,8 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
   }
 
   Future<void> _pickCover() async {
+    if (_isPicking) return;
+    _isPicking = true;
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
       if (result == null) return;
@@ -105,25 +108,50 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
         return;
       }
       final bytes = await _getFileBytes(f);
-      if (bytes != null) setState(() { _coverFile = f; _coverBytes = bytes; });
+      if (bytes != null && mounted) setState(() { _coverFile = f; _coverBytes = bytes; });
     } catch (e) {
       if (mounted) _snack('Ошибка: $e');
+    } finally {
+      _isPicking = false;
     }
   }
 
   Future<void> _pickTracks() async {
+    if (_isPicking) return;
+    _isPicking = true;
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.audio, allowMultiple: true, withData: true);
       if (result == null) return;
-      setState(() {
-        for (final f in result.files) {
-          if (f.size > 200 * 1024 * 1024) continue;
-          if (f.bytes != null || f.path != null) _tracks.add(_TrackEntry(file: f));
-        }
-      });
+      if (mounted) {
+        setState(() {
+          for (final f in result.files) {
+            if (f.size > 200 * 1024 * 1024) continue;
+            if (f.bytes != null || f.path != null) _tracks.add(_TrackEntry(file: f));
+          }
+        });
+      }
     } catch (e) {
       if (mounted) _snack('Ошибка: $e');
+    } finally {
+      _isPicking = false;
     }
+  }
+
+  Future<void> _openCoverGenerator() async {
+    if (_loading || _isPicking) return;
+    final bytes = await CoverGeneratorSheet.open(
+      context,
+      initialArtistName: _artistCtrl.text.trim(),
+      initialReleaseTitle: _titleCtrl.text.trim(),
+      initialGenre: _genreCtrl.text.trim(),
+      onApplied: null,
+    );
+    if (!mounted) return;
+    if (bytes == null || bytes.isEmpty) return;
+    setState(() {
+      _coverBytes = bytes;
+      _coverFile = PlatformFile(name: 'generated_cover.png', size: bytes.length, bytes: bytes);
+    });
   }
 
   void _removeTrack(int i) {
@@ -249,6 +277,13 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
                                 fileName: _coverFile?.name,
                                 onPick: _pickCover,
                               ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: _loading ? null : () => _openCoverGenerator(),
+                                icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: AurixTokens.orange),
+                                label: const Text('Сгенерировать'),
+                                style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.orange),
+                              ),
                               const SizedBox(width: 24),
                               Expanded(child: _buildMetadataFields()),
                             ],
@@ -259,6 +294,16 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
                                 bytes: _coverBytes,
                                 fileName: _coverFile?.name,
                                 onPick: _pickCover,
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: _loading ? null : () => _openCoverGenerator(),
+                                  icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: AurixTokens.orange),
+                                  label: const Text('Сгенерировать обложку'),
+                                  style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.orange),
+                                ),
                               ),
                               const SizedBox(height: 20),
                               _buildMetadataFields(),

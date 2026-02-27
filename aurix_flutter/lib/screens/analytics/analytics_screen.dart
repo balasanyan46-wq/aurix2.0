@@ -4,11 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
-import 'package:aurix_flutter/data/models/report_row_model.dart';
-import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/providers/reports_provider.dart';
-import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
@@ -54,9 +52,11 @@ class AnalyticsScreen extends ConsumerWidget {
 
     final hasData = releases.isNotEmpty || rows.isNotEmpty;
 
+    final mobilePad = MediaQuery.sizeOf(context).width < kDesktopBreakpoint ? 16.0 : 24.0;
+
     if (!hasData) {
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(mobilePad),
         child: FadeInSlide(
           child: AurixGlassCard(
             padding: const EdgeInsets.all(48),
@@ -82,7 +82,7 @@ class AnalyticsScreen extends ConsumerWidget {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(mobilePad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -165,10 +165,20 @@ class AnalyticsScreen extends ConsumerWidget {
                     ...topCountries.take(8).map((e) => Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(e.key, style: const TextStyle(color: AurixTokens.text, fontSize: 14)),
-                              Text('${fmt.format(e.value)} стримов', style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                              Expanded(
+                                child: Text(
+                                  e.key,
+                                  style: const TextStyle(color: AurixTokens.text, fontSize: 14),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${_compactStreams(e.value)} стримов',
+                                style: TextStyle(color: AurixTokens.muted, fontSize: 12),
+                              ),
                             ],
                           ),
                         )),
@@ -203,6 +213,13 @@ class AnalyticsScreen extends ConsumerWidget {
   }
 }
 
+String _compactStreams(int value) {
+  if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+  if (value >= 10000) return '${(value / 1000).toStringAsFixed(0)}K';
+  if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+  return '$value';
+}
+
 class _MiniStat extends StatelessWidget {
   final String label;
   final String value;
@@ -214,20 +231,30 @@ class _MiniStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AurixGlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value, style: TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700)),
-              Text(label, style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
-            ],
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 220),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(color: AurixTokens.text, fontSize: 17, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(label, style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

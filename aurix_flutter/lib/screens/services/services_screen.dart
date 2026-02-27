@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/core/l10n.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
@@ -129,8 +130,9 @@ class ServicesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pad = horizontalPadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -160,15 +162,19 @@ class ServicesScreen extends ConsumerWidget {
           LayoutBuilder(
             builder: (context, c) {
               final crossAxisCount = c.maxWidth > 900 ? 3 : (c.maxWidth > 600 ? 2 : 1);
+              const spacing = 16.0;
+              final itemWidth = crossAxisCount == 1
+                  ? c.maxWidth
+                  : ((c.maxWidth - (spacing * (crossAxisCount - 1))) / crossAxisCount).clamp(260.0, 420.0);
               return Wrap(
-                spacing: 16,
-                runSpacing: 16,
+                spacing: spacing,
+                runSpacing: spacing,
                 children: _services.asMap().entries.map((e) {
                   final s = e.value;
                   return FadeInSlide(
                     delayMs: 80 + e.key * 40,
                     child: SizedBox(
-                      width: crossAxisCount == 1 ? double.infinity : 320,
+                      width: crossAxisCount == 1 ? double.infinity : itemWidth,
                       child: _ServiceCard(
                         service: s,
                         onMore: () => _showDetail(context, s),

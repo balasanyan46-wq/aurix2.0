@@ -1,10 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/services/ai_chat_service.dart';
 import 'package:aurix_flutter/tools/tools_registry.dart';
+import 'package:aurix_flutter/widgets/animated_ai_result_panel.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/ai/ai_persistence_guard.dart';
 
-class ToolAiPanel extends StatefulWidget {
+class ToolAiPanel extends ConsumerStatefulWidget {
   final ToolDefinition tool;
   final Map<String, dynamic> Function() buildFormData;
 
@@ -15,22 +22,21 @@ class ToolAiPanel extends StatefulWidget {
   });
 
   @override
-  State<ToolAiPanel> createState() => _ToolAiPanelState();
+  ConsumerState<ToolAiPanel> createState() => _ToolAiPanelState();
 }
 
-class _ToolAiPanelState extends State<ToolAiPanel> {
+class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
   final _service = AiChatService();
 
-  bool _loading = false;
-  String? _error;
-  String? _reply;
   String? _quick;
+  bool _sheetOpen = false;
+  bool _loadedSaved = false;
+
+  late final ValueNotifier<_AiPanelVm> _vm = ValueNotifier(const _AiPanelVm());
 
   Future<void> _generate() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    _openResultSheet();
+    _vm.value = _vm.value.copyWith(isLoading: true, clearError: true);
     try {
       final formData = <String, dynamic>{
         ...widget.buildFormData(),
@@ -39,35 +45,201 @@ class _ToolAiPanelState extends State<ToolAiPanel> {
       final message = widget.tool.buildMessage(formData);
       final reply = await _service.send(message: message, history: const []);
       if (!mounted) return;
-      setState(() {
-        _reply = reply;
-        _loading = false;
-      });
+      _vm.value = _vm.value.copyWith(isLoading: false, markdownText: reply, clearError: true);
+      await _persistRun(formData: formData, reply: reply, error: null);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
-        _loading = false;
-      });
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      _vm.value = _vm.value.copyWith(isLoading: false, errorText: msg);
+      try {
+        final formData = <String, dynamic>{
+          ...widget.buildFormData(),
+          if (_quick != null) 'quickPrompt': _quick,
+        };
+        await _persistRun(formData: formData, reply: null, error: msg);
+      } catch (_) {}
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadedSaved) return;
+    _loadedSaved = true;
+    unawaited(_loadLatestSaved());
+  }
+
+  Future<void> _loadLatestSaved() async {
+    try {
+      final base = widget.buildFormData();
+      final res = _extractResource(base);
+      final toolId = widget.tool.id.name;
+      final saved = await ref.read(aiToolResultsRepositoryProvider).getLatestResult(
+            toolId: toolId,
+            resourceType: res.$1,
+            resourceId: res.$2,
+          );
+      if (!mounted) return;
+      if (saved != null && saved.trim().isNotEmpty) {
+        _vm.value = _vm.value.copyWith(markdownText: saved);
+      }
+    } on AiSchemaMissingException {
+      // migrations not applied yet - ignore
+    } catch (_) {}
+  }
+
+  Future<void> _persistRun({required Map<String, dynamic> formData, required String? reply, required String? error}) async {
+    final repo = ref.read(aiToolResultsRepositoryProvider);
+    final toolId = widget.tool.id.name;
+    final res = _extractResource(formData);
+    try {
+      await repo.saveRun(
+        toolId: toolId,
+        resourceType: res.$1,
+        resourceId: res.$2,
+        input: formData,
+        quickPrompt: _quick,
+        resultMarkdown: reply,
+        errorText: error,
+      );
+    } on AiSchemaMissingException {
+      // migrations not applied yet - ignore (no crash)
+    } catch (e) {
+      debugPrint('[ToolAiPanel] persist error: ${formatSupabaseError(e)}');
     }
   }
 
   Future<void> _copy() async {
-    if (_reply == null || _reply!.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: _reply!));
+    final t = _vm.value.markdownText;
+    if (t == null || t.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: t));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Скопировано')));
   }
 
   void _clear() {
-    setState(() {
-      _error = null;
-      _reply = null;
+    _vm.value = const _AiPanelVm();
+  }
+
+  void _openResultSheet() {
+    if (_sheetOpen) return;
+    _sheetOpen = true;
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      builder: (ctx) {
+        final inset = MediaQuery.viewInsetsOf(ctx);
+        return Padding(
+          padding: EdgeInsets.only(bottom: inset.bottom),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.86,
+            minChildSize: 0.55,
+            maxChildSize: 0.96,
+            builder: (ctx, scrollCtrl) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: AurixTokens.bg1,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                  border: Border.all(color: AurixTokens.stroke(0.18)),
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AurixTokens.muted.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.auto_awesome_rounded, color: AurixTokens.orange, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              widget.tool.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            icon: const Icon(Icons.close_rounded),
+                            color: AurixTokens.muted,
+                            tooltip: 'Закрыть',
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (widget.tool.subtitle.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 14, right: 14, bottom: 6),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(widget.tool.subtitle, style: TextStyle(color: AurixTokens.muted.withValues(alpha: 0.95), fontSize: 12)),
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: ListView(
+                        controller: scrollCtrl,
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                        children: [
+                          ValueListenableBuilder<_AiPanelVm>(
+                            valueListenable: _vm,
+                            builder: (context, v, _) {
+                              return AnimatedAiResultPanel(
+                                isLoading: v.isLoading,
+                                errorText: v.errorText,
+                                markdownText: v.markdownText,
+                                onCopy: _copy,
+                                onClear: _clear,
+                                onRetry: _generate,
+                                enableTypewriter: true,
+                                enableStaggerSections: true,
+                                showHeader: false,
+                                motivations: const [
+                                  'Собираем план, который реально можно сделать.',
+                                  'Делаем шаги короткими и выполнимыми.',
+                                  'Сейчас будет структурно: что делать и как измерять.',
+                                  'Собираем чек-лист, чтобы не терять фокус.',
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    ).whenComplete(() {
+      _sheetOpen = false;
     });
   }
 
   @override
+  void dispose() {
+    _vm.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hasReply = _vm.value.markdownText != null && _vm.value.markdownText!.trim().isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -88,17 +260,11 @@ class _ToolAiPanelState extends State<ToolAiPanel> {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              if (_reply != null) ...[
-                TextButton.icon(
-                  onPressed: _copy,
-                  icon: const Icon(Icons.copy_rounded, size: 16),
-                  label: const Text('Скопировать'),
-                ),
+              if (hasReply)
                 TextButton(
-                  onPressed: _clear,
-                  child: const Text('Очистить'),
+                  onPressed: _openResultSheet,
+                  child: const Text('Открыть результат'),
                 ),
-              ],
             ],
           ),
           if (widget.tool.subtitle.isNotEmpty) ...[
@@ -115,14 +281,14 @@ class _ToolAiPanelState extends State<ToolAiPanel> {
                 return ChoiceChip(
                   label: Text(p),
                   selected: selected,
-                  onSelected: (v) => setState(() => _quick = v ? p : null),
+                  onSelected: _loading ? null : (v) => setState(() => _quick = v ? p : null),
                 );
               }).toList(),
             ),
           ],
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: _loading ? null : _generate,
+            onPressed: _vm.value.isLoading ? null : _generate,
             style: FilledButton.styleFrom(
               backgroundColor: AurixTokens.orange,
               foregroundColor: Colors.black,
@@ -130,7 +296,7 @@ class _ToolAiPanelState extends State<ToolAiPanel> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
-            child: _loading
+            child: _vm.value.isLoading
                 ? const SizedBox(
                     height: 18,
                     width: 18,
@@ -138,41 +304,56 @@ class _ToolAiPanelState extends State<ToolAiPanel> {
                   )
                 : const Text('Сгенерировать'),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
-              ),
-              child: Text(
-                _error!,
-                style: const TextStyle(color: AurixTokens.text, fontSize: 13, height: 1.35),
-              ),
-            ),
-          ],
-          if (_reply != null) ...[
-            const SizedBox(height: 12),
-            Text('AI-результат', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AurixTokens.bg2,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AurixTokens.stroke(0.12)),
-              ),
-              child: SelectableText(
-                _reply!,
-                style: const TextStyle(color: AurixTokens.text, fontSize: 13.5, height: 1.45),
-              ),
+          if (hasReply) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Результат готов — открой окно выше.',
+              style: TextStyle(color: AurixTokens.muted.withValues(alpha: 0.95), fontSize: 12),
+              textAlign: TextAlign.center,
             ),
           ],
         ],
       ),
     );
   }
+}
+
+@immutable
+class _AiPanelVm {
+  final bool isLoading;
+  final String? errorText;
+  final String? markdownText;
+  const _AiPanelVm({this.isLoading = false, this.errorText, this.markdownText});
+
+  _AiPanelVm copyWith({
+    bool? isLoading,
+    String? errorText,
+    bool clearError = false,
+    String? markdownText,
+    bool clearMarkdown = false,
+  }) {
+    return _AiPanelVm(
+      isLoading: isLoading ?? this.isLoading,
+      errorText: clearError ? null : (errorText ?? this.errorText),
+      markdownText: clearMarkdown ? null : (markdownText ?? this.markdownText),
+    );
+  }
+}
+
+// Returns (resourceType, resourceId)
+(String, String?) _extractResource(Map<String, dynamic> formData) {
+  try {
+    final track = formData['track'];
+    if (track is Map && track['id'] != null) {
+      return ('track', track['id'].toString());
+    }
+  } catch (_) {}
+  try {
+    final release = formData['release'];
+    if (release is Map && release['id'] != null) {
+      return ('release', release['id'].toString());
+    }
+  } catch (_) {}
+  return ('other', null);
 }
 

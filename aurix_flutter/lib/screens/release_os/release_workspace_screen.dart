@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/enums.dart';
-import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+
+EdgeInsets _screenPad(BuildContext context) => EdgeInsets.all(horizontalPadding(context));
 
 /// Release Workspace — табы: Overview, Tracks, Metadata, Splits, Launch Plan, Review.
 class ReleaseWorkspaceScreen extends ConsumerWidget {
@@ -68,9 +70,9 @@ class _OverviewTab extends StatelessWidget {
         ? '${release.releaseDate!.day}.${release.releaseDate!.month}.${release.releaseDate!.year}'
         : '—';
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: _screenPad(context),
       child: AurixGlassCard(
-        padding: const EdgeInsets.all(24),
+        padding: _screenPad(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -100,9 +102,9 @@ class _TracksTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: _screenPad(context),
       child: AurixGlassCard(
-        padding: const EdgeInsets.all(24),
+        padding: _screenPad(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -135,9 +137,9 @@ class _MetadataTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final fields = ['Жанр', 'Язык', 'Композитор', 'Продюсер', 'Правообладатель', 'Лейбл'];
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: _screenPad(context),
       child: AurixGlassCard(
-        padding: const EdgeInsets.all(24),
+        padding: _screenPad(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -168,9 +170,9 @@ class _SplitsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: _screenPad(context),
       child: AurixGlassCard(
-        padding: const EdgeInsets.all(24),
+        padding: _screenPad(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -208,9 +210,9 @@ class _LaunchPlanTab extends StatelessWidget {
       ('Отправить на проверку', false),
     ];
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: _screenPad(context),
       child: AurixGlassCard(
-        padding: const EdgeInsets.all(24),
+        padding: _screenPad(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -242,9 +244,9 @@ class _ReviewTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: _screenPad(context),
       child: AurixGlassCard(
-        padding: const EdgeInsets.all(24),
+        padding: _screenPad(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

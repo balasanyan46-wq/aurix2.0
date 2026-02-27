@@ -5,6 +5,7 @@ import 'package:aurix_flutter/config/app_mode.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/enums.dart';
 import 'package:aurix_flutter/core/l10n.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
@@ -35,8 +36,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pad = horizontalPadding(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),

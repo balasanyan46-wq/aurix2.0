@@ -15,7 +15,11 @@ class IndexGrowthHistoryTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(indexProvider);
     final data = state.data;
-    if (data == null) return const SizedBox.shrink();
+    if (data == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AurixTokens.accent),
+      );
+    }
 
     final score = data.selectedScore;
     final padding = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint ? 24.0 : 16.0;

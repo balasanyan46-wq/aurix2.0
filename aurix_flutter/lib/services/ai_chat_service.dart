@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 class AiChatService {
   static final Uri _endpoint = Uri.parse(
-    'https://wandering-snow-3f00.armte1an1.workers.dev/api/ai/chat',
+    'https://wandering-snow-3f00.armtelan1.workers.dev/api/ai/chat',
   );
 
   Future<String> send({

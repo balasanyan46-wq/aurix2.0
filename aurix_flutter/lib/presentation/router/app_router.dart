@@ -27,6 +27,9 @@ import 'package:aurix_flutter/features/legal/presentation/legal_history_page.dar
 import 'package:aurix_flutter/features/index/presentation/screens/index_home_screen.dart';
 import 'package:aurix_flutter/features/index/presentation/screens/artist_index_profile_screen.dart';
 import 'package:aurix_flutter/features/index_engine/presentation/index_engine_debug_screen.dart';
+import 'package:aurix_flutter/features/dnk/presentation/dnk_screen.dart';
+import 'package:aurix_flutter/features/progress/presentation/screens/progress_home_screen.dart';
+import 'package:aurix_flutter/features/progress/presentation/screens/habit_manage_screen.dart';
 import 'package:aurix_flutter/presentation/landing/landing_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -147,13 +150,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => const NoTransitionPage(child: IndexEngineDebugScreen()),
           ),
           GoRoute(
-            path: '/admin',
+            path: '/dnk',
+            pageBuilder: (context, state) => const NoTransitionPage(child: AurixDnkScreen()),
+          ),
+          GoRoute(
+            path: '/progress',
+            pageBuilder: (context, state) => const NoTransitionPage(child: ProgressHomeScreen()),
+          ),
+          GoRoute(
+            path: '/progress/manage',
             pageBuilder: (context, state) {
-              final tab = state.uri.queryParameters['tab'];
-              return NoTransitionPage(child: AdminPanel(initialTab: tab));
+              final openNew = state.uri.queryParameters['new'] == '1';
+              return NoTransitionPage(child: HabitManageScreen(openNewOnStart: openNew));
             },
           ),
         ],
+      ),
+      GoRoute(
+        path: '/admin',
+        pageBuilder: (context, state) {
+          final tab = state.uri.queryParameters['tab'];
+          return NoTransitionPage(child: AdminPanel(initialTab: tab));
+        },
       ),
     ],
   );

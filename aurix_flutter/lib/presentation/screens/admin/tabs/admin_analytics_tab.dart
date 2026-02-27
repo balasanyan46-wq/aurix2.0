@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
@@ -17,7 +18,7 @@ class AdminAnalyticsTab extends ConsumerWidget {
     final rowsAsync = ref.watch(allReportRowsProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -281,7 +282,7 @@ class AdminAnalyticsTab extends ConsumerWidget {
   Widget _buildReleasesByStatus(List<ReleaseModel> releases) {
     final byStatus = <String, int>{};
     for (final r in releases) {
-      final status = r.status ?? 'draft';
+      final status = r.status;
       byStatus[status] = (byStatus[status] ?? 0) + 1;
     }
     final totalReleases = byStatus.values.fold<int>(0, (s, v) => s + v);

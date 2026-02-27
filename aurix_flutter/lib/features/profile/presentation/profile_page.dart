@@ -8,7 +8,7 @@ import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
-import 'package:aurix_flutter/presentation/providers/auth_provider.dart' show currentProfileProvider, currentUserProvider, authRepositoryProvider;
+import 'package:aurix_flutter/presentation/providers/auth_provider.dart' show currentProfileProvider, currentUserProvider;
 import 'package:aurix_flutter/features/profile/presentation/profile_gate.dart' show profileNeedsFillProvider;
 
 /// Full profile form with AURIX theme. Optional [isMandatory] blocks back navigation.

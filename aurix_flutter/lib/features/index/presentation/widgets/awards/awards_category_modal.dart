@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
-import 'package:aurix_flutter/features/index/data/models/artist.dart';
 import 'package:aurix_flutter/features/index/data/models/award_category.dart';
 import 'package:aurix_flutter/features/index/data/models/award_nominee.dart';
-import 'package:aurix_flutter/features/index/data/models/index_score.dart';
 import 'package:aurix_flutter/features/index/presentation/widgets/awards/awards_data.dart';
 import 'package:aurix_flutter/features/index/presentation/widgets/awards/nominee_row.dart';
 

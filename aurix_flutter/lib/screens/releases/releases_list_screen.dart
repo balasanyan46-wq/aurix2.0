@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/enums.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
@@ -20,6 +21,7 @@ class ReleasesListScreen extends ConsumerWidget {
     final searchQuery = appState.searchQuery;
     final asyncReleases = ref.watch(releasesProvider);
     final allReleases = asyncReleases.valueOrNull ?? [];
+    final pad = horizontalPadding(context);
     final query = searchQuery.toLowerCase();
     final releases = query.isEmpty
         ? allReleases
@@ -33,27 +35,37 @@ class ReleasesListScreen extends ConsumerWidget {
       return Center(child: CircularProgressIndicator(color: AurixTokens.orange));
     }
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                L10n.t(context, 'myReleases'),
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              AurixButton(
-                text: L10n.t(context, 'createRelease'),
-                icon: Icons.add_rounded,
-                onPressed: appState.canSubmitRelease
-                    ? () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const ReleaseCreateFlowScreen()),
-                        )
-                    : () => _showUpgradeModal(context, ref),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, c) {
+              final narrow = c.maxWidth < 520;
+              return Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                runSpacing: 12,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: narrow ? c.maxWidth : 520),
+                    child: Text(
+                      L10n.t(context, 'myReleases'),
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  AurixButton(
+                    text: L10n.t(context, 'createRelease'),
+                    icon: Icons.add_rounded,
+                    onPressed: appState.canSubmitRelease
+                        ? () => Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ReleaseCreateFlowScreen()),
+                            )
+                        : () => _showUpgradeModal(context, ref),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
           if (releases.isEmpty)

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aurix_flutter/features/index/domain/index_calculator.dart';
-import 'package:aurix_flutter/features/index/data/models/index_score.dart';
 import 'package:aurix_flutter/features/index/data/models/metrics_snapshot.dart';
 
 void main() {

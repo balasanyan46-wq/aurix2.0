@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:aurix_flutter/core/l10n.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
@@ -45,6 +45,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
   String? _coverUrl;
   Uint8List? _coverPreviewBytes;
   bool _coverUploading = false;
+  bool _pickingFile = false;
 
   ReleaseModel? _createdRelease;
   bool _loading = false;
@@ -154,7 +155,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
           coverUrl: _coverUrl,
         );
       }
-      await repo.submitRelease(release!.id);
+      await repo.submitRelease(release.id);
       ref.invalidate(releasesProvider);
       setState(() => _loading = false);
       if (mounted) {
@@ -212,7 +213,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
         return;
       }
       final fileRepo = ref.read(fileRepositoryProvider);
-      final releaseId = release!.id;
+      final releaseId = release.id;
       final result = await fileRepo.uploadCoverBytes(user.id, releaseId, bytes, file.name);
       await ref.read(releaseRepositoryProvider).updateRelease(releaseId, coverUrl: result.publicUrl, coverPath: result.coverPath);
       setState(() { _coverUrl = result.publicUrl; _coverPreviewBytes = bytes; _coverUploading = false; });
@@ -246,6 +247,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
   }
 
   Future<void> _addTrackWithFile() async {
+    if (_pickingFile) return;
     if (_createdRelease == null) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сначала заполните Основное и нажмите Далее')));
       return;
@@ -257,6 +259,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
     }
     final release = _createdRelease!;
     try {
+      _pickingFile = true;
       final result = await FilePicker.platform.pickFiles(
         type: FileType.audio,
         allowMultiple: false,
@@ -301,13 +304,16 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
     } catch (e, st) {
       debugPrint('Ошибка загрузки трека: $e\n$st');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка загрузки файла: ${_formatError(e)}')));
+    } finally {
+      _pickingFile = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final pad = horizontalPadding(context);
     final body = SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
@@ -384,6 +390,8 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
           coverPreviewBytes: _coverPreviewBytes,
           coverUploading: _coverUploading,
           onCoverTap: () async {
+            if (_pickingFile || _coverUploading) return;
+            _pickingFile = true;
             final result = await FilePicker.platform.pickFiles(
               type: FileType.custom,
               allowedExtensions: ['png', 'jpg', 'jpeg'],
@@ -402,6 +410,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Не удалось прочитать файл')));
               }
             }
+            _pickingFile = false;
           },
           onNext: () async {
             if (_createdRelease == null) {
@@ -547,7 +556,7 @@ class _Step1Main extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AurixGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -743,7 +752,7 @@ class _Step2Tracks extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AurixGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -761,7 +770,7 @@ class _Step2Tracks extends StatelessWidget {
           const SizedBox(height: 16),
           if (tracks.isEmpty)
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(horizontalPadding(context)),
               decoration: BoxDecoration(
                 color: AurixTokens.glass(0.06),
                 borderRadius: BorderRadius.circular(12),
@@ -872,7 +881,7 @@ class _Step3Splits extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = splits.fold<int>(0, (s, e) => s + e.percent);
     return AurixGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -960,7 +969,7 @@ class _Step4PlatformsSubmit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AurixGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

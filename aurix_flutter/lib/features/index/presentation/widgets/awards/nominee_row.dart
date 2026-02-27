@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/features/index/data/models/artist.dart';
 import 'package:aurix_flutter/features/index/data/models/award_nominee.dart';
-import 'package:aurix_flutter/features/index/data/models/index_score.dart';
 
 class NomineeRow extends StatelessWidget {
   final AwardNominee nominee;
@@ -68,7 +67,9 @@ class NomineeRow extends StatelessWidget {
                     )
                   : Center(
                       child: Text(
-                        artist!.name.substring(0, 1).toUpperCase(),
+                        artist!.name.trim().isNotEmpty
+                            ? artist!.name.trim().substring(0, 1).toUpperCase()
+                            : '?',
                         style: TextStyle(color: AurixTokens.muted, fontSize: compact ? 14 : 16, fontWeight: FontWeight.w600),
                       ),
                     ),

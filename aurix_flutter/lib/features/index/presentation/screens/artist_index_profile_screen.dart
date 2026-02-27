@@ -92,7 +92,9 @@ class ArtistIndexProfileScreen extends ConsumerWidget {
                             radius: 48,
                             backgroundColor: AurixTokens.accent.withValues(alpha: 0.12),
                             child: Text(
-                              artist.name.substring(0, 1).toUpperCase(),
+                              artist.name.trim().isNotEmpty
+                                  ? artist.name.trim().substring(0, 1).toUpperCase()
+                                  : '?',
                               style: TextStyle(color: AurixTokens.accent, fontWeight: FontWeight.w800, fontSize: 36),
                             ),
                           ),

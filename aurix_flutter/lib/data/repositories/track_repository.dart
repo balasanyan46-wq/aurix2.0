@@ -39,7 +39,7 @@ class TrackRepository {
     logSupabaseRequest(table: 'tracks', operation: 'insert', payload: data, userId: supabase.auth.currentUser?.id);
     try {
       final res = await supabase.from('tracks').insert(data).select().single();
-      return TrackModel.fromJson(res as Map<String, dynamic>);
+      return TrackModel.fromJson(res);
     } catch (e) {
       debugPrint('[TrackRepository] addTrack error: ${formatSupabaseError(e)}');
       rethrow;
@@ -59,6 +59,6 @@ class TrackRepository {
   Future<TrackModel?> getTrack(String id) async {
     final res = await supabase.from('tracks').select().eq('id', id).maybeSingle();
     if (res == null) return null;
-    return TrackModel.fromJson(res as Map<String, dynamic>);
+    return TrackModel.fromJson(res);
   }
 }

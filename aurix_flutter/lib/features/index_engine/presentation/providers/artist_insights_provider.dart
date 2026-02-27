@@ -1,7 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/features/index_engine/data/models/index_score.dart' as engine;
-import 'package:aurix_flutter/features/index_engine/data/models/metrics_snapshot.dart' as engine;
 import 'package:aurix_flutter/features/index_engine/domain/levels/artist_insights.dart';
 import 'package:aurix_flutter/features/index_engine/domain/levels/badge_engine.dart';
 import 'package:aurix_flutter/features/index_engine/domain/levels/level_engine.dart';

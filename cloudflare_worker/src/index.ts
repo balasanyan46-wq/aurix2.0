@@ -1,7 +1,18 @@
+import {
+  handleDnkStart,
+  handleDnkAnswer,
+  handleDnkFinish,
+  handleDnkGetResult,
+  handleDnkOptions,
+} from "./dnk/handlers";
+import type { DnkEnv } from "./dnk/types";
+
 interface Env {
   OPENAI_API_KEY: string;
   AURIX_INTERNAL_KEY: string;
   AURIX_CACHE: KVNamespace;
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
 }
 
 interface ChatMessage {
@@ -27,7 +38,7 @@ function checkRateLimit(ip: string): boolean {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, X-AURIX-INTERNAL-KEY",
   "Access-Control-Max-Age": "86400",
 };
@@ -281,15 +292,29 @@ const CHAT_SYSTEM = `Ты AI-помощник Aurix. Помогаешь арти
 
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-    if (request.method === "OPTIONS") {
+    const method = request.method;
+    if (method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
-    if (request.method !== "POST") return jsonResp({ error: "Method not allowed" }, 405);
 
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // ── DNK endpoints (GET for polling, POST for mutations) ──
+    if (path.startsWith("/dnk/")) {
+      const dnkEnv: DnkEnv = env as unknown as DnkEnv;
+      if (method === "GET" && path === "/dnk/result") return handleDnkGetResult(request, dnkEnv);
+      if (method !== "POST") return jsonResp({ error: "Method not allowed" }, 405);
+      if (path === "/dnk/start") return handleDnkStart(request, dnkEnv);
+      if (path === "/dnk/answer") return handleDnkAnswer(request, dnkEnv);
+      if (path === "/dnk/finish") return handleDnkFinish(request, dnkEnv, _ctx);
+      return jsonResp({ error: "Unknown DNK endpoint" }, 404);
+    }
+
+    if (method !== "POST") return jsonResp({ error: "Method not allowed" }, 405);
+
     if (path === "/api/ai/chat") return handleChat(request, env);
+    if (path === "/api/ai/cover") return handleCover(request, env);
 
     if (path.startsWith("/v1/tools/")) {
       const key = request.headers.get("X-AURIX-INTERNAL-KEY");
@@ -302,6 +327,100 @@ export default {
     return jsonResp({ error: "Not found" }, 404);
   },
 };
+
+// ─── COVER HANDLER ─────────────────────────────────────────────────────
+
+type CoverReq = {
+  prompt: string;
+  size?: "1024x1024" | "1536x1536" | "auto";
+  quality?: "high" | "medium";
+  output_format?: "png";
+  background?: "opaque" | "transparent";
+  releaseId?: string | null;
+  userId?: string | null;
+};
+
+async function handleCover(request: Request, env: Env): Promise<Response> {
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  if (!checkRateLimit(ip)) {
+    return jsonResp({ error: "Rate limit exceeded. Try again in a minute." }, 429);
+  }
+
+  if (!env.OPENAI_API_KEY) return jsonResp({ error: "Server configuration error" }, 500);
+
+  let body: CoverReq;
+  try {
+    body = (await request.json()) as CoverReq;
+  } catch {
+    return jsonResp({ error: "Invalid JSON" }, 400);
+  }
+
+  const userPrompt = (body.prompt ?? "").toString().trim();
+  if (!userPrompt) return jsonResp({ error: "Empty prompt" }, 400);
+
+  const quality = body.quality === "medium" ? "medium" : "high";
+  const requestedSize = body.size ?? "1024x1024";
+  const background = body.background === "transparent" ? "transparent" : "opaque";
+
+  const noText = [
+    "No readable text.",
+    "No typography.",
+    "No logos.",
+    "No watermarks.",
+    "No brand names.",
+    "No UI, no mockups, no app screens.",
+  ].join(" ");
+
+  const prompt = [
+    "Square album cover (1:1).",
+    "High-end, premium, professional.",
+    "Clean composition, strong focal point, studio quality lighting.",
+    userPrompt,
+    noText,
+  ].join("\n");
+
+  async function call(size: string) {
+    const res = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-image-1",
+        prompt,
+        size,
+        quality,
+        response_format: "b64_json",
+        output_format: "png",
+        background,
+      }),
+    });
+    const data = (await res.json()) as any;
+    if (!res.ok) throw new Error(data?.error?.message ?? "OpenAI error");
+    const b64 = data?.data?.[0]?.b64_json as string | undefined;
+    if (!b64) throw new Error("Empty image result");
+    return b64;
+  }
+
+  let sizeToUse = requestedSize === "auto" ? "1024x1024" : requestedSize;
+  try {
+    const b64 = await call(sizeToUse);
+    return jsonResp({ ok: true, b64_png: b64, meta: { size: sizeToUse, quality, model: "gpt-image-1" } });
+  } catch (e: any) {
+    // Fallback: if 1536 is unsupported / fails, retry with 1024.
+    if (sizeToUse === "1536x1536") {
+      try {
+        sizeToUse = "1024x1024";
+        const b64 = await call(sizeToUse);
+        return jsonResp({ ok: true, b64_png: b64, meta: { size: sizeToUse, quality, model: "gpt-image-1", fallback: true } });
+      } catch (e2: any) {
+        return jsonResp({ ok: false, error: e2?.message ?? "Service unavailable" }, 502);
+      }
+    }
+    return jsonResp({ ok: false, error: e?.message ?? "Service unavailable" }, 502);
+  }
+}
 
 // ─── CHAT HANDLER ─────────────────────────────────────────────────────
 

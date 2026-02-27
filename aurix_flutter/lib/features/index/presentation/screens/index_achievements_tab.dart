@@ -4,7 +4,6 @@ import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/features/index/domain/badge_engine.dart';
-import 'package:aurix_flutter/features/index/data/models/index_score.dart';
 import 'package:aurix_flutter/features/index/presentation/index_notifier.dart';
 
 /// Вкладка «Достижения» — бейджи и прогресс артиста.
@@ -22,7 +21,11 @@ class IndexAchievementsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(indexProvider);
     final data = state.data;
-    if (data == null) return const SizedBox.shrink();
+    if (data == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AurixTokens.accent),
+      );
+    }
 
     final score = data.selectedScore;
     final earned = score?.badges ?? [];

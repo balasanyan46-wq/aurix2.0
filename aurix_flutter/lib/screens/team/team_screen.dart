@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
@@ -19,35 +20,46 @@ class TeamScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final teamAsync = ref.watch(_teamProvider);
+    final pad = horizontalPadding(context);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           FadeInSlide(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final narrow = c.maxWidth < 520;
+                return Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  runSpacing: 12,
                   children: [
-                    Text('Команда', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text('Участники, роли и сплиты', style: TextStyle(color: AurixTokens.muted, fontSize: 14)),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: narrow ? c.maxWidth : 420),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Команда', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Text('Участники, роли и сплиты', style: TextStyle(color: AurixTokens.muted, fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => _showAddDialog(context, ref),
+                      icon: const Icon(Icons.person_add_rounded, size: 18),
+                      label: const Text('Добавить'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AurixTokens.orange,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
                   ],
-                ),
-                FilledButton.icon(
-                  onPressed: () => _showAddDialog(context, ref),
-                  icon: const Icon(Icons.person_add_rounded, size: 18),
-                  label: const Text('Добавить'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AurixTokens.orange,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 24),
@@ -309,7 +321,13 @@ class _AddMemberDialogState extends State<_AddMemberDialog> {
     setState(() { _loading = true; _error = null; });
     try {
       final user = widget.ref.read(currentUserProvider);
-      if (user == null) throw StateError('Не авторизован');
+      if (user == null) {
+        setState(() {
+          _error = 'Войдите в аккаунт';
+          _loading = false;
+        });
+        return;
+      }
       await widget.ref.read(teamRepositoryProvider).addMember(
         ownerId: user.id,
         name: _nameC.text.trim(),

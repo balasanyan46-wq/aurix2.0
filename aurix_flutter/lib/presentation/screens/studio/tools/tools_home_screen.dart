@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'release_picker_screen.dart';
+import 'package:aurix_flutter/features/covers/cover_generator_sheet.dart';
 
 class ToolsHomeScreen extends ConsumerWidget {
   const ToolsHomeScreen({super.key});
@@ -62,6 +63,15 @@ class ToolsHomeScreen extends ConsumerWidget {
           color: const Color(0xFF0EA5E9),
           tag: 'NEW',
           onTap: () => _openTool(context, ToolType.pitchPack),
+        ),
+        const SizedBox(height: 12),
+        _ToolCard(
+          icon: Icons.image_rounded,
+          title: 'Обложки',
+          subtitle: 'Генерация обложки: превью + скачать PNG (HQ)',
+          color: const Color(0xFFF59E0B),
+          tag: 'NEW',
+          onTap: () => CoverGeneratorSheet.open(context),
         ),
         const SizedBox(height: 24),
       ],

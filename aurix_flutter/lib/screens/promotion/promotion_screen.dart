@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
-import 'package:aurix_flutter/data/models/report_row_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/providers/reports_provider.dart';
 
@@ -30,7 +29,6 @@ class PromotionScreen extends ConsumerStatefulWidget {
 class _PromotionScreenState extends ConsumerState<PromotionScreen> {
   _CampaignStage _stage = _CampaignStage.releaseWeek;
   Set<String> _doneTasks = {};
-  bool _prefsLoaded = false;
 
   @override
   void initState() {
@@ -41,7 +39,7 @@ class _PromotionScreenState extends ConsumerState<PromotionScreen> {
   Future<void> _loadTasks() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getStringList('promo_done_tasks') ?? [];
-    if (mounted) setState(() { _doneTasks = saved.toSet(); _prefsLoaded = true; });
+    if (mounted) setState(() => _doneTasks = saved.toSet());
   }
 
   Future<void> _saveTasks() async {
@@ -219,7 +217,7 @@ class _PromotionScreenState extends ConsumerState<PromotionScreen> {
   Widget _buildRoadmapCard() {
     final tasks = _tasksForStage();
     return AurixGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(horizontalPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

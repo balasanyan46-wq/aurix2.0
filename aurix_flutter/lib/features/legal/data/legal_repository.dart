@@ -37,7 +37,7 @@ class LegalRepository {
     final res =
         await supabase.from('legal_templates').select().eq('id', id).maybeSingle();
     if (res == null) return null;
-    return LegalTemplateModel.fromJson(res as Map<String, dynamic>);
+    return LegalTemplateModel.fromJson(res);
   }
 
   /// Документы текущего пользователя.

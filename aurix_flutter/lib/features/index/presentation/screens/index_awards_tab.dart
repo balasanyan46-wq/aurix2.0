@@ -27,10 +27,21 @@ class _IndexAwardsTabState extends ConsumerState<IndexAwardsTab> {
   Widget build(BuildContext context) {
     final state = ref.watch(indexProvider);
     final data = state.data;
-    if (data == null) return const SizedBox.shrink();
+    if (data == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AurixTokens.accent),
+      );
+    }
 
     final awardsData = computeAwardsData(data, _seasonYear);
-    if (awardsData == null) return const SizedBox.shrink();
+    if (awardsData == null) {
+      return Center(
+        child: Text(
+          'Нет данных за сезон',
+          style: TextStyle(color: AurixTokens.muted),
+        ),
+      );
+    }
 
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     final padding = isDesktop ? 24.0 : 16.0;

@@ -48,13 +48,13 @@ class ProfileRepository {
       'updated_at': now,
     };
     final res = await supabase.from('profiles').upsert(data, onConflict: _pkCol).select().single();
-    return ProfileModel.fromJson(res as Map<String, dynamic>);
+    return ProfileModel.fromJson(res);
   }
 
   Future<ProfileModel?> getProfile(String id) async {
     final res = await supabase.from('profiles').select().eq(_pkCol, id).maybeSingle();
     if (res == null) return null;
-    return ProfileModel.fromJson(res as Map<String, dynamic>);
+    return ProfileModel.fromJson(res);
   }
 
   /// Upsert for auth signup only. Creates profile with initial plan.

@@ -22,7 +22,7 @@ class ReleaseRepository {
     logSupabaseRequest(table: 'releases', operation: 'select', payload: {'id': id});
     final res = await supabase.from('releases').select().eq('id', id).maybeSingle();
     if (res == null) return null;
-    return ReleaseModel.fromJson(res as Map<String, dynamic>);
+    return ReleaseModel.fromJson(res);
   }
 
   Future<ReleaseModel> createRelease({
@@ -60,7 +60,7 @@ class ReleaseRepository {
     logSupabaseRequest(table: 'releases', operation: 'insert', payload: payload, userId: ownerId);
     try {
       final res = await supabase.from('releases').insert(payload).select().single();
-      return ReleaseModel.fromJson(res as Map<String, dynamic>);
+      return ReleaseModel.fromJson(res);
     } catch (e) {
       debugPrint('[ReleaseRepository] createRelease error: ${formatSupabaseError(e)}');
       rethrow;

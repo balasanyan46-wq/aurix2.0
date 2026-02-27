@@ -142,7 +142,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           if (ref.watch(isAdminProvider).valueOrNull == true)
             IconButton(
               icon: const Icon(Icons.admin_panel_settings),
-              onPressed: () => context.push('/admin/releases'),
+              onPressed: () => context.push('/admin?tab=releases'),
               tooltip: 'Админ',
             ),
         ],

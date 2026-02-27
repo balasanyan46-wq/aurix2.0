@@ -12,7 +12,7 @@ import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/models/track_model.dart';
 import 'package:aurix_flutter/data/models/admin_note_model.dart';
-import 'package:aurix_flutter/data/repositories/file_repository.dart';
+import 'package:aurix_flutter/features/covers/cover_generator_sheet.dart';
 
 final releaseDetailProvider = FutureProvider.family<ReleaseModel?, String>((ref, id) async {
   return ref.watch(releaseRepositoryProvider).getRelease(id);
@@ -37,6 +37,7 @@ class ReleaseDetailScreen extends ConsumerStatefulWidget {
 class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
   bool _editing = false;
   bool _saving = false;
+  bool _pickingFile = false;
 
   late TextEditingController _titleCtrl;
   late TextEditingController _artistCtrl;
@@ -93,6 +94,8 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
   }
 
   Future<void> _replaceCover(ReleaseModel r) async {
+    if (_saving || _pickingFile) return;
+    _pickingFile = true;
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
       if (result == null) return;
@@ -112,10 +115,14 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
     } catch (e) {
       setState(() => _saving = false);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+    } finally {
+      _pickingFile = false;
     }
   }
 
   Future<void> _addTrack(ReleaseModel r) async {
+    if (_saving || _pickingFile) return;
+    _pickingFile = true;
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.audio, withData: true);
       if (result == null) return;
@@ -138,6 +145,8 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
     } catch (e) {
       setState(() => _saving = false);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+    } finally {
+      _pickingFile = false;
     }
   }
 
@@ -239,6 +248,27 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
                             onPressed: _saving ? null : () => _replaceCover(r),
                             icon: const Icon(Icons.image, size: 18),
                             label: Text(r.coverUrl != null ? 'Заменить обложку' : 'Загрузить обложку'),
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton.icon(
+                            onPressed: _saving
+                                ? null
+                                : () async {
+                                    final userId = ref.read(currentUserProvider)?.id;
+                                    if (userId == null) return;
+                                    await CoverGeneratorSheet.open(
+                                      context,
+                                      releaseId: r.id,
+                                      initialArtistName: r.artist ?? '',
+                                      initialReleaseTitle: r.title,
+                                      initialGenre: r.genre,
+                                      onApplied: (_, __) {
+                                        ref.invalidate(releaseDetailProvider(widget.releaseId));
+                                      },
+                                    );
+                                  },
+                            icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                            label: const Text('Сгенерировать обложку'),
                           ),
                         ],
                         const SizedBox(height: 16),

@@ -123,6 +123,7 @@ enum AppScreen {
   releaseDetails,
   analytics,
   promotion,
+  progress,
   studioAi,
   services,
   finances,
@@ -134,4 +135,5 @@ enum AppScreen {
   aurixIndex,
   admin,
   legal,
+  aurixDnk,
 }

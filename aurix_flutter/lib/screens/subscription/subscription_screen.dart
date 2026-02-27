@@ -71,10 +71,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
               // ── Header ──────────────────────────────────────
               Text(
-                'Выбери масштаб, на котором ты собираешься играть.',
+                isDesktop
+                    ? 'Выбери масштаб, на котором ты собираешься играть.'
+                    : 'Выбери свой масштаб.',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       height: 1.2,
+                      fontSize: isDesktop ? null : 22,
                     ),
                 textAlign: isDesktop ? TextAlign.center : TextAlign.start,
               ),
@@ -540,44 +543,36 @@ class _PlanCardState extends State<_PlanCard> {
 
               const SizedBox(height: 20),
 
-              // Features — expands to fill remaining space on desktop
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: widget.config.featureKeys.map((key) {
-                      final isNegative = key == 'planStartStudioNo';
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              isNegative ? Icons.remove_circle_outline : Icons.check_circle,
-                              size: 18,
-                              color: isNegative ? AurixTokens.muted.withValues(alpha: 0.5) : _accentColor,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                L10n.t(context, key),
-                                style: TextStyle(
-                                  color: isNegative ? AurixTokens.muted.withValues(alpha: 0.5) : AurixTokens.text,
-                                  fontSize: 14,
-                                  decoration: isNegative ? TextDecoration.lineThrough : null,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+              // Features
+              ...widget.config.featureKeys.map((key) {
+                final isNegative = key == 'planStartStudioNo';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        isNegative ? Icons.remove_circle_outline : Icons.check_circle,
+                        size: 18,
+                        color: isNegative ? AurixTokens.muted.withValues(alpha: 0.5) : _accentColor,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          L10n.t(context, key),
+                          style: TextStyle(
+                            color: isNegative ? AurixTokens.muted.withValues(alpha: 0.5) : AurixTokens.text,
+                            fontSize: 14,
+                            decoration: isNegative ? TextDecoration.lineThrough : null,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      );
-                    }).toList(),
+                      ),
+                    ],
                   ),
-                ),
-              ),
+                );
+              }),
 
               const SizedBox(height: 16),
 

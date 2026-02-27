@@ -24,6 +24,7 @@ import 'package:aurix_flutter/screens/support/support_screen.dart';
 import 'package:aurix_flutter/features/legal/legal_screen.dart';
 import 'package:aurix_flutter/screens/releases/release_create_flow_screen.dart';
 import 'package:aurix_flutter/screens/studio_ai/studio_ai_screen.dart';
+import 'package:aurix_flutter/features/progress/presentation/screens/progress_home_screen.dart';
 import 'package:aurix_flutter/ai/ai_assistant_overlay.dart';
 import 'package:aurix_flutter/core/admin_config.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
@@ -134,6 +135,7 @@ class _DesignShellState extends ConsumerState<DesignShell> {
       AppScreen.releaseDetails => 'releases',
       AppScreen.analytics => 'statistics',
       AppScreen.promotion => 'promo',
+      AppScreen.progress => 'progress',
       AppScreen.studioAi => 'studioAi',
       AppScreen.services => 'services',
       AppScreen.finances => 'finances',
@@ -145,6 +147,7 @@ class _DesignShellState extends ConsumerState<DesignShell> {
       AppScreen.profile => 'profile',
       AppScreen.aurixIndex => 'index',
       AppScreen.admin => 'management',
+      AppScreen.aurixDnk => 'aurixDnk',
     };
     return L10n.t(context, k);
   }
@@ -168,6 +171,8 @@ class _DesignShellState extends ConsumerState<DesignShell> {
         return const AnalyticsScreen();
       case AppScreen.promotion:
         return const PromotionScreen();
+      case AppScreen.progress:
+        return const ProgressHomeScreen();
       case AppScreen.studioAi:
         return const StudioAiScreen();
       case AppScreen.services:
@@ -193,6 +198,8 @@ class _DesignShellState extends ConsumerState<DesignShell> {
         );
       case AppScreen.admin:
         return const AdminScreen();
+      case AppScreen.aurixDnk:
+        return const SizedBox();
     }
   }
 }
@@ -203,6 +210,7 @@ List<_NavItem> _navItems(BuildContext context, bool isAdmin) => [
       _NavItem(screen: AppScreen.uploadRelease, icon: Icons.upload_rounded, label: L10n.t(context, 'uploadRelease')),
       _NavItem(screen: AppScreen.analytics, icon: Icons.analytics_rounded, label: L10n.t(context, 'statistics')),
       _NavItem(screen: AppScreen.promotion, icon: Icons.rocket_launch_rounded, label: L10n.t(context, 'promo')),
+      _NavItem(screen: AppScreen.progress, icon: Icons.calendar_month_rounded, label: L10n.t(context, 'progress')),
       _NavItem(screen: AppScreen.studioAi, icon: Icons.auto_awesome, label: L10n.t(context, 'studioAi')),
       _NavItem(screen: AppScreen.finances, icon: Icons.account_balance_wallet_rounded, label: L10n.t(context, 'finances')),
       _NavItem(screen: AppScreen.team, icon: Icons.groups_rounded, label: L10n.t(context, 'team')),

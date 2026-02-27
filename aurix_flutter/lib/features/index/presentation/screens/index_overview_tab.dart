@@ -15,7 +15,11 @@ class IndexOverviewTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(indexProvider);
     final data = state.data;
-    if (data == null) return const SizedBox.shrink();
+    if (data == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AurixTokens.accent),
+      );
+    }
 
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     final padding = isDesktop ? 24.0 : 16.0;
@@ -116,7 +120,9 @@ class _LeaderCard extends StatelessWidget {
                   radius: 28,
                   backgroundColor: AurixTokens.accent.withValues(alpha: 0.12),
                   child: Text(
-                    artist.name.substring(0, 1).toUpperCase(),
+                    artist.name.trim().isNotEmpty
+                        ? artist.name.trim().substring(0, 1).toUpperCase()
+                        : '?',
                     style: TextStyle(color: AurixTokens.accent, fontWeight: FontWeight.w700, fontSize: 20),
                   ),
                 ),
@@ -178,7 +184,9 @@ class _MyIndexCard extends StatelessWidget {
                 radius: 32,
                 backgroundColor: AurixTokens.accent.withValues(alpha: 0.12),
                 child: Text(
-                  artist.name.substring(0, 1).toUpperCase(),
+                  artist.name.trim().isNotEmpty
+                      ? artist.name.trim().substring(0, 1).toUpperCase()
+                      : '?',
                   style: TextStyle(color: AurixTokens.accent, fontWeight: FontWeight.w700, fontSize: 24),
                 ),
               ),

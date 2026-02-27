@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
@@ -15,7 +14,11 @@ class IndexProfileTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(indexProvider);
     final data = state.data;
-    if (data == null) return const SizedBox.shrink();
+    if (data == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: AurixTokens.accent),
+      );
+    }
 
     final artist = data.selectedArtist ?? data.artists.firstOrNull;
     final score = artist != null ? data.scoreFor(artist.id) : null;
@@ -84,7 +87,9 @@ class _ProfileHeader extends StatelessWidget {
                 radius: 40,
                 backgroundColor: AurixTokens.orange.withValues(alpha: 0.3),
                 child: Text(
-                  artist.name.substring(0, 1).toUpperCase(),
+                  artist.name.trim().isNotEmpty
+                      ? artist.name.trim().substring(0, 1).toUpperCase()
+                      : '?',
                   style: const TextStyle(color: AurixTokens.orange, fontWeight: FontWeight.w800, fontSize: 32),
                 ),
               ),
