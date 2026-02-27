@@ -1,0 +1,2 @@
+bool isTouchLikeDevice() => false;
+

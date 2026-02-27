@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:aurix_flutter/core/pointer_capabilities.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -30,7 +31,7 @@ class _TiltGlowCardState extends State<TiltGlowCard> {
 
   bool get _canTilt {
     final mq = MediaQuery.of(context);
-    final isTouchLike = mq.size.width < 900;
+    final isTouchLike = isTouchLikeDevice();
     final reduce = mq.accessibleNavigation;
     if (reduce) return false;
     return widget.enabled && !isTouchLike;

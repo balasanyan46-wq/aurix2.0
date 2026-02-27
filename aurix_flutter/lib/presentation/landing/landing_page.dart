@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/core/pointer_capabilities.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:aurix_flutter/presentation/landing/widgets/parallax_layer.dart';
 import 'package:aurix_flutter/presentation/landing/widgets/reveal_on_scroll.dart';
@@ -53,9 +54,7 @@ class _LandingPageState extends State<LandingPage>
   bool _isDesktop(BuildContext context) => MediaQuery.sizeOf(context).width >= 960;
   bool _isNarrow(BuildContext context) => MediaQuery.sizeOf(context).width < 720;
   bool _perfMode(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    // Heuristic: treat narrow/tablet widths as touch/performance mode.
-    return mq.size.width < 900;
+    return _isNarrow(context) || isTouchLikeDevice();
   }
 
   @override
@@ -543,6 +542,7 @@ class _LandingPageState extends State<LandingPage>
 
   Widget _buildFeatures(BuildContext context) {
     final desktop = _isDesktop(context);
+    final allowFx = !_perfMode(context) && !MediaQuery.of(context).accessibleNavigation;
 
     const features = [
       _FeatureData(
@@ -599,7 +599,11 @@ class _LandingPageState extends State<LandingPage>
             style: TextStyle(color: AurixTokens.muted.withValues(alpha: 0.9), fontSize: 13, height: 1.5),
           ),
           const SizedBox(height: 40),
-          _CardsGrid(items: features.map((f) => _FeatureCard(data: f)).toList()),
+          _CardsGrid(
+            items: features
+                .map((f) => _FeatureCard(data: f, fx: _mockFxController, allowFx: allowFx))
+                .toList(),
+          ),
         ],
       ),
     );
@@ -1038,6 +1042,7 @@ class _HeroCopy extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final desktop = MediaQuery.sizeOf(context).width >= 960;
+    final allowTilt = !isTouchLikeDevice() && !MediaQuery.of(context).accessibleNavigation;
     Animation<double> fadeIn(double a, double b) => CurvedAnimation(
           parent: enter,
           curve: Interval(a, b, curve: Curves.easeOutCubic),
@@ -1102,15 +1107,24 @@ class _HeroCopy extends StatelessWidget {
           children: [
             FadeTransition(
               opacity: fadeIn(0.42, 0.86),
-              child: SlideTransition(position: slideUp(0.42, 0.86, dy: 0.10), child: const _MiniBullet(icon: Icons.checklist_rounded, text: 'Релиз под ключ')),
+              child: SlideTransition(
+                position: slideUp(0.42, 0.86, dy: 0.10),
+                child: _HeroBadge(icon: Icons.checklist_rounded, text: 'Релиз под ключ', enabled: allowTilt),
+              ),
             ),
             FadeTransition(
               opacity: fadeIn(0.48, 0.90),
-              child: SlideTransition(position: slideUp(0.48, 0.90, dy: 0.10), child: const _MiniBullet(icon: Icons.auto_awesome_rounded, text: 'AI‑студия')),
+              child: SlideTransition(
+                position: slideUp(0.48, 0.90, dy: 0.10),
+                child: _HeroBadge(icon: Icons.auto_awesome_rounded, text: 'AI‑студия', enabled: allowTilt),
+              ),
             ),
             FadeTransition(
               opacity: fadeIn(0.54, 0.94),
-              child: SlideTransition(position: slideUp(0.54, 0.94, dy: 0.10), child: const _MiniBullet(icon: Icons.track_changes_rounded, text: 'Контроль процесса')),
+              child: SlideTransition(
+                position: slideUp(0.54, 0.94, dy: 0.10),
+                child: _HeroBadge(icon: Icons.track_changes_rounded, text: 'Контроль процесса', enabled: allowTilt),
+              ),
             ),
           ],
         ),
@@ -1141,6 +1155,58 @@ class _MiniBullet extends StatelessWidget {
           Text(text, style: const TextStyle(color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w700)),
         ],
       ),
+    );
+  }
+}
+
+class _HeroBadge extends StatefulWidget {
+  final IconData icon;
+  final String text;
+  final bool enabled;
+  const _HeroBadge({required this.icon, required this.text, required this.enabled});
+
+  @override
+  State<_HeroBadge> createState() => _HeroBadgeState();
+}
+
+class _HeroBadgeState extends State<_HeroBadge> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final inner = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AurixTokens.glass(_hover ? 0.065 : 0.045),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AurixTokens.stroke(_hover ? 0.18 : 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(widget.icon, size: 18, color: AurixTokens.orange),
+          const SizedBox(width: 8),
+          Text(widget.text, style: const TextStyle(color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+
+    final child = MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        scale: _hover && widget.enabled ? 1.02 : 1.0,
+        child: inner,
+      ),
+    );
+
+    if (!widget.enabled) return child;
+    return TiltGlowCard(
+      enabled: true,
+      borderRadius: 14,
+      child: child,
     );
   }
 }
@@ -1880,7 +1946,9 @@ class _FeatureData {
 
 class _FeatureCard extends StatefulWidget {
   final _FeatureData data;
-  const _FeatureCard({required this.data});
+  final Animation<double>? fx;
+  final bool allowFx;
+  const _FeatureCard({required this.data, this.fx, this.allowFx = false});
 
   @override
   State<_FeatureCard> createState() => _FeatureCardState();
@@ -1899,47 +1967,159 @@ class _FeatureCardState extends State<_FeatureCard> {
         onExit: (_) => setState(() => _hovered = false),
         child: _FxCard(
           enabled: !perf,
-          child: Padding(
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AurixTokens.orange.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AurixTokens.orange.withValues(alpha: _hovered ? 0.26 : 0.16)),
-                  ),
-                  child: Icon(widget.data.icon, color: AurixTokens.orange, size: 20),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  widget.data.title,
-                  style: const TextStyle(
-                    color: AurixTokens.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.1,
+          child: Stack(
+            children: [
+              if (widget.allowFx &&
+                  widget.fx != null &&
+                  widget.data.title == 'AURIX Studio AI')
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: widget.fx!,
+                      builder: (context, _) {
+                        return CustomPaint(
+                          painter: _AiSpectrumPainter(t: widget.fx!.value, hovered: _hovered),
+                        );
+                      },
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  widget.data.text,
-                  style: TextStyle(
-                    color: AurixTokens.textSecondary,
-                    fontSize: 14,
-                    height: 1.55,
-                  ),
+              Padding(
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: AurixTokens.orange.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AurixTokens.orange.withValues(alpha: _hovered ? 0.26 : 0.16)),
+                      ),
+                      child: Icon(widget.data.icon, color: AurixTokens.orange, size: 20),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.data.title,
+                      style: const TextStyle(
+                        color: AurixTokens.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.data.text,
+                      style: TextStyle(
+                        color: AurixTokens.textSecondary,
+                        fontSize: 14,
+                        height: 1.55,
+                      ),
+                    ),
+                    if (widget.data.title == 'AURIX Studio AI') ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'AI внутри: черновики за минуты, дальше — в твоём стиле.',
+                        style: TextStyle(
+                          color: AurixTokens.muted.withValues(alpha: 0.85),
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class _AiSpectrumPainter extends CustomPainter {
+  final double t;
+  final bool hovered;
+  _AiSpectrumPainter({required this.t, required this.hovered});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16));
+    canvas.save();
+    canvas.clipRRect(r);
+
+    // Soft wave field.
+    final wavePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = AurixTokens.orange.withValues(alpha: hovered ? 0.14 : 0.10);
+
+    final wavePaint2 = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = Colors.white.withValues(alpha: hovered ? 0.06 : 0.04);
+
+    final baseY = size.height * 0.58;
+    final amp = size.height * 0.06;
+    final phase = (t * math.pi * 2);
+
+    for (var i = 0; i < 3; i++) {
+      final p = Path();
+      final y0 = baseY + (i - 1) * (amp * 0.8);
+      for (var x = 0.0; x <= size.width; x += 8) {
+        final nx = x / size.width;
+        final y = y0 + math.sin(phase + nx * (6.2 + i * 0.8)) * amp * (0.9 - i * 0.2);
+        if (x == 0) {
+          p.moveTo(x, y);
+        } else {
+          p.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(p, i == 0 ? wavePaint : wavePaint2);
+    }
+
+    // Spectrum bars (bottom right).
+    final bars = 14;
+    final barW = 5.0;
+    final gap = 3.0;
+    final totalW = bars * barW + (bars - 1) * gap;
+    final startX = size.width - totalW - 16;
+    final base = size.height - 18;
+    final maxH = size.height * 0.22;
+    final barPaint = Paint()..color = AurixTokens.orange2.withValues(alpha: hovered ? 0.22 : 0.16);
+    final barPaint2 = Paint()..color = AurixTokens.orange.withValues(alpha: hovered ? 0.14 : 0.10);
+
+    for (var i = 0; i < bars; i++) {
+      final k = i / (bars - 1);
+      final s = 0.55 + 0.45 * math.sin(phase * (1.1 + k * 0.9) + k * 6.0);
+      final h = (maxH * s).clamp(6.0, maxH).toDouble();
+      final x = startX + i * (barW + gap);
+      final rect = RRect.fromRectAndRadius(Rect.fromLTWH(x, base - h, barW, h), const Radius.circular(6));
+      canvas.drawRRect(rect, i.isEven ? barPaint : barPaint2);
+    }
+
+    // Bottom fade to keep text readable.
+    final fade = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment.topCenter,
+        colors: [
+          AurixTokens.bg1.withValues(alpha: 0.42),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.7],
+      ).createShader(Offset.zero & size);
+    canvas.drawRect(Offset.zero & size, fade);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _AiSpectrumPainter oldDelegate) =>
+      oldDelegate.t != t || oldDelegate.hovered != hovered;
 }
 
 // ─── Reason card ─────────────────────────────────────────────────────
