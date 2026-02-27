@@ -9,6 +9,8 @@
 /* Base cosmic drift */
 body{
   position:relative;
+  /* Create stacking context so z-index behaves predictably */
+  isolation:isolate;
 }
 
 body::before{
@@ -82,11 +84,15 @@ body::after{
   pointer-events:none;
 }
 
-/* Ensure Flutter layers remain above background */
-flt-glass-pane, flt-scene-host, #flutter_target, canvas{
+/* Ensure app content stays above FX overlays (Flutter + static pages) */
+body > *:not(#aurixCursorGlow):not(#aurixParticles){
   position:relative;
-  z-index:3;
+  z-index:5;
 }
+
+/* Keep FX layers under content */
+#aurixCursorGlow{ z-index:1; }
+#aurixParticles{ z-index:2; }
 
 /* Pause animations when JS adds class */
 html.fx-paused body::before,

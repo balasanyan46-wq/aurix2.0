@@ -25,7 +25,7 @@
   // Cursor glow (skip on perf / reduced motion)
   const glow = document.createElement('div');
   glow.id = 'aurixCursorGlow';
-  document.body.appendChild(glow);
+  document.body.insertBefore(glow, document.body.firstChild);
 
   if (!perf) {
     let raf = 0;
@@ -49,7 +49,7 @@
 
   const canvas = document.createElement('canvas');
   canvas.id = 'aurixParticles';
-  document.body.appendChild(canvas);
+  document.body.insertBefore(canvas, document.body.firstChild);
   const ctx = canvas.getContext('2d', { alpha: true });
   if (!ctx) return;
 
