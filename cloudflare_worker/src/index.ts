@@ -391,14 +391,14 @@ async function handleCover(request: Request, env: Env): Promise<Response> {
         prompt,
         size,
         quality,
-        response_format: "b64_json",
         output_format: "png",
         background,
       }),
     });
     const data = (await res.json()) as any;
     if (!res.ok) throw new Error(data?.error?.message ?? "OpenAI error");
-    const b64 = data?.data?.[0]?.b64_json as string | undefined;
+    const item = data?.data?.[0] ?? {};
+    const b64 = (item?.b64_json ?? item?.b64_png ?? item?.b64) as string | undefined;
     if (!b64) throw new Error("Empty image result");
     return b64;
   }

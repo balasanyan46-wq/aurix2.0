@@ -240,6 +240,7 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
   @override
   Widget build(BuildContext context) {
     final hasReply = _vm.value.markdownText != null && _vm.value.markdownText!.trim().isNotEmpty;
+    final isLoading = _vm.value.isLoading;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -281,14 +282,14 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
                 return ChoiceChip(
                   label: Text(p),
                   selected: selected,
-                  onSelected: _loading ? null : (v) => setState(() => _quick = v ? p : null),
+                  onSelected: isLoading ? null : (v) => setState(() => _quick = v ? p : null),
                 );
               }).toList(),
             ),
           ],
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: _vm.value.isLoading ? null : _generate,
+            onPressed: isLoading ? null : _generate,
             style: FilledButton.styleFrom(
               backgroundColor: AurixTokens.orange,
               foregroundColor: Colors.black,
@@ -296,7 +297,7 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
-            child: _vm.value.isLoading
+            child: isLoading
                 ? const SizedBox(
                     height: 18,
                     width: 18,
