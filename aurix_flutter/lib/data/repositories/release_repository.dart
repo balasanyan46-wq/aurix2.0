@@ -4,8 +4,16 @@ import 'package:aurix_flutter/core/supabase_diagnostics.dart';
 import 'package:aurix_flutter/data/supabase_client.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/models/admin_note_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ReleaseRepository {
+  bool _isMissingColumnError(Object e, {required String column}) {
+    if (e is! PostgrestException) return false;
+    if (e.code != 'PGRST204') return false;
+    final msg = e.message.toLowerCase();
+    return msg.contains(column.toLowerCase());
+  }
+
   Future<List<ReleaseModel>> getReleasesByOwner(String ownerId) async {
     logSupabaseRequest(table: 'releases', operation: 'select', userId: ownerId);
     final res = await supabase.from('releases').select().eq('owner_id', ownerId).order('created_at', ascending: false);
@@ -62,6 +70,15 @@ class ReleaseRepository {
       final res = await supabase.from('releases').insert(payload).select().single();
       return ReleaseModel.fromJson(res);
     } catch (e) {
+      if (_isMissingColumnError(e, column: 'copyright_year') && payload.containsKey('copyright_year')) {
+        final fallback = Map<String, dynamic>.from(payload)..remove('copyright_year');
+        try {
+          final res = await supabase.from('releases').insert(fallback).select().single();
+          return ReleaseModel.fromJson(res);
+        } catch (_) {
+          // If fallback also fails, preserve original error below.
+        }
+      }
       debugPrint('[ReleaseRepository] createRelease error: ${formatSupabaseError(e)}');
       rethrow;
     }
@@ -101,6 +118,15 @@ class ReleaseRepository {
     try {
       await supabase.from('releases').update(updates).eq('id', id);
     } catch (e) {
+      if (_isMissingColumnError(e, column: 'copyright_year') && updates.containsKey('copyright_year')) {
+        final fallback = Map<String, dynamic>.from(updates)..remove('copyright_year');
+        try {
+          await supabase.from('releases').update(fallback).eq('id', id);
+          return;
+        } catch (_) {
+          // If fallback also fails, preserve original error below.
+        }
+      }
       debugPrint('[ReleaseRepository] updateRelease error: ${formatSupabaseError(e)}');
       rethrow;
     }
