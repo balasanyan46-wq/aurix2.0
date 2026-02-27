@@ -6,12 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:aurix_flutter/ai/ai_message.dart';
 import 'package:aurix_flutter/ai/ai_service.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/core/enums.dart';
 import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 
-const _historyKey = 'aurix_ai_history';
 const _historyLimit = 14;
+const _historyKeyPrefix = 'aurix_ai_history';
 
 typedef OnNavigateCb = void Function(AppScreen screen, [String? releaseId]);
 
@@ -50,10 +51,27 @@ class _AiAssistantOverlayState extends ConsumerState<AiAssistantOverlay> {
     }
   }
 
+  String? _uid() => ref.read(authStoreProvider).userId;
+
+  String _historyKeyFor(String uid) => '$_historyKeyPrefix:$uid';
+
   Future<void> _loadHistory() async {
     try {
+      final uid = _uid();
+      if (uid == null || uid.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          if (_messages.isEmpty) {
+            _messages.add(AiMessage(
+              role: 'assistant',
+              content: L10n.t(context, 'assistantGreeting'),
+            ));
+          }
+        });
+        return;
+      }
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_historyKey);
+      final raw = prefs.getString(_historyKeyFor(uid));
       final List<AiMessage> loaded = [];
       if (raw != null) {
         final list = jsonDecode(raw) as List<dynamic>?;
@@ -93,13 +111,15 @@ class _AiAssistantOverlayState extends ConsumerState<AiAssistantOverlay> {
 
   Future<void> _saveHistory() async {
     try {
+      final uid = _uid();
+      if (uid == null || uid.isEmpty) return;
       final toSave = _messages
           .where((m) => m.role == 'user' || m.role == 'assistant')
           .take(_historyLimit)
           .map((m) => m.toJson())
           .toList();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_historyKey, jsonEncode(toSave));
+      await prefs.setString(_historyKeyFor(uid), jsonEncode(toSave));
     } catch (_) {}
   }
 

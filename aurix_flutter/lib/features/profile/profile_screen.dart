@@ -215,7 +215,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     OutlinedButton.icon(
                       onPressed: () async {
                         await ref.read(authRepositoryProvider).signOut();
-                        if (context.mounted) context.go('/login');
+                        // AuthGate/router will switch screens when session updates.
                       },
                       icon: const Icon(Icons.logout),
                       label: const Text('Выйти'),

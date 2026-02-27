@@ -148,7 +148,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       await ref
           .read(authRepositoryProvider)
           .signIn(email: email, password: password);
-      if (mounted) context.go('/home');
+      // Do not navigate here. AuthGate/router will switch screens when session is ready.
     } on AuthException catch (e) {
       String msg = 'Ошибка входа';
       if (e.message.contains('Invalid login')) {

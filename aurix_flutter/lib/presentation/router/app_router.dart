@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/app/auth/auth_gate.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/presentation/screens/auth/login_screen.dart';
 import 'package:aurix_flutter/presentation/screens/auth/register_screen.dart';
 import 'package:aurix_flutter/features/app_shell/app_shell_scaffold.dart';
@@ -30,34 +31,44 @@ import 'package:aurix_flutter/features/index_engine/presentation/index_engine_de
 import 'package:aurix_flutter/features/dnk/presentation/dnk_screen.dart';
 import 'package:aurix_flutter/features/progress/presentation/screens/progress_home_screen.dart';
 import 'package:aurix_flutter/features/progress/presentation/screens/habit_manage_screen.dart';
-import 'package:aurix_flutter/presentation/landing/landing_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final authStore = ref.read(authStoreProvider);
   return GoRouter(
     initialLocation: '/',
     debugLogDiagnostics: true,
+    refreshListenable: authStore,
     redirect: (context, state) {
-      final isLoading = authState.isLoading;
-      final hasUser = authState.valueOrNull?.session != null;
+      final isReady = authStore.ready;
+      final hasUser = authStore.isAuthed;
       final loc = state.matchedLocation;
       final isPublic = loc == '/' || loc == '/login' || loc == '/register';
-      if (isLoading) return null;
+      if (!isReady) {
+        // Never render any user-specific screen until session restore is complete.
+        return loc == '/' ? null : '/';
+      }
       if (!hasUser && !isPublic) return '/';
       if (hasUser && isPublic) return '/home';
       return null;
     },
     routes: [
-      GoRoute(path: '/', builder: (_, __) => const LandingPage()),
+      GoRoute(path: '/', builder: (_, __) => const AuthGate()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
       ShellRoute(
         builder: (context, state, child) {
-          final loc = state.matchedLocation;
-          return AppShellScaffold(
-            currentLocation: loc,
-            child: ProfileGate(location: loc, child: child),
-          );
+          return Consumer(builder: (context, ref, _) {
+            final loc = state.matchedLocation;
+            final userKey = ref.watch(authStoreProvider).userId ?? 'anon';
+            // Reset all user-scoped providers on user switch to prevent stale data flashes.
+            return ProviderScope(
+              key: ValueKey(userKey),
+              child: AppShellScaffold(
+                currentLocation: loc,
+                child: ProfileGate(location: loc, child: child),
+              ),
+            );
+          });
         },
         routes: [
           GoRoute(
@@ -169,8 +180,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin',
         pageBuilder: (context, state) {
-          final tab = state.uri.queryParameters['tab'];
-          return NoTransitionPage(child: AdminPanel(initialTab: tab));
+          return NoTransitionPage(
+            child: Consumer(builder: (context, ref, _) {
+              final tab = state.uri.queryParameters['tab'];
+              final userKey = ref.watch(authStoreProvider).userId ?? 'anon';
+              return ProviderScope(
+                key: ValueKey('admin:$userKey'),
+                child: AdminPanel(initialTab: tab),
+              );
+            }),
+          );
         },
       ),
     ],

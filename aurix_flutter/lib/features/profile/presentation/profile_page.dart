@@ -288,7 +288,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       OutlinedButton.icon(
                         onPressed: () async {
                           await ref.read(authRepositoryProvider).signOut();
-                          if (context.mounted) context.go('/login');
+                          // AuthGate/router will switch screens when session updates.
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AurixTokens.orange,

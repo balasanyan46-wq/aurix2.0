@@ -4,23 +4,23 @@ import 'package:aurix_flutter/core/supabase_client.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
-
-final authStateProvider = StreamProvider<AuthState>((ref) {
-  return ref.watch(authRepositoryProvider).authStateChanges;
-});
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 
 final currentUserProvider = Provider<User?>((ref) {
-  return ref.watch(authRepositoryProvider).currentUser;
+  final auth = ref.watch(authStoreProvider);
+  if (!auth.ready) return null;
+  return auth.session?.user;
 });
 
 final currentProfileProvider = StreamProvider<ProfileModel?>((ref) {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return Stream.value(null);
+  final auth = ref.watch(authStoreProvider);
+  final uid = auth.ready ? auth.userId : null;
+  if (uid == null) return Stream.value(null);
 
   return supabase
       .from('profiles')
       .stream(primaryKey: ['user_id'])
-      .eq('user_id', user.id)
+      .eq('user_id', uid)
       .map((rows) {
         if (rows.isEmpty) return null;
         return ProfileModel.fromJson(rows.first);

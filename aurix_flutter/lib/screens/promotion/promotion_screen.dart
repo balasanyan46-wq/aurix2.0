@@ -7,6 +7,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/providers/reports_provider.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 
 enum _CampaignStage { preSave, releaseWeek, postRelease }
 
@@ -30,6 +31,10 @@ class _PromotionScreenState extends ConsumerState<PromotionScreen> {
   _CampaignStage _stage = _CampaignStage.releaseWeek;
   Set<String> _doneTasks = {};
 
+  String? _uid() => ref.read(authStoreProvider).userId;
+
+  String _prefsKeyFor(String uid) => 'promo_done_tasks:$uid';
+
   @override
   void initState() {
     super.initState();
@@ -38,13 +43,17 @@ class _PromotionScreenState extends ConsumerState<PromotionScreen> {
 
   Future<void> _loadTasks() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('promo_done_tasks') ?? [];
+    final uid = _uid();
+    if (uid == null || uid.isEmpty) return;
+    final saved = prefs.getStringList(_prefsKeyFor(uid)) ?? [];
     if (mounted) setState(() => _doneTasks = saved.toSet());
   }
 
   Future<void> _saveTasks() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('promo_done_tasks', _doneTasks.toList());
+    final uid = _uid();
+    if (uid == null || uid.isEmpty) return;
+    await prefs.setStringList(_prefsKeyFor(uid), _doneTasks.toList());
   }
 
   List<({String day, String title, String? tip})> _tasksForStage() => switch (_stage) {

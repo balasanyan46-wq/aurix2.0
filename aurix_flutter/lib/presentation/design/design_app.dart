@@ -7,7 +7,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/presentation/design/design_shell.dart';
 import 'package:aurix_flutter/presentation/design/screens/design_auth_screen.dart';
 import 'package:aurix_flutter/presentation/landing/landing_page.dart';
-import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 
 /// Design mode app. При настроенном Supabase — требуется вход.
 class DesignApp extends ConsumerWidget {
@@ -16,20 +16,17 @@ class DesignApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(appStateProvider).locale;
-    final authState = ref.watch(authStateProvider);
+    final auth = ref.watch(authStoreProvider);
     final hasSupabase = AppConfig.isConfigured;
 
     final home = hasSupabase
-        ? authState.when(
-            data: (state) =>
-                state.session != null ? const DesignShell() : const _UnauthFlow(),
-            loading: () => const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(color: AurixTokens.orange),
-              ),
-            ),
-            error: (_, __) => const _UnauthFlow(),
-          )
+        ? (!auth.ready
+            ? const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(color: AurixTokens.orange),
+                ),
+              )
+            : (auth.isAuthed ? const DesignShell() : const _UnauthFlow()))
         : const DesignShell();
 
     return MaterialApp(
