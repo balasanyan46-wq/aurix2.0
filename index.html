@@ -51,6 +51,22 @@
       var el = document.getElementById('loading');
       if (el) { el.classList.add('done'); setTimeout(function() { el.remove(); }, 500); }
     });
+    
+    // CRITICAL FIX: Timeout fallback if Flutter fails to initialize
+    setTimeout(function() {
+      var el = document.getElementById('loading');
+      if (el && !el.classList.contains('done')) {
+        console.warn('Flutter first-frame timeout - checking initialization...');
+        // Check if Flutter actually loaded
+        if (document.querySelector('flt-glass-pane')) {
+          console.log('Flutter loaded but event did not fire - removing loading screen');
+          el.classList.add('done');
+          setTimeout(function() { el.remove(); }, 500);
+        } else {
+          console.error('Flutter failed to initialize after 15 seconds');
+        }
+      }
+    }, 15000);
   </script>
   <script src="aurix_fx.js" defer></script>
   <script src="flutter_bootstrap.js" async></script>
