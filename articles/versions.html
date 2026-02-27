@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <base href="/aurix2.0/">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Как не потерять исходники и версии — AURIX</title>
+  <meta name="description" content="Как держать порядок в исходниках и версиях: имена файлов, экспорт, структура, быстрые правила.">
+  <meta property="og:title" content="Как не потерять исходники и версии — AURIX">
+  <meta property="og:description" content="Правила для версий и исходников, чтобы не искать “финал‑финал2”.">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="icons/Icon-512.png">
+  <link rel="icon" href="favicon.png">
+  <link rel="stylesheet" href="aurix_guide.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <div class="inner">
+        <a class="brand" href="./">AURIX</a>
+        <nav class="nav">
+          <a href="guide.html">Гайд</a>
+          <a href="articles/index.html">Статьи</a>
+        </nav>
+        <div class="cta">
+          <a class="btn" href="./?auth=login">Вход</a>
+          <a class="btn primary" href="./?auth=register">Регистрация</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <span class="kicker">СТАТЬЯ</span>
+      <h1>Как не потерять исходники и версии</h1>
+      <p class="lead">“Финал‑финал‑2‑точно” — это не смешно, когда дедлайн завтра. Ниже — простые правила, которые делают релизный процесс спокойнее.</p>
+    </section>
+
+    <article class="article">
+      <h2>1) Одна структура — всегда</h2>
+      <p>Если каждый проект устроен по‑разному — ты тратишь время на поиск вместо работы.</p>
+      <div class="checklist">
+        <p><strong>/Release</strong></p>
+        <p>— /Audio (exports)</p>
+        <p>— /Cover</p>
+        <p>— /Metadata</p>
+        <p>— /Promo</p>
+      </div>
+
+      <h2>2) Имена файлов: без творчества</h2>
+      <ul>
+        <li>Дата + название + версия: <strong>2026-03-09_trackname_v03.wav</strong></li>
+        <li>Обложка: <strong>cover_1024.png</strong></li>
+        <li>Сводка: <strong>metadata_v02.txt</strong> (или doc)</li>
+      </ul>
+
+      <h2>3) Экспорт: фиксируй параметры</h2>
+      <p>Если у тебя меняются параметры экспорта от версии к версии — потом сложно понять, почему “эта звучит иначе”.</p>
+
+      <h2>4) Одна “главная” версия</h2>
+      <p>Назначь одну версию финальной. Остальные — архив. Важно: финал должен быть легко идентифицируемым.</p>
+
+      <div class="hr"></div>
+      <h2>Мини‑правило</h2>
+      <div class="callout">
+        Каждый файл должен быть понятен без контекста: что это, когда сделано, какая версия.
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <a href="articles/index.html">← Все статьи</a> &nbsp;•&nbsp; AURIX by Armen Balasanyan
+  </footer>
+</body>
+</html>
+
