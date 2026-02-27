@@ -24,6 +24,7 @@ class _LandingPageState extends State<LandingPage>
     with TickerProviderStateMixin {
   late final AnimationController _heroController;
   late final AnimationController _shimmerController;
+  late final AnimationController _mockFxController;
   late final ScrollController _scrollController;
 
   late final Animation<double> _heroFade;
@@ -64,6 +65,10 @@ class _LandingPageState extends State<LandingPage>
     _heroController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
+    );
+    _mockFxController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
     );
     _shimmerController = AnimationController(
       vsync: this,
@@ -106,9 +111,23 @@ class _LandingPageState extends State<LandingPage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final mq = MediaQuery.of(context);
+    final perf = _perfMode(context);
+    final reduce = mq.accessibleNavigation;
+    if (!perf && !reduce) {
+      if (!_mockFxController.isAnimating) _mockFxController.repeat(reverse: true);
+    } else {
+      if (_mockFxController.isAnimating) _mockFxController.stop();
+    }
+  }
+
+  @override
   void dispose() {
     _heroController.dispose();
     _shimmerController.dispose();
+    _mockFxController.dispose();
     _scrollController.dispose();
     WidgetsBinding.instance.removeObserver(_MetricsObserver._instance);
     super.dispose();
@@ -457,6 +476,8 @@ class _LandingPageState extends State<LandingPage>
 
   Widget _buildHero(BuildContext context) {
     final desktop = _isDesktop(context);
+    final perf = _perfMode(context);
+    final reduce = MediaQuery.of(context).accessibleNavigation;
 
     return FadeTransition(
       opacity: _heroFade,
@@ -474,17 +495,41 @@ class _LandingPageState extends State<LandingPage>
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _HeroCopy(shimmer: _shimmerController, onLogin: () => _goLogin(context), onRegister: () => _goRegister(context))),
+                        Expanded(
+                          child: _HeroCopy(
+                            shimmer: _shimmerController,
+                            enter: _heroController,
+                            onLogin: () => _goLogin(context),
+                            onRegister: () => _goRegister(context),
+                          ),
+                        ),
                         const SizedBox(width: 22),
-                        const Expanded(child: _HeroPreview()),
+                        Expanded(
+                          child: _HeroPreview(
+                            enter: _heroController,
+                            fx: _mockFxController,
+                            perfMode: perf,
+                            reducedMotion: reduce,
+                          ),
+                        ),
                       ],
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _HeroCopy(shimmer: _shimmerController, onLogin: () => _goLogin(context), onRegister: () => _goRegister(context)),
+                        _HeroCopy(
+                          shimmer: _shimmerController,
+                          enter: _heroController,
+                          onLogin: () => _goLogin(context),
+                          onRegister: () => _goRegister(context),
+                        ),
                         const SizedBox(height: 18),
-                        const _HeroPreview(),
+                        _HeroPreview(
+                          enter: _heroController,
+                          fx: _mockFxController,
+                          perfMode: perf,
+                          reducedMotion: reduce,
+                        ),
                       ],
                     ),
             ),
@@ -985,34 +1030,55 @@ class _MobileNavRow extends StatelessWidget {
 
 class _HeroCopy extends StatelessWidget {
   final AnimationController shimmer;
+  final Animation<double> enter;
   final VoidCallback onRegister;
   final VoidCallback onLogin;
-  const _HeroCopy({required this.shimmer, required this.onRegister, required this.onLogin});
+  const _HeroCopy({required this.shimmer, required this.enter, required this.onRegister, required this.onLogin});
 
   @override
   Widget build(BuildContext context) {
     final desktop = MediaQuery.sizeOf(context).width >= 960;
+    Animation<double> fadeIn(double a, double b) => CurvedAnimation(
+          parent: enter,
+          curve: Interval(a, b, curve: Curves.easeOutCubic),
+        );
+    Animation<Offset> slideUp(double a, double b, {double dy = 0.10}) =>
+        Tween<Offset>(begin: Offset(0, dy), end: Offset.zero).animate(
+          CurvedAnimation(parent: enter, curve: Interval(a, b, curve: Curves.easeOutCubic)),
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Релиз без хаоса.',
-          style: TextStyle(
-            color: AurixTokens.text,
-            fontSize: desktop ? 52 : 32,
-            fontWeight: FontWeight.w900,
-            height: 1.05,
-            letterSpacing: -0.8,
+        FadeTransition(
+          opacity: fadeIn(0.05, 0.55),
+          child: SlideTransition(
+            position: slideUp(0.05, 0.55, dy: 0.08),
+            child: Text(
+              'Релиз без хаоса.',
+              style: TextStyle(
+                color: AurixTokens.text,
+                fontSize: desktop ? 52 : 32,
+                fontWeight: FontWeight.w900,
+                height: 1.05,
+                letterSpacing: -0.8,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 14),
-        Text(
-          'Файлы, метаданные, сплиты, контент и AI‑инструменты — в одном кабинете.\n'
-          'Без таблиц и вечных “скинь ещё раз”.',
-          style: TextStyle(
-            color: AurixTokens.textSecondary,
-            fontSize: desktop ? 17 : 15,
-            height: 1.65,
+        FadeTransition(
+          opacity: fadeIn(0.18, 0.72),
+          child: SlideTransition(
+            position: slideUp(0.18, 0.72, dy: 0.10),
+            child: Text(
+              'Файлы, метаданные, сплиты, контент и AI‑инструменты — в одном кабинете.\n'
+              'Без таблиц и вечных “скинь ещё раз”.',
+              style: TextStyle(
+                color: AurixTokens.textSecondary,
+                fontSize: desktop ? 17 : 15,
+                height: 1.65,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 22),
@@ -1033,10 +1099,19 @@ class _HeroCopy extends StatelessWidget {
         Wrap(
           spacing: 12,
           runSpacing: 10,
-          children: const [
-            _MiniBullet(icon: Icons.checklist_rounded, text: 'Релиз под ключ'),
-            _MiniBullet(icon: Icons.auto_awesome_rounded, text: 'AI‑студия'),
-            _MiniBullet(icon: Icons.track_changes_rounded, text: 'Контроль процесса'),
+          children: [
+            FadeTransition(
+              opacity: fadeIn(0.42, 0.86),
+              child: SlideTransition(position: slideUp(0.42, 0.86, dy: 0.10), child: const _MiniBullet(icon: Icons.checklist_rounded, text: 'Релиз под ключ')),
+            ),
+            FadeTransition(
+              opacity: fadeIn(0.48, 0.90),
+              child: SlideTransition(position: slideUp(0.48, 0.90, dy: 0.10), child: const _MiniBullet(icon: Icons.auto_awesome_rounded, text: 'AI‑студия')),
+            ),
+            FadeTransition(
+              opacity: fadeIn(0.54, 0.94),
+              child: SlideTransition(position: slideUp(0.54, 0.94, dy: 0.10), child: const _MiniBullet(icon: Icons.track_changes_rounded, text: 'Контроль процесса')),
+            ),
           ],
         ),
       ],
@@ -1071,11 +1146,28 @@ class _MiniBullet extends StatelessWidget {
 }
 
 class _HeroPreview extends StatelessWidget {
-  const _HeroPreview();
+  const _HeroPreview({
+    required this.enter,
+    required this.fx,
+    required this.perfMode,
+    required this.reducedMotion,
+  });
+
+  final Animation<double> enter;
+  final Animation<double> fx;
+  final bool perfMode;
+  final bool reducedMotion;
 
   @override
   Widget build(BuildContext context) {
     final desktop = MediaQuery.sizeOf(context).width >= 960;
+    final allowFx = !(perfMode || reducedMotion);
+    final floatY = allowFx ? (math.sin((fx.value) * math.pi) * 6.0) : 0.0;
+    final breathe = allowFx ? (1.0 + (0.006 * math.sin((fx.value) * math.pi))) : 1.0;
+    final mockEnter = CurvedAnimation(parent: enter, curve: const Interval(0.25, 0.95, curve: Curves.easeOutCubic));
+    final headerEnter = CurvedAnimation(parent: enter, curve: const Interval(0.30, 0.70, curve: Curves.easeOutCubic));
+    final cardsEnter = CurvedAnimation(parent: enter, curve: const Interval(0.40, 0.86, curve: Curves.easeOutCubic));
+    final bottomEnter = CurvedAnimation(parent: enter, curve: const Interval(0.52, 0.94, curve: Curves.easeOutCubic));
     return Container(
       height: desktop ? 420 : 320,
       decoration: BoxDecoration(
@@ -1103,12 +1195,65 @@ class _HeroPreview extends StatelessWidget {
                 ),
               ),
             ),
+            if (allowFx)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: fx,
+                    builder: (context, _) {
+                      final t = fx.value;
+                      return Opacity(
+                        opacity: 0.85,
+                        child: Transform.translate(
+                          offset: Offset((t - 0.5) * 18, 0),
+                          child: Transform.rotate(
+                            angle: -0.18,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.white.withValues(alpha: 0.06),
+                                    AurixTokens.orange.withValues(alpha: 0.10),
+                                    Colors.transparent,
+                                  ],
+                                  stops: const [0.0, 0.45, 0.55, 1.0],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
+              child: AnimatedBuilder(
+                animation: fx,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(0, -floatY),
+                    child: Transform.scale(
+                      scale: breathe,
+                      alignment: Alignment.center,
+                      child: child,
+                    ),
+                  );
+                },
+                child: FadeTransition(
+                  opacity: mockEnter,
+                  child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
+                  FadeTransition(
+                    opacity: headerEnter,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - headerEnter.value) * 10),
+                      child: Row(
                     children: [
                       Container(
                         width: 34,
@@ -1140,47 +1285,63 @@ class _HeroPreview extends StatelessWidget {
                       ),
                     ],
                   ),
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   Expanded(
-                    child: Row(
+                    child: FadeTransition(
+                      opacity: cardsEnter,
+                      child: Transform.translate(
+                        offset: Offset(0, (1 - cardsEnter.value) * 12),
+                        child: Row(
                       children: [
                         Expanded(child: _PreviewCard(title: 'Релизы', rows: ['Сингл • draft', 'EP • review', 'Альбом • план'])),
                         const SizedBox(width: 12),
                         Expanded(child: _PreviewCard(title: 'Чек‑лист', rows: ['Обложка', 'ISRC/UPC', 'Сплиты', 'Контент'])),
                       ],
                     ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AurixTokens.glass(0.05),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AurixTokens.stroke(0.14)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.bolt_rounded, size: 18, color: AurixTokens.orange),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Следующий шаг: заполнить метаданные и сплиты',
-                            style: TextStyle(color: AurixTokens.textSecondary, fontSize: desktop ? 13 : 12, height: 1.35),
-                          ),
+                  FadeTransition(
+                    opacity: bottomEnter,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - bottomEnter.value) * 12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AurixTokens.glass(0.05),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AurixTokens.stroke(0.14)),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: AurixTokens.orange,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text('Открыть', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12)),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.bolt_rounded, size: 18, color: AurixTokens.orange),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Следующий шаг: заполнить метаданные и сплиты',
+                                style: TextStyle(color: AurixTokens.textSecondary, fontSize: desktop ? 13 : 12, height: 1.35),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AurixTokens.orange,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text('Открыть', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12)),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
+              ),
+                ),
               ),
             ),
           ],
