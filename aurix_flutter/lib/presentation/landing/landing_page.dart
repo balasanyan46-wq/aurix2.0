@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:aurix_flutter/presentation/landing/widgets/parallax_layer.dart';
+import 'package:aurix_flutter/presentation/landing/widgets/reveal_on_scroll.dart';
+import 'package:aurix_flutter/presentation/landing/widgets/tilt_glow_card.dart';
 
 enum _NavSection { hero, inside, how, cases, guide, faq, contacts }
 
@@ -48,6 +51,11 @@ class _LandingPageState extends State<LandingPage>
 
   bool _isDesktop(BuildContext context) => MediaQuery.sizeOf(context).width >= 960;
   bool _isNarrow(BuildContext context) => MediaQuery.sizeOf(context).width < 720;
+  bool _perfMode(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    // Heuristic: treat narrow/tablet widths as touch/performance mode.
+    return mq.size.width < 900;
+  }
 
   @override
   void initState() {
@@ -203,17 +211,23 @@ class _LandingPageState extends State<LandingPage>
             left: 0,
             right: 0,
             height: 600,
-            child: RepaintBoundary(
-              child: AnimatedBuilder(
-                animation: _heroController,
-                builder: (context, _) {
-                  return CustomPaint(
-                    painter: _HeroGlowPainter(
-                      progress: 0.5,
-                      fade: _heroFade.value,
-                    ),
-                  );
-                },
+            child: ParallaxLayer(
+              scrollListenable: _scrollController,
+              depth: 0.10,
+              maxShift: 48,
+              disabled: _perfMode(context),
+              child: RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _heroController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: _HeroGlowPainter(
+                        progress: 0.5,
+                        fade: _heroFade.value,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -227,14 +241,69 @@ class _LandingPageState extends State<LandingPage>
               slivers: [
                 _buildHeader(context),
                 SliverToBoxAdapter(child: _anchor(_NavSection.hero, _buildHero(context))),
-                SliverToBoxAdapter(child: _anchor(_NavSection.inside, _buildFeatures(context))),
-                SliverToBoxAdapter(child: _anchor(_NavSection.how, _buildHowItWorks(context))),
-                SliverToBoxAdapter(child: _buildForWho(context)),
-                SliverToBoxAdapter(child: _buildWhyNow(context)),
-                SliverToBoxAdapter(child: _anchor(_NavSection.cases, _buildCases(context))),
-                SliverToBoxAdapter(child: _anchor(_NavSection.guide, _buildGuide(context))),
-                SliverToBoxAdapter(child: _anchor(_NavSection.faq, _buildFaq(context))),
-                SliverToBoxAdapter(child: _anchor(_NavSection.contacts, _buildFooterExpanded(context))),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _anchor(_NavSection.inside, _buildFeatures(context)),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    delay: const Duration(milliseconds: 60),
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _anchor(_NavSection.how, _buildHowItWorks(context)),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    delay: const Duration(milliseconds: 90),
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _buildForWho(context),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    delay: const Duration(milliseconds: 120),
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _buildWhyNow(context),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    delay: const Duration(milliseconds: 150),
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _anchor(_NavSection.cases, _buildCases(context)),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    delay: const Duration(milliseconds: 170),
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _anchor(_NavSection.guide, _buildGuide(context)),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    delay: const Duration(milliseconds: 190),
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _anchor(_NavSection.faq, _buildFaq(context)),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: RevealOnScroll(
+                    scrollListenable: _scrollController,
+                    delay: const Duration(milliseconds: 210),
+                    disabled: MediaQuery.of(context).accessibleNavigation,
+                    child: _anchor(_NavSection.contacts, _buildFooterExpanded(context)),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1180,6 +1249,23 @@ class _CardsGrid extends StatelessWidget {
   }
 }
 
+class _FxCard extends StatelessWidget {
+  final Widget child;
+  final bool enabled;
+  final VoidCallback? onTap;
+  const _FxCard({required this.child, required this.enabled, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return TiltGlowCard(
+      enabled: enabled,
+      onTap: onTap,
+      padding: EdgeInsets.zero,
+      child: child,
+    );
+  }
+}
+
 class _TimelineStep extends StatelessWidget {
   final String num;
   final String title;
@@ -1644,58 +1730,51 @@ class _FeatureCardState extends State<_FeatureCard> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        margin: const EdgeInsets.all(6),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _hovered ? AurixTokens.glass(0.06) : AurixTokens.glass(0.03),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _hovered
-                ? AurixTokens.orange.withValues(alpha: 0.2)
-                : AurixTokens.border,
+    final perf = MediaQuery.of(context).size.width < 900;
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: _FxCard(
+          enabled: !perf,
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AurixTokens.orange.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AurixTokens.orange.withValues(alpha: _hovered ? 0.26 : 0.16)),
+                  ),
+                  child: Icon(widget.data.icon, color: AurixTokens.orange, size: 20),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.data.title,
+                  style: const TextStyle(
+                    color: AurixTokens.text,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.data.text,
+                  style: TextStyle(
+                    color: AurixTokens.textSecondary,
+                    fontSize: 14,
+                    height: 1.55,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AurixTokens.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                widget.data.icon,
-                color: AurixTokens.orange,
-                size: 20,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.data.title,
-              style: const TextStyle(
-                color: AurixTokens.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.data.text,
-              style: TextStyle(
-                color: AurixTokens.textSecondary,
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
-          ],
         ),
       ),
     );
