@@ -85,7 +85,7 @@ body::after{
 }
 
 /* Ensure app content stays above FX overlays (Flutter + static pages) */
-body > *:not(#aurixCursorGlow):not(#aurixParticles){
+body > *:not(#aurixCursorGlow):not(#aurixParticles):not(flt-glass-pane):not(flt-scene-host):not(flt-semantics-host){
   position:relative;
   z-index:5;
 }
@@ -107,5 +107,17 @@ html.fx-paused #aurixCursorGlow{
 @media (prefers-reduced-motion: reduce){
   body::before, body::after{animation:none !important}
   #aurixCursorGlow{transition:none}
+}
+
+/* Ensure Flutter renders above FX (don't override Flutter positioning) */
+flt-glass-pane,
+flt-scene-host,
+flt-semantics-host{
+  z-index:100 !important;
+}
+
+/* Ensure loading screen is above everything during load */
+#loading {
+  z-index: 9999 !important;
 }
 
