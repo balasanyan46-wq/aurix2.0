@@ -1,7 +1,9 @@
 /* AURIX FX — lightweight JS for cursor glow + particles + pause controls */
 (function () {
   const root = document.documentElement;
-  const perf = matchMedia('(hover: none), (pointer: coarse)').matches || (navigator.maxTouchPoints || 0) > 0;
+  // Don't use `maxTouchPoints` here: macOS trackpads can report > 0 and we'd
+  // incorrectly disable FX on desktop. `hover:none` / `pointer:coarse` is enough.
+  const perf = matchMedia('(hover: none), (pointer: coarse)').matches;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   root.dataset.aurixPerf = perf ? '1' : '0';
