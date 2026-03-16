@@ -8,7 +8,6 @@ import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/models/report_row_model.dart';
 import 'package:aurix_flutter/data/models/admin_log_model.dart';
-import 'package:aurix_flutter/data/models/support_ticket_model.dart';
 
 class AdminDashboardTab extends ConsumerWidget {
   const AdminDashboardTab({super.key, this.onGoToTab});
@@ -55,9 +54,11 @@ class AdminDashboardTab extends ConsumerWidget {
                 profilesAsync.when(
                   data: (profiles) {
                     final now = DateTime.now();
-                    final thisMonth = profiles.where((p) =>
-                      p.createdAt.year == now.year && p.createdAt.month == now.month
-                    ).length;
+                    final thisMonth = profiles
+                        .where((p) =>
+                            p.createdAt.year == now.year &&
+                            p.createdAt.month == now.month)
+                        .length;
                     return _StatCard(
                       label: 'ПОЛЬЗОВАТЕЛИ',
                       value: profiles.length.toString(),
@@ -80,7 +81,8 @@ class AdminDashboardTab extends ConsumerWidget {
                 ),
                 releasesAsync.when(
                   data: (releases) {
-                    final pending = releases.where((r) => r.status == 'submitted').length;
+                    final pending =
+                        releases.where((r) => r.status == 'submitted').length;
                     return _StatCard(
                       label: 'РЕЛИЗЫ',
                       value: releases.length.toString(),
@@ -108,11 +110,12 @@ class AdminDashboardTab extends ConsumerWidget {
                   data: (rows) {
                     final total = rows.fold<double>(0, (s, r) => s + r.revenue);
                     final now = DateTime.now();
-                    final thisMonth = rows.where((r) =>
-                      r.reportDate != null &&
-                      r.reportDate!.year == now.year &&
-                      r.reportDate!.month == now.month
-                    ).fold<double>(0, (s, r) => s + r.revenue);
+                    final thisMonth = rows
+                        .where((r) =>
+                            r.reportDate != null &&
+                            r.reportDate!.year == now.year &&
+                            r.reportDate!.month == now.month)
+                        .fold<double>(0, (s, r) => s + r.revenue);
                     return _StatCard(
                       label: 'ДОХОД',
                       value: '\$${_fmt(total)}',
@@ -138,7 +141,8 @@ class AdminDashboardTab extends ConsumerWidget {
                 ),
                 ticketsAsync.when(
                   data: (tickets) {
-                    final open = tickets.where((t) => t.status == 'open').length;
+                    final open =
+                        tickets.where((t) => t.status == 'open').length;
                     return _StatCard(
                       label: 'ТИКЕТЫ',
                       value: tickets.length.toString(),
@@ -164,23 +168,22 @@ class AdminDashboardTab extends ConsumerWidget {
               if (isWide) {
                 return Row(
                   children: cards
-                      .map((c) => Expanded(child: Padding(padding: const EdgeInsets.only(right: 12), child: c)))
+                      .map((c) => Expanded(
+                          child: Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: c)))
                       .toList(),
                 );
               }
               return Wrap(
                 spacing: 12,
                 runSpacing: 12,
-                children: cards.map((c) => SizedBox(width: (constraints.maxWidth - 12) / 2, child: c)).toList(),
+                children: cards
+                    .map((c) => SizedBox(
+                        width: (constraints.maxWidth - 12) / 2, child: c))
+                    .toList(),
               );
             }),
-
-            const SizedBox(height: 32),
-
-            // 2. ТРЕБУЮТ ВНИМАНИЯ (Action Required)
-            _SectionHeader('ТРЕБУЮТ ВНИМАНИЯ'),
-            const SizedBox(height: 12),
-            _buildActionRequiredSection(context, ref, releasesAsync, ticketsAsync, profilesAsync),
 
             const SizedBox(height: 32),
 
@@ -242,74 +245,6 @@ class AdminDashboardTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionRequiredSection(
-    BuildContext context,
-    WidgetRef ref,
-    AsyncValue<List<ReleaseModel>> releasesAsync,
-    AsyncValue<List<SupportTicketModel>> ticketsAsync,
-    AsyncValue<List<ProfileModel>> profilesAsync,
-  ) {
-    return releasesAsync.when(
-      data: (releases) {
-        final pendingReleases = releases.where((r) => r.status == 'submitted').length;
-        return ticketsAsync.when(
-          data: (tickets) {
-            final openTickets = tickets.where((t) => t.status == 'open').length;
-            return profilesAsync.when(
-              data: (profiles) {
-                final startPlanUsers = profiles.where((p) => p.plan == 'start').length;
-                return _buildCard(
-                  child: Column(
-                    children: [
-                      if (pendingReleases > 0)
-                        _ActionItem(
-                          icon: Icons.album_rounded,
-                          label: 'Релизы ожидают модерации',
-                          count: pendingReleases,
-                          badgeColor: AurixTokens.orange,
-                          onTap: () => onGoToTab?.call('releases'),
-                        ),
-                      if (openTickets > 0)
-                        _ActionItem(
-                          icon: Icons.support_agent_rounded,
-                          label: 'Открытые тикеты',
-                          count: openTickets,
-                          badgeColor: Colors.amber,
-                          onTap: () => onGoToTab?.call('support'),
-                        ),
-                      if (startPlanUsers > 0)
-                        _ActionItem(
-                          icon: Icons.trending_up_rounded,
-                          label: 'Пользователи на плане Старт',
-                          count: startPlanUsers,
-                          badgeColor: AurixTokens.muted,
-                          onTap: () => onGoToTab?.call('users'),
-                        ),
-                      if (pendingReleases == 0 && openTickets == 0 && startPlanUsers == 0)
-                        Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            'Всё в порядке',
-                            style: TextStyle(color: AurixTokens.muted, fontSize: 13),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-              loading: () => _loading(),
-              error: (_, __) => _emptyCard('Ошибка загрузки'),
-            );
-          },
-          loading: () => _loading(),
-          error: (_, __) => _emptyCard('Ошибка загрузки'),
-        );
-      },
-      loading: () => _loading(),
-      error: (_, __) => _emptyCard('Ошибка загрузки'),
-    );
-  }
-
   Widget _buildPlanBreakdown(List<ProfileModel> profiles) {
     final start = profiles.where((p) => p.plan == 'start').length;
     final breakthrough = profiles.where((p) => p.plan == 'breakthrough').length;
@@ -362,7 +297,8 @@ class AdminDashboardTab extends ConsumerWidget {
     final platformRevenue = <String, double>{};
     for (final row in rows) {
       if (row.platform != null && row.platform!.isNotEmpty) {
-        platformRevenue[row.platform!] = (platformRevenue[row.platform!] ?? 0) + row.revenue;
+        platformRevenue[row.platform!] =
+            (platformRevenue[row.platform!] ?? 0) + row.revenue;
       }
     }
 
@@ -495,39 +431,60 @@ class AdminDashboardTab extends ConsumerWidget {
   }
 
   static Widget _loading() => const Center(
-    child: Padding(
-      padding: EdgeInsets.all(24),
-      child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2),
-    ),
-  );
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(
+              color: AurixTokens.orange, strokeWidth: 2),
+        ),
+      );
 
   static Widget _errorWidget(String msg) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.red.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: Text('Ошибка: $msg', style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
-  );
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text('Ошибка: $msg',
+            style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+      );
 
   static Widget _emptyCard(String text) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: AurixTokens.bg1,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AurixTokens.border),
-    ),
-    child: Center(child: Text(text, style: const TextStyle(color: AurixTokens.muted, fontSize: 13))),
-  );
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AurixTokens.bg1.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AurixTokens.stroke(0.24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 12,
+              spreadRadius: -10,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Center(
+            child: Text(text,
+                style:
+                    const TextStyle(color: AurixTokens.muted, fontSize: 13))),
+      );
 
   static Widget _buildCard({required Widget child}) => Container(
-    decoration: BoxDecoration(
-      color: AurixTokens.bg1,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AurixTokens.border),
-    ),
-    child: child,
-  );
+        decoration: BoxDecoration(
+          color: AurixTokens.bg1.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AurixTokens.stroke(0.24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 12,
+              spreadRadius: -10,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: child,
+      );
 }
 
 class _SectionHeader extends StatelessWidget {
@@ -536,14 +493,14 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    text,
-    style: const TextStyle(
-      color: AurixTokens.muted,
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.5,
-    ),
-  );
+        text,
+        style: const TextStyle(
+          color: AurixTokens.muted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.5,
+        ),
+      );
 }
 
 class _StatCard extends StatelessWidget {
@@ -567,9 +524,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AurixTokens.bg1,
+        color: AurixTokens.bg1.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AurixTokens.border),
+        border: Border.all(color: AurixTokens.stroke(0.24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,76 +564,6 @@ class _StatCard extends StatelessWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _ActionItem extends StatelessWidget {
-  const _ActionItem({
-    required this.icon,
-    required this.label,
-    required this.count,
-    required this.badgeColor,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final int count;
-  final Color badgeColor;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: AurixTokens.muted),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: AurixTokens.text,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: badgeColor.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  color: badgeColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: AurixTokens.tabularFigures,
-                ),
-              ),
-            ),
-            if (onTap != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                'Перейти',
-                style: TextStyle(
-                  color: AurixTokens.orange,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }
@@ -726,7 +613,11 @@ class _PlanCard extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.count, required this.status, this.onTap});
+  const _StatusChip(
+      {required this.label,
+      required this.count,
+      required this.status,
+      this.onTap});
 
   final String label;
   final int count;
@@ -791,4 +682,3 @@ class _StatusChip extends StatelessWidget {
     );
   }
 }
-

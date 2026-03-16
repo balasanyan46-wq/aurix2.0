@@ -1,60 +1,101 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:aurix_flutter/data/supabase_client.dart';
-import 'package:aurix_flutter/data/repositories/profile_repository.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:aurix_flutter/core/api/auth_api.dart';
 
 class AuthRepository {
-  AuthRepository({required this.profileRepository});
-  final ProfileRepository profileRepository;
+  AuthRepository();
 
-  User? get currentUser => supabase.auth.currentUser;
-  Stream<AuthState> get authStateChanges => supabase.auth.onAuthStateChange;
+  ApiUser? _currentUser;
 
+  ApiUser? get currentUser => _currentUser;
+
+  /// Registers user. Returns nothing — user must verify email first.
   Future<void> signUp({
     required String email,
     required String password,
     required String phone,
     String? name,
   }) async {
-    await supabase.auth.signUp(
-      email: email,
-      password: password,
-      emailRedirectTo: null,
-    );
-    final user = supabase.auth.currentUser;
-    if (user != null) {
-      try {
-        await profileRepository.createProfile(
-          id: user.id,
-          email: user.email ?? email,
-          name: name,
-          phone: phone,
-          plan: 'start',
-        );
-      } catch (e) {
-        final msg = e.toString().toLowerCase();
-        if (msg.contains('23505') || msg.contains('unique') || msg.contains('duplicate') || msg.contains('profiles_phone')) {
-          throw AuthException('Этот номер уже используется');
-        }
-        rethrow;
+    try {
+      await AuthApi.register(
+        email: email,
+        password: password,
+        name: name?.trim(),
+        phone: phone.trim(),
+      );
+    } on DioException catch (e) {
+      final msg = _extractError(e);
+      if (msg.contains('already registered') || msg.contains('409')) {
+        throw Exception('Этот email уже используется');
       }
+      throw Exception(msg);
+    } catch (e) {
+      throw Exception('Ошибка сети: $e');
     }
   }
 
-  Future<void> resetPasswordForEmail(String email) async {
-    await supabase.auth.resetPasswordForEmail(email);
-  }
-
-  Future<void> signIn({required String email, required String password}) async {
-    await supabase.auth.signInWithPassword(email: email, password: password);
-    final user = supabase.auth.currentUser;
-    if (user != null) {
-      await profileRepository.touchProfile(user.id, user.email ?? email);
+  Future<AuthResult> signIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final result = await AuthApi.login(
+        email: email,
+        password: password,
+      );
+      _currentUser = result.user;
+      return result;
+    } on DioException catch (e) {
+      debugPrint('[AuthRepo] DioException: ${e.type} ${e.response?.statusCode} ${e.response?.data} ${e.message}');
+      final msg = _extractError(e);
+      if (msg.contains('invalid credentials')) {
+        throw Exception('Неверный email или пароль');
+      }
+      if (msg.contains('Подтвердите email') || msg.contains('not verified')) {
+        throw Exception('Подтвердите email перед входом. Проверьте почту.');
+      }
+      throw Exception(msg);
+    } catch (e) {
+      debugPrint('[AuthRepo] Unexpected error: $e');
+      throw Exception('Ошибка сети: $e');
     }
   }
 
   Future<void> signOut() async {
-    await supabase.auth.signOut();
+    await AuthApi.signOut();
+    _currentUser = null;
   }
 
-  Session? get currentSession => supabase.auth.currentSession;
+  Future<ApiUser?> getCurrentUser() async {
+    final user = await AuthApi.me();
+    _currentUser = user;
+    return user;
+  }
+
+  Future<void> resetPasswordForEmail(String email) async {
+    try {
+      await AuthApi.requestPasswordReset(email: email);
+    } on DioException catch (e) {
+      throw Exception(_extractError(e));
+    }
+  }
+
+  Future<void> resetPassword({
+    required String token,
+    required String password,
+  }) async {
+    try {
+      await AuthApi.resetPassword(token: token, password: password);
+    } on DioException catch (e) {
+      throw Exception(_extractError(e));
+    }
+  }
+
+  String _extractError(DioException e) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      return data['message']?.toString() ?? e.message ?? 'Unknown error';
+    }
+    return e.message ?? 'Network error';
+  }
 }

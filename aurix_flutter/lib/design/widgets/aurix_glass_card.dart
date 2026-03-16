@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:flutter/material.dart';
 
-/// V2: Flat surface, no glow, no gradient. Structured container.
-/// Alias for AurixSurface for backward compatibility.
+/// Backward-compatible premium card shell.
 class AurixGlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -12,19 +11,40 @@ class AurixGlassCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding,
-    this.radius = 8,
+    this.radius = 14,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: padding ?? const EdgeInsets.all(24),
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: AurixTokens.bg1,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AurixTokens.border, width: 1),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AurixTokens.bg1.withValues(alpha: 0.92),
+            AurixTokens.bg2.withValues(alpha: 0.86),
+          ],
+        ),
+        border: Border.all(color: AurixTokens.stroke(0.24), width: 1),
+        boxShadow: [...AurixTokens.subtleShadow],
       ),
-      child: child,
+      child: Container(
+        padding: padding ?? const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: 0.03),
+              Colors.transparent,
+            ],
+          ),
+        ),
+        child: child,
+      ),
     );
   }
 }

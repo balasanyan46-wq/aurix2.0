@@ -1,23 +1,20 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:aurix_flutter/core/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/token_store.dart';
 import 'package:aurix_flutter/config/app_config.dart';
 import 'package:aurix_flutter/data/models/budget_plan_model.dart';
 
 class BudgetPlanService {
   Future<BudgetPlanModel?> getSaved(String releaseId) async {
     try {
-      final uid = supabase.auth.currentUser?.id;
-      if (uid == null) return null;
-      final res = await supabase
-          .from('release_budgets')
-          .select()
-          .eq('release_id', releaseId)
-          .eq('user_id', uid)
-          .maybeSingle();
-      if (res == null) return null;
-      return BudgetPlanModel.fromJson(res);
+      final res = await ApiClient.get('/release-budgets/latest', query: {
+        'release_id': releaseId,
+      });
+      final row = res.data as Map<String, dynamic>?;
+      if (row == null) return null;
+      return BudgetPlanModel.fromJson(row);
     } catch (e) {
       debugPrint('[BudgetPlanService] getSaved error: $e');
       return null;
@@ -27,10 +24,10 @@ class BudgetPlanService {
   Future<({bool ok, bool isDemo, Map<String, dynamic> data, String? error})>
       generate(String releaseId, Map<String, dynamic> inputs) async {
     try {
-      final token = supabase.auth.currentSession?.accessToken;
+      final token = TokenStore.cachedToken ?? await TokenStore.read();
       if (token == null) return (ok: false, isDemo: false, data: <String, dynamic>{}, error: 'Not authenticated');
 
-      final url = Uri.parse('${AppConfig.supabaseUrl}/functions/v1/release-budget-plan');
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/tools/release-budget-plan');
       final response = await http.post(
         url,
         headers: {

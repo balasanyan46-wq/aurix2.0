@@ -19,7 +19,7 @@ interface AnswerRow {
 export function buildAccumulator(): Record<string, AxisAccum> {
   const accum: Record<string, AxisAccum> = {};
   for (const axis of AXIS_NAMES) {
-    accum[axis] = { sum: 0, count: 0 };
+    accum[axis] = { sum: 0, count: 0, max_abs: 0 };
   }
   return accum;
 }
@@ -27,7 +27,7 @@ export function buildAccumulator(): Record<string, AxisAccum> {
 export function buildSocialAccumulator(): Record<string, AxisAccum> {
   const accum: Record<string, AxisAccum> = {};
   for (const axis of SOCIAL_AXIS_NAMES) {
-    accum[axis] = { sum: 0, count: 0 };
+    accum[axis] = { sum: 0, count: 0, max_abs: 0 };
   }
   return accum;
 }
@@ -46,16 +46,25 @@ export function applyAnswer(
       if (accum[axis] === undefined) continue;
       accum[axis].sum += delta * weight;
       accum[axis].count += 1;
+      accum[axis].max_abs = (accum[axis].max_abs ?? 0) + Math.abs(weight) * 2;
     }
   } else if (answerType === "forced_choice" || answerType === "sjt") {
     const key = answerJson?.key;
     if (typeof key !== "string" || !q.options) return;
     const opt = q.options.find((o) => o.id === key);
     if (!opt) return;
+    const perAxisMax = new Map<string, number>();
+    for (const candidate of q.options) {
+      for (const [axis, weight] of Object.entries(candidate.axis_weights)) {
+        const prev = perAxisMax.get(axis) ?? 0;
+        perAxisMax.set(axis, Math.max(prev, Math.abs(weight)));
+      }
+    }
     for (const [axis, weight] of Object.entries(opt.axis_weights)) {
       if (accum[axis] === undefined) continue;
       accum[axis].sum += weight;
       accum[axis].count += 1;
+      accum[axis].max_abs = (accum[axis].max_abs ?? 0) + (perAxisMax.get(axis) ?? Math.abs(weight));
     }
   }
 }
@@ -78,7 +87,10 @@ export function computeBaseAxes(answers: AnswerRow[]): AxesScores {
 export function axesFromAccum(accum: Record<string, AxisAccum>): AxesScores {
   const result: AxesScores = {};
   for (const axis of AXIS_NAMES) {
-    result[axis] = Math.max(0, Math.min(100, Math.round(50 + accum[axis].sum)));
+    const a = accum[axis];
+    const maxAbs = Math.max(1, a.max_abs ?? 0);
+    const normalized = a.sum / maxAbs; // [-1..1]
+    result[axis] = Math.max(0, Math.min(100, Math.round(50 + normalized * 50)));
   }
   return result;
 }
@@ -112,7 +124,10 @@ export function computeSocialBaseAxes(answers: AnswerRow[]): AxesScores {
 
   const result: AxesScores = {};
   for (const axis of SOCIAL_AXIS_NAMES) {
-    result[axis] = Math.max(0, Math.min(100, Math.round(50 + accum[axis].sum)));
+    const a = accum[axis];
+    const maxAbs = Math.max(1, a.max_abs ?? 0);
+    const normalized = a.sum / maxAbs; // [-1..1]
+    result[axis] = Math.max(0, Math.min(100, Math.round(50 + normalized * 50)));
   }
   return result;
 }
@@ -131,16 +146,25 @@ function applySocialAnswer(
       if (accum[axis] === undefined) continue;
       accum[axis].sum += delta * weight;
       accum[axis].count += 1;
+      accum[axis].max_abs = (accum[axis].max_abs ?? 0) + Math.abs(weight) * 2;
     }
   } else if (answerType === "forced_choice" || answerType === "sjt") {
     const key = answerJson?.key;
     if (typeof key !== "string" || !q.options) return;
     const opt = q.options.find((o) => o.id === key);
     if (!opt) return;
+    const perAxisMax = new Map<string, number>();
+    for (const candidate of q.options) {
+      for (const [axis, weight] of Object.entries(candidate.axis_weights)) {
+        const prev = perAxisMax.get(axis) ?? 0;
+        perAxisMax.set(axis, Math.max(prev, Math.abs(weight)));
+      }
+    }
     for (const [axis, weight] of Object.entries(opt.axis_weights)) {
       if (accum[axis] === undefined) continue;
       accum[axis].sum += weight;
       accum[axis].count += 1;
+      accum[axis].max_abs = (accum[axis].max_abs ?? 0) + (perAxisMax.get(axis) ?? Math.abs(weight));
     }
   }
 }
@@ -228,9 +252,9 @@ export function computeFullConfidence(input: ConfidenceInput): FullConfidence {
     - 0.20 * redFlags.social_desirability;
 
   if (durationSec > 0 && durationSec < 120) {
-    overall -= 0.08;
-  } else if (durationSec > 0 && durationSec < 180) {
     overall -= 0.10;
+  } else if (durationSec > 0 && durationSec < 180) {
+    overall -= 0.08;
   }
 
   overall = clamp(overall, 0.30, 0.95);
@@ -271,7 +295,8 @@ export function hasAxisConflict(
   if (axes.length === 1) {
     const a = accum[axes[0]];
     if (!a || a.count < 2) return false;
-    return Math.abs(a.sum) < 6;
+    const norm = Math.abs(a.sum) / Math.max(1, a.max_abs ?? 0);
+    return norm < 0.18;
   }
 
   if (axes.length >= 2) {

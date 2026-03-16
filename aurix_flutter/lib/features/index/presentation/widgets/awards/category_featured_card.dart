@@ -36,11 +36,12 @@ class CategoryFeaturedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 640;
     final canVote = category.isPublicVoting && onVote != null;
     final votingOpens = !category.isPublicVoting;
 
     return AurixGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -67,10 +68,11 @@ class CategoryFeaturedCard extends StatelessWidget {
                     children: [
                       Text('#1 ${leader!.displayTitle}', style: TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 4),
-                      Row(
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 4,
                         children: [
                           Text('Index: ${leader!.scoreProof}', style: TextStyle(color: AurixTokens.orange, fontSize: 14, fontWeight: FontWeight.w600)),
-                          const SizedBox(width: 12),
                           Text('${_votes(leader!)} голосов', style: TextStyle(color: AurixTokens.muted, fontSize: 14)),
                         ],
                       ),
@@ -104,8 +106,11 @@ class CategoryFeaturedCard extends StatelessWidget {
             }),
           ],
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               if (votingOpens)
                 Text('Голосование откроется 1 марта', style: TextStyle(color: AurixTokens.muted, fontSize: 13))

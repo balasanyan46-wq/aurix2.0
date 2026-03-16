@@ -1,56 +1,93 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/auth_api.dart';
+import 'package:aurix_flutter/core/api/token_store.dart';
 
-/// Single source of truth for auth state.
+/// Single source of truth for auth state (JWT + refresh token).
 ///
 /// Guarantees:
-/// - [ready] becomes true only after an explicit session restore attempt.
-/// - [session]/[userId] are updated only from Supabase session events.
+/// - [ready] becomes true only after an explicit token restore attempt.
+/// - [user] is populated from /users/me if a valid token exists.
+/// - If access token is expired, silently refreshes via refresh token.
+/// - If refresh fails, user is signed out (Instagram-like: stays logged in
+///   for months until refresh token expires).
 class AuthStore extends ChangeNotifier {
   bool _ready = false;
-  Session? _session;
-  StreamSubscription<AuthState>? _sub;
+  ApiUser? _user;
 
   bool get ready => _ready;
-  Session? get session => _session;
-  bool get isAuthed => _session != null;
-  String? get userId => _session?.user.id;
+  ApiUser? get user => _user;
+  bool get isAuthed => _user != null;
+  String? get userId => _user?.stringId;
+  String? get role => _user?.role;
 
   Future<void> init() async {
-    if (_sub != null) return;
+    if (_ready) return;
 
-    // Supabase.initialize() restores session from storage asynchronously.
-    // We mark [ready] only after the first auth-state emission (or a short timeout),
-    // so UI cannot flash user-specific data from a stale session.
-    _session = Supabase.instance.client.auth.currentSession;
-    final first = Completer<void>();
+    // Register session-expired callback so interceptor can force sign-out
+    ApiClient.onSessionExpired = _onSessionExpired;
 
-    _sub = Supabase.instance.client.auth.onAuthStateChange.listen((state) {
-      _session = state.session;
-      if (!_ready) {
-        _ready = true;
-        notifyListeners();
-        if (!first.isCompleted) first.complete();
-        return;
+    // Try to restore session from stored tokens.
+    final token = await TokenStore.read();
+    if (token != null) {
+      // Try /users/me with current access token
+      _user = await AuthApi.me();
+
+      if (_user == null) {
+        // Access token expired — try refresh
+        final refreshed = await AuthApi.refresh();
+        if (refreshed) {
+          _user = await AuthApi.me();
+        }
+        if (_user == null) {
+          // Refresh also failed — clear everything
+          await TokenStore.clear();
+        }
       }
-      notifyListeners();
-    });
+    } else {
+      // No access token — check if we have a refresh token
+      final refreshToken = await TokenStore.readRefresh();
+      if (refreshToken != null) {
+        final refreshed = await AuthApi.refresh();
+        if (refreshed) {
+          _user = await AuthApi.me();
+        }
+        if (_user == null) {
+          await TokenStore.clear();
+        }
+      }
+    }
 
-    // Safety: don't block forever if platform doesn't emit promptly.
-    await Future.any([first.future, Future.delayed(const Duration(milliseconds: 650))]);
-    if (!_ready) {
-      _ready = true;
+    _ready = true;
+    notifyListeners();
+  }
+
+  /// Called after successful login/register.
+  void setUser(ApiUser user) {
+    _user = user;
+    notifyListeners();
+  }
+
+  /// Sign out — revoke refresh token on server, clear local tokens.
+  Future<void> signOut() async {
+    await AuthApi.signOut();
+    _user = null;
+    notifyListeners();
+  }
+
+  /// Called by the refresh interceptor when all tokens are invalid.
+  void _onSessionExpired() {
+    if (_user != null) {
+      _user = null;
       notifyListeners();
     }
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
-    _sub = null;
+    ApiClient.onSessionExpired = null;
     super.dispose();
   }
 }
-

@@ -7,10 +7,12 @@ const MAX_RETRIES = 1;
 export class OpenAIProvider implements LLMProvider {
   private apiKey: string;
   private model: string;
+  private baseUrl: string;
 
-  constructor(apiKey: string, model = "gpt-4o-mini") {
+  constructor(apiKey: string, model = "gpt-4o-mini", baseUrl = "https://api.openai.com") {
     this.apiKey = apiKey;
     this.model = model;
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
 
   async generateJSON(systemPrompt: string, userPayload: string, opts?: LLMCallOptions): Promise<any> {
@@ -23,7 +25,7 @@ export class OpenAIProvider implements LLMProvider {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
           method: "POST",
           signal: controller.signal,
           headers: {
@@ -80,9 +82,10 @@ function sleep(ms: number): Promise<void> {
 
 export function createLLMProvider(env: DnkEnv): LLMProvider {
   const apiKey = env.DNK_OPENAI_API_KEY || env.OPENAI_API_KEY || "";
-  console.log("[DNK] LLM key present:", Boolean(apiKey));
+  const baseUrl = (env as any).AI_BASE_URL || "https://api.openai.com";
+  console.log("[DNK] LLM key present:", Boolean(apiKey), "baseUrl:", baseUrl);
   if (!apiKey) {
     throw new Error("LLM_NOT_CONFIGURED");
   }
-  return new OpenAIProvider(apiKey);
+  return new OpenAIProvider(apiKey, "gpt-4o-mini", baseUrl);
 }

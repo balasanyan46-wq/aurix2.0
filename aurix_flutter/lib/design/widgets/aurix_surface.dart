@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:flutter/material.dart';
 
-/// V2 Surface — flat, structured. No glow, no gradient.
-/// Bloomberg/Linear-style minimal container.
+/// Core premium surface with clean separation from backdrop.
 class AurixSurface extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -12,7 +11,7 @@ class AurixSurface extends StatelessWidget {
     super.key,
     required this.child,
     this.padding,
-    this.radius = 8,
+    this.radius = 14,
   });
 
   @override
@@ -20,9 +19,10 @@ class AurixSurface extends StatelessWidget {
     return Container(
       padding: padding ?? const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AurixTokens.bg1,
+        color: AurixTokens.bgElevated.withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AurixTokens.border, width: 1),
+        border: Border.all(color: AurixTokens.stroke(0.22), width: 1),
+        boxShadow: [...AurixTokens.subtleShadow],
       ),
       child: child,
     );

@@ -43,12 +43,15 @@ class _ReleasePickerScreenState extends ConsumerState<ReleasePickerScreen> {
     try {
       final user = ref.read(currentUserProvider);
       if (user == null) {
+        if (!mounted) return;
         setState(() { _loading = false; _error = 'Не авторизован'; });
         return;
       }
       final releases = await ref.read(releaseRepositoryProvider).getReleasesByOwner(user.id);
+      if (!mounted) return;
       setState(() { _releases = releases; _loading = false; });
     } catch (e) {
+      if (!mounted) return;
       setState(() { _loading = false; _error = e.toString(); });
     }
   }

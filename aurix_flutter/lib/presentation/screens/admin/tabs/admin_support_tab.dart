@@ -6,6 +6,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/models/support_ticket_model.dart';
 import 'package:aurix_flutter/data/models/support_message_model.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
+import 'package:aurix_flutter/data/providers/crm_providers.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
@@ -18,6 +19,7 @@ class AdminSupportTab extends ConsumerStatefulWidget {
 
 class _AdminSupportTabState extends ConsumerState<AdminSupportTab> {
   String _statusFilter = 'all';
+  String _search = '';
   SupportTicketModel? _openedTicket;
 
   static const _statuses = ['all', 'open', 'in_progress', 'resolved', 'closed'];
@@ -57,38 +59,66 @@ class _AdminSupportTabState extends ConsumerState<AdminSupportTab> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           color: AurixTokens.bg1,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: _statuses.map((s) {
-                final selected = _statusFilter == s;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(s == 'all' ? 'Все' : _statusLabel(s)),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _statusFilter = s),
-                    selectedColor: AurixTokens.orange.withValues(alpha: 0.2),
-                    backgroundColor: AurixTokens.bg2,
-                    labelStyle: TextStyle(
-                      color: selected ? AurixTokens.orange : AurixTokens.muted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    side: BorderSide(color: selected ? AurixTokens.orange.withValues(alpha: 0.4) : AurixTokens.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                );
-              }).toList(),
-            ),
+          child: Column(
+            children: [
+              TextField(
+                style: const TextStyle(color: AurixTokens.text, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Поиск по теме, сообщению, user id',
+                  hintStyle: const TextStyle(color: AurixTokens.muted, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AurixTokens.muted),
+                  filled: true,
+                  fillColor: AurixTokens.bg2,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
+              ),
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _statuses.map((s) {
+                    final selected = _statusFilter == s;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(s == 'all' ? 'Все' : _statusLabel(s)),
+                        selected: selected,
+                        onSelected: (_) => setState(() => _statusFilter = s),
+                        selectedColor: AurixTokens.orange.withValues(alpha: 0.2),
+                        backgroundColor: AurixTokens.bg2,
+                        labelStyle: TextStyle(
+                          color: selected ? AurixTokens.orange : AurixTokens.muted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        side: BorderSide(color: selected ? AurixTokens.orange.withValues(alpha: 0.4) : AurixTokens.border),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
           child: ticketsAsync.when(
             data: (tickets) {
-              final filtered = _statusFilter == 'all'
+              var filtered = _statusFilter == 'all'
                   ? tickets
                   : tickets.where((t) => t.status == _statusFilter).toList();
+
+              if (_search.isNotEmpty) {
+                filtered = filtered.where((t) {
+                  final subject = t.subject.toLowerCase();
+                  final message = t.message.toLowerCase();
+                  final uid = t.userId.toLowerCase();
+                  return subject.contains(_search) || message.contains(_search) || uid.contains(_search);
+                }).toList();
+              }
 
               if (filtered.isEmpty) {
                 return Center(
@@ -290,10 +320,18 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
         senderRole: 'admin',
         body: body,
       );
+      await ref.read(adminLogRepositoryProvider).log(
+        adminId: adminId,
+        action: 'ticket_replied',
+        targetType: 'support_ticket',
+        targetId: widget.ticket.id,
+        details: {'message_len': body.length},
+      );
       // Mark as in_progress if it was open
       if (widget.ticket.status == 'open') {
         await ref.read(supportTicketRepositoryProvider).updateStatus(widget.ticket.id, 'in_progress');
       }
+      ref.invalidate(adminCrmLeadsProvider);
       await _loadMessages();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
@@ -302,12 +340,52 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
   }
 
   Future<void> _changeStatus(String status) async {
+    final reason = await _askReasonForStatus(status);
+    if (reason == null) return;
     try {
       await ref.read(supportTicketRepositoryProvider).updateStatus(widget.ticket.id, status);
+      final adminId = ref.read(currentUserProvider)?.id;
+      if (adminId != null) {
+        await ref.read(adminLogRepositoryProvider).log(
+          adminId: adminId,
+          action: 'ticket_status_changed',
+          targetType: 'support_ticket',
+          targetId: widget.ticket.id,
+          details: {'status': status, 'reason': reason},
+        );
+      }
+      ref.invalidate(adminCrmLeadsProvider);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Статус: $status')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
     }
+  }
+
+  Future<String?> _askReasonForStatus(String nextStatus) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: Text('Изменить статус на "$nextStatus"', style: const TextStyle(color: AurixTokens.text)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 2,
+          style: const TextStyle(color: AurixTokens.text),
+          decoration: const InputDecoration(
+            hintText: 'Причина',
+            hintStyle: TextStyle(color: AurixTokens.muted),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Применить')),
+        ],
+      ),
+    );
+    final text = ctrl.text.trim();
+    if (ok != true || text.isEmpty) return null;
+    return text;
   }
 
   @override

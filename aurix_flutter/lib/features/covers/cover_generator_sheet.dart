@@ -58,13 +58,15 @@ class CoverGeneratorSheet extends ConsumerStatefulWidget {
 }
 
 class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
+  final _promptCtrl = TextEditingController();
+  final _negativePromptCtrl = TextEditingController();
   late final _artistCtrl = TextEditingController(text: widget.initialArtistName ?? '');
   late final _titleCtrl = TextEditingController(text: widget.initialReleaseTitle ?? '');
   late final _genreCtrl = TextEditingController(text: widget.initialGenre ?? '');
   final _moodCtrl = TextEditingController();
 
   String _style = 'dark_minimal';
-  bool _noText = true;
+  bool _noText = false;
   String _size = '1024x1024';
   String _quality = 'high';
 
@@ -72,14 +74,19 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
   int _detailLevel = 1; // 0..2 => low/med/high
   int _accentLevel = 1; // 0..2 => subtle/med/strong
   bool _cinematicBoost = false;
+  double _followPromptStrength = 0.9;
+  bool _safeZoneGuide = true;
 
   bool _loading = false;
+  bool _briefLoading = false;
   String? _error;
   Uint8List? _bytes;
   Map<String, dynamic>? _meta;
 
   @override
   void dispose() {
+    _promptCtrl.dispose();
+    _negativePromptCtrl.dispose();
     _artistCtrl.dispose();
     _titleCtrl.dispose();
     _genreCtrl.dispose();
@@ -88,17 +95,29 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
   }
 
   String _buildPrompt({required bool variant, required int variationToken}) {
+    final direct = _promptCtrl.text.trim();
+    if (direct.isNotEmpty) {
+      final strictParts = <String>[
+        direct,
+        'Album cover format: square 1:1 composition, professional streaming-ready artwork.',
+        if (_noText) 'No readable text unless explicitly requested.',
+        if (variant) 'Create a clearly different variation from previous attempt.',
+        if (variant) 'Variation token: $variationToken',
+      ];
+      return strictParts.join('\n');
+    }
+
     final artist = _artistCtrl.text.trim();
     final title = _titleCtrl.text.trim();
     final genre = _genreCtrl.text.trim();
     final mood = _moodCtrl.text.trim();
 
     final preset = switch (_style) {
-      'dark_minimal' => 'dark minimal, sleek, modern, expensive, minimal typography-free design, moody lighting',
-      'cinematic' => 'cinematic, film still vibe, dramatic lighting, depth, high contrast, premium',
-      'futuristic' => 'futuristic, sci-fi, neon accents, clean geometry, premium, high detail',
-      'street' => 'street, gritty, raw texture, urban night, flash photography vibe, premium',
-      _ => 'luxury, glossy, high-end product photography vibe, minimal, premium',
+      'dark_minimal' => 'dark minimal, sleek, moody, premium',
+      'cinematic' => 'cinematic, dramatic light, film-like depth',
+      'futuristic' => 'futuristic, neon accents, clean geometry',
+      'street' => 'street, gritty, urban texture',
+      _ => 'luxury, glossy, premium',
     };
 
     final detail = switch (_detailLevel) {
@@ -115,23 +134,23 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
 
     final cinematic = _cinematicBoost ? 'cinematic lighting, film still vibe, dramatic contrast.' : null;
 
-    final forbidText = _noText
-        ? 'No readable text, no typography, no logos, no watermarks, no brand names.'
-        : 'No logos, no watermarks, no brand names.';
+    final textRule = _noText
+        ? 'Avoid readable text and typography on the cover.'
+        : 'If text is used, keep it intentional and minimal.';
 
     final parts = <String>[
-      'Square album cover (1:1), PNG.',
-      'High-end, premium, professional album cover art.',
-      preset,
+      'Create a square album cover (1:1), PNG.',
+      'Follow the user request as the primary instruction.',
       detail,
       accent,
+      'Visual direction: $preset.',
       if (cinematic != null) cinematic,
       if (artist.isNotEmpty) 'Artist: $artist.',
       if (title.isNotEmpty) 'Release title: $title.',
       if (genre.isNotEmpty) 'Genre: $genre.',
       if (mood.isNotEmpty) 'Mood keywords: $mood.',
-      forbidText,
-      'No UI, no app screens, no mockups.',
+      textRule,
+      'No logos, no watermarks, no brand names.',
       if (variant) 'Generate a distinctly different concept and composition from previous attempts while keeping the same mood and style.',
       if (variant) 'Variation token: $variationToken',
     ];
@@ -148,10 +167,17 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
       final userId = ref.read(currentUserProvider)?.id;
       final resp = await CoverAiService.generate(
         prompt: _buildPrompt(variant: variant, variationToken: token),
+        strictPrompt: true,
+        negativePrompt: _negativePromptCtrl.text.trim().isEmpty ? null : _negativePromptCtrl.text.trim(),
+        followPromptStrength: _followPromptStrength,
+        safeZoneGuide: _safeZoneGuide,
+        stylePreset: _style,
+        colorProfile: switch (_accentLevel) { 0 => 'muted', 2 => 'high-contrast', _ => 'balanced' },
         size: _size,
         quality: _quality,
         outputFormat: 'png',
         background: 'opaque',
+        allowText: !_noText,
         releaseId: widget.releaseId,
         userId: userId,
       );
@@ -167,6 +193,55 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _buildCreativeBrief() async {
+    final releaseId = widget.releaseId;
+    if (releaseId == null || _briefLoading) return;
+    setState(() {
+      _briefLoading = true;
+      _error = null;
+    });
+    try {
+      final latestPackaging = await ref.read(toolServiceProvider).getSaved(
+            releaseId,
+            'release-packaging',
+          );
+      final output = latestPackaging?.output;
+      final hooks = (output?['hooks'] as List?)?.cast<String>() ?? const [];
+      final storytelling = output?['storytelling']?.toString() ?? '';
+      final ctas = (output?['cta_variants'] as List?)?.cast<String>() ?? const [];
+
+      final artist = _artistCtrl.text.trim();
+      final title = _titleCtrl.text.trim();
+      final genre = _genreCtrl.text.trim();
+      final mood = _moodCtrl.text.trim();
+      final hook = hooks.isNotEmpty ? hooks.first : '';
+      final cta = ctas.isNotEmpty ? ctas.first : '';
+      final styleText = switch (_style) {
+        'cinematic' => 'cinematic lighting, dramatic contrast',
+        'futuristic' => 'futuristic geometry, clean neon accents',
+        'street' => 'street textures, urban energy, gritty details',
+        'luxury' => 'luxury minimalism, premium glossy look',
+        _ => 'dark minimalism, premium restrained palette',
+      };
+
+      _promptCtrl.text = [
+        'Create an album cover 1:1 for "$title" by $artist.',
+        if (genre.isNotEmpty) 'Genre direction: $genre.',
+        if (mood.isNotEmpty) 'Mood: $mood.',
+        'Visual direction: $styleText.',
+        if (hook.isNotEmpty) 'Concept hook: $hook.',
+        if (storytelling.isNotEmpty) 'Story essence: $storytelling.',
+        if (cta.isNotEmpty) 'Implied action/feeling: $cta.',
+        'Premium composition, strong focal point, streaming-ready, no watermark.',
+        if (_noText) 'No readable text.',
+      ].join('\n');
+    } catch (e) {
+      _error = 'Не удалось собрать creative brief: $e';
+    } finally {
+      if (mounted) setState(() => _briefLoading = false);
     }
   }
 
@@ -261,15 +336,60 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.12),
+                            color: AurixTokens.danger.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+                            border: Border.all(color: AurixTokens.danger.withValues(alpha: 0.25)),
                           ),
                           child: Text(_error!, style: const TextStyle(color: AurixTokens.text, fontSize: 13, height: 1.35)),
                         ),
                         const SizedBox(height: 12),
                       ],
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AurixTokens.glass(0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AurixTokens.stroke(0.14)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Creative brief generator',
+                              style: TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w800, fontSize: 13),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Собирает prompt из контекста релиза и последней AI-упаковки, чтобы уменьшить хаос и быстрее получить рабочий визуал.',
+                              style: TextStyle(color: AurixTokens.muted, fontSize: 12, height: 1.35),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: (_loading || _briefLoading || widget.releaseId == null) ? null : _buildCreativeBrief,
+                                icon: _briefLoading
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.auto_fix_high_rounded, size: 16),
+                                label: Text(_briefLoading ? 'Собираем brief...' : 'Собрать preview-ready prompt'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       _field('Артист', _artistCtrl),
+                      const SizedBox(height: 10),
+                      _field('Свободный промпт (главный)', _promptCtrl, maxLines: 4),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Если заполнен свободный промпт, генерация идёт в первую очередь по нему.',
+                        style: TextStyle(color: AurixTokens.muted, fontSize: 12),
+                      ),
                       const SizedBox(height: 10),
                       _field('Релиз', _titleCtrl),
                       const SizedBox(height: 10),
@@ -320,7 +440,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _size,
+                              initialValue: _size,
                               items: const [
                                 DropdownMenuItem(value: '1024x1024', child: Text('1024')),
                                 DropdownMenuItem(value: '1536x1536', child: Text('1536')),
@@ -332,7 +452,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _quality,
+                              initialValue: _quality,
                               items: const [
                                 DropdownMenuItem(value: 'high', child: Text('High')),
                                 DropdownMenuItem(value: 'medium', child: Text('Medium')),
@@ -414,7 +534,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                                       _field('Mood keywords (через запятую)', _moodCtrl, maxLines: 2),
                                       const SizedBox(height: 10),
                                       DropdownButtonFormField<String>(
-                                        value: _style,
+                                        initialValue: _style,
                                         items: const [
                                           DropdownMenuItem(value: 'dark_minimal', child: Text('Dark minimal')),
                                           DropdownMenuItem(value: 'cinematic', child: Text('Cinematic')),
@@ -424,6 +544,25 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                                         ],
                                         onChanged: _loading ? null : (v) => setState(() => _style = v ?? 'dark_minimal'),
                                         decoration: const InputDecoration(labelText: 'Style preset'),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _field('Negative prompt (чего избегать)', _negativePromptCtrl, maxLines: 3),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'Сила следования промпту: ${(_followPromptStrength * 100).round()}%',
+                                        style: TextStyle(
+                                          color: AurixTokens.muted.withValues(alpha: 0.95),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Slider(
+                                        value: _followPromptStrength,
+                                        min: 0.5,
+                                        max: 1.0,
+                                        divisions: 10,
+                                        label: '${(_followPromptStrength * 100).round()}%',
+                                        onChanged: _loading ? null : (v) => setState(() => _followPromptStrength = v),
                                       ),
                                       const SizedBox(height: 10),
                                       Text('Минимализм / детали', style: TextStyle(color: AurixTokens.muted.withValues(alpha: 0.95), fontSize: 12, fontWeight: FontWeight.w700)),
@@ -452,6 +591,13 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                                         value: _cinematicBoost,
                                         onChanged: _loading ? null : (v) => setState(() => _cinematicBoost = v),
                                         title: const Text('Больше кинематографичности'),
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                      SwitchListTile(
+                                        value: _safeZoneGuide,
+                                        onChanged: _loading ? null : (v) => setState(() => _safeZoneGuide = v),
+                                        title: const Text('Safe zone для стримингов'),
+                                        subtitle: const Text('Ключевые элементы ближе к центру, без обрезки в превью'),
                                         contentPadding: EdgeInsets.zero,
                                       ),
                                       const SizedBox(height: 6),
@@ -490,7 +636,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                                           Navigator.of(context).pop(_bytes);
                                         },
                                   icon: const Icon(Icons.check_circle_rounded, size: 18),
-                                  label: const Text('Использовать'),
+                                label: const Text('Использовать в форме'),
                                   style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: Colors.black),
                                 ),
                               ),
@@ -511,7 +657,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                       ],
                       const SizedBox(height: 8),
                       Text(
-                        'Важно: генератор старается избегать текста/логотипов. Если модель всё равно рисует текст — просто сделайте регенерацию.',
+                        'Генератор следует вашему промту. Если результат близкий, но не точный — используйте «Уточнить» или «Перегенерировать».',
                         style: TextStyle(color: AurixTokens.muted.withValues(alpha: 0.95), fontSize: 12),
                       ),
                     ],

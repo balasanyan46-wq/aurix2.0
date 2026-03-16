@@ -35,7 +35,11 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
   @override
   void initState() {
     super.initState();
-    _queue.addAll(dnkCoreQuestions.map((q) => _QuestionItem(question: q)));
+    _queue.addAll(
+      dnkCoreQuestions
+          .where((q) => dnkMandatoryCoreQuestionIds.contains(q.id))
+          .map((q) => _QuestionItem(question: q)),
+    );
   }
 
   @override
@@ -71,7 +75,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
 
     final qId = _q.id;
     if (kDebugMode) {
-      debugPrint('[DNK] submit: q=$qId, type=$answerType, session=${widget.sessionId}');
+      debugPrint(
+          '[DNK] submit: q=$qId, type=$answerType, session=${widget.sessionId}');
     }
 
     DnkFollowup? followup;
@@ -91,16 +96,18 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
       if (kDebugMode) {
         debugPrint('[DNK] followup: id=${followup.id}, type=${followup.type}');
       }
-      _queue.insert(_currentIndex + 1, _QuestionItem(
-        question: DnkQuestion(
-          id: followup.id,
-          type: followup.type,
-          text: followup.text,
-          options: followup.options,
-          scaleLabels: followup.scaleLabels,
-          isFollowup: true,
-        ),
-      ));
+      _queue.insert(
+          _currentIndex + 1,
+          _QuestionItem(
+            question: DnkQuestion(
+              id: followup.id,
+              type: followup.type,
+              text: followup.text,
+              options: followup.options,
+              scaleLabels: followup.scaleLabels,
+              isFollowup: true,
+            ),
+          ));
     }
 
     if (_currentIndex + 1 < _queue.length) {
@@ -123,7 +130,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
 
   // ── Background retry queue ─────────────────────────────────
 
-  void _queueRetry(String questionId, String answerType, Map<String, dynamic> answerJson) {
+  void _queueRetry(
+      String questionId, String answerType, Map<String, dynamic> answerJson) {
     final pending = _PendingAnswer(
       questionId: questionId,
       answerType: answerType,
@@ -136,7 +144,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
 
   void _updatePendingCount() {
     if (!mounted) return;
-    setState(() => _pendingRetries = _pendingAnswers.where((p) => !p.sent).length);
+    setState(
+        () => _pendingRetries = _pendingAnswers.where((p) => !p.sent).length);
   }
 
   Future<void> _retryInBackground(_PendingAnswer p) async {
@@ -174,7 +183,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
     });
 
     final deadline = DateTime.now().add(const Duration(seconds: 10));
-    while (_pendingAnswers.any((p) => !p.sent) && DateTime.now().isBefore(deadline)) {
+    while (_pendingAnswers.any((p) => !p.sent) &&
+        DateTime.now().isBefore(deadline)) {
       await Future.delayed(const Duration(milliseconds: 400));
     }
 
@@ -188,7 +198,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
         result = await _service.finishAndWait(widget.sessionId);
         break;
       } catch (e) {
-        if (kDebugMode) debugPrint('[DNK] finish attempt ${attempt + 1} failed: $e');
+        if (kDebugMode)
+          debugPrint('[DNK] finish attempt ${attempt + 1} failed: $e');
         if (attempt == 0 && mounted) {
           setState(() => _finishStatus = 'AI занят, пробуем ещё раз…');
           await Future.delayed(const Duration(seconds: 3));
@@ -203,7 +214,9 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
       Navigator.of(context).pop(result);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Генерация не удалась. Попробуйте перегенерировать.')),
+        const SnackBar(
+            content:
+                Text('Генерация не удалась. Попробуйте перегенерировать.')),
       );
       setState(() => _finishing = false);
     }
@@ -215,21 +228,35 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
   void _startProgressTimer() {
     _progressStep = 0;
     _progressTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
-      if (!mounted) { timer.cancel(); return; }
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       _progressStep++;
       switch (_progressStep) {
-        case 1: setState(() => _finishStatus = 'Извлекаем паттерны…'); break;
-        case 2: setState(() => _finishStatus = 'Строим профиль…'); break;
-        case 3: setState(() => _finishStatus = 'Формируем рекомендации…'); break;
-        case 4: setState(() => _finishStatus = 'Почти готово…'); break;
-        default: setState(() => _finishStatus = 'Ещё немного…'); break;
+        case 1:
+          setState(() => _finishStatus = 'Извлекаем паттерны…');
+          break;
+        case 2:
+          setState(() => _finishStatus = 'Строим профиль…');
+          break;
+        case 3:
+          setState(() => _finishStatus = 'Формируем рекомендации…');
+          break;
+        case 4:
+          setState(() => _finishStatus = 'Почти готово…');
+          break;
+        default:
+          setState(() => _finishStatus = 'Ещё немного…');
+          break;
       }
     });
   }
 
   bool get _canSubmit {
     if (_submitting || _finishing) return false;
-    if (_q.type == 'forced_choice' || _q.type == 'sjt') return _choiceKey != null;
+    if (_q.type == 'forced_choice' || _q.type == 'sjt')
+      return _choiceKey != null;
     if (_q.type == 'open') return _textController.text.trim().isNotEmpty;
     return true;
   }
@@ -247,7 +274,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
               const SizedBox(height: 24),
               Text(
                 _finishStatus,
-                style: TextStyle(color: AurixTokens.textSecondary, fontSize: 16),
+                style:
+                    TextStyle(color: AurixTokens.textSecondary, fontSize: 16),
               ),
               const SizedBox(height: 8),
               Text(
@@ -270,7 +298,10 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
         ),
         title: Text(
           'Вопрос ${_currentIndex + 1} из $_total',
-          style: const TextStyle(color: AurixTokens.text, fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+              color: AurixTokens.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
         actions: [
@@ -279,7 +310,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
               padding: const EdgeInsets.only(right: 12),
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -288,7 +320,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(
-                        width: 12, height: 12,
+                        width: 12,
+                        height: 12,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
                           color: Colors.orange.shade300,
@@ -297,7 +330,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                       const SizedBox(width: 5),
                       Text(
                         'Сеть…',
-                        style: TextStyle(color: Colors.orange.shade300, fontSize: 11),
+                        style: TextStyle(
+                            color: Colors.orange.shade300, fontSize: 11),
                       ),
                     ],
                   ),
@@ -327,14 +361,18 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                     if (_q.isFollowup)
                       Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: AurixTokens.accent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
                           'Уточняющий вопрос',
-                          style: TextStyle(color: AurixTokens.accent, fontSize: 12, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              color: AurixTokens.accent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600),
                         ),
                       ),
                     Text(
@@ -363,13 +401,19 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                     backgroundColor: AurixTokens.accent,
                     disabledBackgroundColor: AurixTokens.border,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
                   ),
                   child: _submitting
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
                       : Text(
                           _currentIndex + 1 == _total ? 'Завершить' : 'Далее',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                 ),
               ),
@@ -396,22 +440,60 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
 
   Widget _buildScale() {
     final labels = _q.scaleLabels;
+    final lowLabel =
+        labels?.low.trim().isNotEmpty == true ? labels!.low : 'Совсем нет';
+    final highLabel =
+        labels?.high.trim().isNotEmpty == true ? labels!.high : 'Да, точно';
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Flexible(
-              child: Text(
-                labels?.low ?? '1',
-                style: TextStyle(color: AurixTokens.muted, fontSize: 12),
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    const TextSpan(
+                      text: '1',
+                      style: TextStyle(
+                        color: AurixTokens.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' — $lowLabel',
+                      style: const TextStyle(
+                        color: AurixTokens.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             Flexible(
-              child: Text(
-                labels?.high ?? '5',
-                style: TextStyle(color: AurixTokens.muted, fontSize: 12),
+              child: RichText(
                 textAlign: TextAlign.right,
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$highLabel — ',
+                      style: const TextStyle(
+                        color: AurixTokens.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const TextSpan(
+                      text: '5',
+                      style: TextStyle(
+                        color: AurixTokens.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -442,7 +524,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                   child: Text(
                     '$value',
                     style: TextStyle(
-                      color: selected ? Colors.white : AurixTokens.textSecondary,
+                      color:
+                          selected ? Colors.white : AurixTokens.textSecondary,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
@@ -475,7 +558,9 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: selected ? AurixTokens.accent.withValues(alpha: 0.12) : AurixTokens.bg2,
+                color: selected
+                    ? AurixTokens.accent.withValues(alpha: 0.12)
+                    : AurixTokens.bg2,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: selected ? AurixTokens.accent : AurixTokens.border,
@@ -491,7 +576,9 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                       shape: BoxShape.circle,
                       color: selected ? AurixTokens.accent : AurixTokens.bg1,
                       border: Border.all(
-                        color: selected ? AurixTokens.accent : AurixTokens.borderLight,
+                        color: selected
+                            ? AurixTokens.accent
+                            : AurixTokens.borderLight,
                       ),
                     ),
                     child: selected
@@ -503,7 +590,9 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                     child: Text(
                       opt.text,
                       style: TextStyle(
-                        color: selected ? AurixTokens.text : AurixTokens.textSecondary,
+                        color: selected
+                            ? AurixTokens.text
+                            : AurixTokens.textSecondary,
                         fontSize: 15,
                         height: 1.4,
                       ),
@@ -551,7 +640,8 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AurixTokens.bg1,
-        title: const Text('Прервать интервью?', style: TextStyle(color: AurixTokens.text)),
+        title: const Text('Прервать интервью?',
+            style: TextStyle(color: AurixTokens.text)),
         content: const Text(
           'Прогресс будет потерян. Вы сможете начать заново.',
           style: TextStyle(color: AurixTokens.textSecondary),
@@ -559,14 +649,16 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Продолжить', style: TextStyle(color: AurixTokens.accent)),
+            child: const Text('Продолжить',
+                style: TextStyle(color: AurixTokens.accent)),
           ),
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               Navigator.of(context).pop();
             },
-            child: const Text('Выйти', style: TextStyle(color: AurixTokens.negative)),
+            child: const Text('Выйти',
+                style: TextStyle(color: AurixTokens.negative)),
           ),
         ],
       ),

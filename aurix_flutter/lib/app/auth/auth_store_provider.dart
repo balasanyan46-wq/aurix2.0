@@ -6,7 +6,5 @@ final authStoreProvider = ChangeNotifierProvider<AuthStore>((ref) {
   // Init is awaited in main(), but keep a safety init for hot-reload/dev.
   // ignore: discarded_futures
   store.init();
-  ref.onDispose(store.dispose);
   return store;
 });
-

@@ -12,7 +12,7 @@ import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/repositories/file_repository.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
@@ -103,7 +103,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
   }
 
   String _formatError(Object e) {
-    final detail = formatSupabaseError(e);
+    final detail = formatApiError(e);
     if (detail.toLowerCase().contains('network') || detail.contains('Connection') || detail.contains('SocketException')) return 'Нет связи. Проверьте интернет.';
     if (detail.toLowerCase().contains('storage') || detail.contains('upload') || detail.contains('StorageException')) return 'Ошибка загрузки. Попробуйте ещё раз.';
     if (detail.contains('PGRST') || detail.contains('PostgrestException')) return 'Ошибка базы данных. Проверьте подключение.';
@@ -291,6 +291,7 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
       await trackRepo.addTrack(
         id: trackId,
         releaseId: release.id,
+        userId: user.id,
         audioPath: path,
         audioUrl: fileUrl,
         title: baseName.isNotEmpty ? baseName : f.name,
@@ -326,11 +327,11 @@ class _ReleaseCreateFlowScreenState extends ConsumerState<ReleaseCreateFlowScree
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.15),
+                    color: AurixTokens.danger.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
+                    border: Border.all(color: AurixTokens.danger.withValues(alpha: 0.5)),
                   ),
-                  child: Text(_error!, style: TextStyle(color: Colors.red.shade200)),
+                  child: Text(_error!, style: TextStyle(color: AurixTokens.danger)),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -928,7 +929,7 @@ class _Step3Splits extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Icon(total == 100 ? Icons.check_circle : Icons.warning_amber, size: 20, color: total == 100 ? Colors.green : AurixTokens.orange),
+                  Icon(total == 100 ? Icons.check_circle : Icons.warning_amber, size: 20, color: total == 100 ? AurixTokens.positive : AurixTokens.orange),
                   IconButton(icon: const Icon(Icons.close), onPressed: () => onRemove(i), color: AurixTokens.muted),
                 ],
               ),
@@ -936,7 +937,7 @@ class _Step3Splits extends StatelessWidget {
           }),
           const SizedBox(height: 12),
           Text('Сумма: $total%', style: TextStyle(
-            color: total == 100 ? Colors.green : AurixTokens.orange,
+            color: total == 100 ? AurixTokens.positive : AurixTokens.orange,
             fontWeight: FontWeight.w600,
           )),
           const SizedBox(height: 24),

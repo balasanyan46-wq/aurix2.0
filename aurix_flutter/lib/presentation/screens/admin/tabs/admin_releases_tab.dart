@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/models/track_model.dart';
 import 'package:aurix_flutter/data/models/admin_note_model.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
+import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
@@ -22,6 +24,8 @@ class AdminReleasesTab extends ConsumerStatefulWidget {
 
 class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
   String _search = '';
+  final Set<String> _selectedReleaseIds = <String>{};
+  bool _bulkLoading = false;
 
   static const _statuses = ['all', 'draft', 'submitted', 'in_review', 'approved', 'rejected', 'live'];
 
@@ -48,7 +52,11 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
   @override
   Widget build(BuildContext context) {
     final releasesAsync = ref.watch(allReleasesAdminProvider);
+    final realtime = ref.watch(adminReleasesRealtimeProvider).valueOrNull;
     final statusFilter = ref.watch(adminReleasesFilterProvider);
+    final effectiveReleasesAsync = (realtime != null && realtime.isNotEmpty)
+        ? AsyncValue.data(realtime)
+        : releasesAsync;
 
     return Column(
       children: [
@@ -99,11 +107,40 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
                   }).toList(),
                 ),
               ),
+              if (_selectedReleaseIds.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Text(
+                      'Выбрано: ${_selectedReleaseIds.length}',
+                      style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w700),
+                    ),
+                    OutlinedButton(
+                      onPressed: _bulkLoading ? null : () => _bulkSetStatus('approved'),
+                      child: const Text('Одобрить'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _bulkLoading ? null : () => _bulkSetStatus('rejected'),
+                      child: const Text('Отклонить'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _bulkLoading ? null : () => _bulkSetStatus('in_review'),
+                      child: const Text('На проверку'),
+                    ),
+                    TextButton(
+                      onPressed: _bulkLoading ? null : () => setState(_selectedReleaseIds.clear),
+                      child: const Text('Сброс'),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
         Expanded(
-          child: releasesAsync.when(
+          child: effectiveReleasesAsync.when(
             data: (releases) {
               var filtered = releases.where((r) {
                 if (statusFilter != 'all' && r.status != statusFilter) return false;
@@ -127,6 +164,16 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
                   final r = filtered[i];
                   return _ReleaseCard(
                     release: r,
+                    selected: _selectedReleaseIds.contains(r.id),
+                    onToggleSelected: (v) {
+                      setState(() {
+                        if (v) {
+                          _selectedReleaseIds.add(r.id);
+                        } else {
+                          _selectedReleaseIds.remove(r.id);
+                        }
+                      });
+                    },
                     statusColor: _statusColor(r.status),
                     statusLabel: _statusLabel(r.status),
                     onTap: () => _openDetail(context, r),
@@ -135,7 +182,21 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
               );
             },
             loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange)),
-            error: (e, _) => Center(child: Text('Ошибка: $e', style: TextStyle(color: AurixTokens.muted))),
+            error: (e, _) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Ошибка: $e', style: const TextStyle(color: AurixTokens.muted), textAlign: TextAlign.center),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: () => ref.invalidate(allReleasesAdminProvider),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Повторить'),
+                    style: TextButton.styleFrom(foregroundColor: AurixTokens.orange),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -143,29 +204,95 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
   }
 
   void _openDetail(BuildContext context, ReleaseModel release) {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AurixTokens.bg1,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (ctx, scrollCtrl) => _ReleaseDetailSheet(
+      barrierDismissible: false,
+      builder: (_) => Dialog.fullscreen(
+        backgroundColor: AurixTokens.bg0,
+        child: _ReleaseDetailSheet(
           release: release,
-          scrollController: scrollCtrl,
+          scrollController: ScrollController(),
           onUpdated: () => ref.invalidate(allReleasesAdminProvider),
         ),
       ),
     );
   }
+
+  Future<void> _bulkSetStatus(String status) async {
+    final reason = await _askBulkReason('Массовая смена статуса');
+    if (reason == null) return;
+    setState(() => _bulkLoading = true);
+    try {
+      final count = await ref.read(releaseRepositoryProvider).bulkUpdateStatuses(
+            _selectedReleaseIds.toList(),
+            status,
+            reason: reason,
+          );
+      final adminId = ref.read(currentUserProvider)?.id;
+      if (adminId != null) {
+        await ref.read(adminLogRepositoryProvider).log(
+          adminId: adminId,
+          action: 'releases_bulk_status_changed',
+          targetType: 'release',
+          details: {'count': count, 'status': status, 'reason': reason},
+        );
+      }
+      ref.invalidate(allReleasesAdminProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Обновлено релизов: $count')),
+        );
+      }
+      setState(_selectedReleaseIds.clear);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _bulkLoading = false);
+    }
+  }
+
+  Future<String?> _askBulkReason(String title) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: Text(title, style: const TextStyle(color: AurixTokens.text)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 2,
+          style: const TextStyle(color: AurixTokens.text),
+          decoration: const InputDecoration(
+            hintText: 'Причина действия',
+            hintStyle: TextStyle(color: AurixTokens.muted),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Применить')),
+        ],
+      ),
+    );
+    final text = ctrl.text.trim();
+    if (ok != true || text.isEmpty) return null;
+    return text;
+  }
 }
 
 class _ReleaseCard extends StatelessWidget {
-  const _ReleaseCard({required this.release, required this.statusColor, required this.statusLabel, required this.onTap});
+  const _ReleaseCard({
+    required this.release,
+    required this.selected,
+    required this.onToggleSelected,
+    required this.statusColor,
+    required this.statusLabel,
+    required this.onTap,
+  });
   final ReleaseModel release;
+  final bool selected;
+  final ValueChanged<bool> onToggleSelected;
   final Color statusColor;
   final String statusLabel;
   final VoidCallback onTap;
@@ -184,6 +311,10 @@ class _ReleaseCard extends StatelessWidget {
         ),
         child: Row(
           children: [
+            Checkbox(
+              value: selected,
+              onChanged: (v) => onToggleSelected(v == true),
+            ),
             Container(
               width: 48,
               height: 48,
@@ -322,7 +453,62 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
     } catch (_) {}
   }
 
+  Future<void> _openOwnerAdminSheet() async {
+    final owner = _ownerProfile;
+    if (owner == null) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AurixTokens.bg1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+        child: _OwnerAdminSheet(
+          profile: owner,
+          onUpdated: () async {
+            await _loadOwner();
+            if (mounted) widget.onUpdated();
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _contactOwnerQuick() async {
+    final owner = _ownerProfile;
+    if (owner == null) return;
+
+    if (owner.email.isNotEmpty) {
+      final uri = Uri(
+        scheme: 'mailto',
+        path: owner.email,
+        queryParameters: {
+          'subject': 'AURIX: релиз "${widget.release.title}"',
+          'body': 'Здравствуйте!\n\nПишем вам по релизу "${widget.release.title}".',
+        },
+      );
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (ok) return;
+    }
+
+    final phone = owner.phone;
+    if (phone != null && phone.trim().isNotEmpty) {
+      final telUri = Uri(scheme: 'tel', path: phone.trim());
+      final ok = await launchUrl(telUri, mode: LaunchMode.externalApplication);
+      if (ok) return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('У артиста нет доступных контактов для связи')),
+    );
+  }
+
   Future<void> _save() async {
+    String? statusReason;
+    if (_status != widget.release.status) {
+      statusReason = await _askStatusReason();
+      if (statusReason == null) return;
+    }
     setState(() => _loading = true);
     try {
       await ref.read(releaseRepositoryProvider).updateRelease(
@@ -348,7 +534,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
           action: 'release_status_changed',
           targetType: 'release',
           targetId: widget.release.id,
-          details: {'old': widget.release.status, 'new': _status},
+          details: {'old': widget.release.status, 'new': _status, 'reason': statusReason ?? ''},
         );
       }
       widget.onUpdated();
@@ -357,6 +543,33 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  Future<String?> _askStatusReason() async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: const Text('Причина смены статуса', style: TextStyle(color: AurixTokens.text)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 2,
+          style: const TextStyle(color: AurixTokens.text),
+          decoration: const InputDecoration(
+            hintText: 'Укажи причину',
+            hintStyle: TextStyle(color: AurixTokens.muted),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    final text = ctrl.text.trim();
+    if (ok != true || text.isEmpty) return null;
+    return text;
   }
 
   Future<void> _confirmDelete() async {
@@ -400,6 +613,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
       }
 
       widget.onUpdated();
+      ref.invalidate(releasesProvider);
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -461,17 +675,37 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final r = widget.release;
-    return ListView(
+    return Scaffold(
+      backgroundColor: AurixTokens.bg0,
+      appBar: AppBar(
+        backgroundColor: AurixTokens.bg1,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: AurixTokens.text),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          r.title,
+          style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w700, fontSize: 16),
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          if (!_loading)
+            TextButton(
+              onPressed: _save,
+              child: const Text('Сохранить', style: TextStyle(color: AurixTokens.orange, fontWeight: FontWeight.w700)),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AurixTokens.orange)),
+            ),
+        ],
+      ),
+      body: ListView(
       controller: widget.scrollController,
       padding: const EdgeInsets.all(20),
       children: [
-        Center(
-          child: Container(
-            width: 40, height: 4,
-            decoration: BoxDecoration(color: AurixTokens.muted, borderRadius: BorderRadius.circular(2)),
-          ),
-        ),
-        const SizedBox(height: 16),
 
         // --- Quick actions bar ---
         Row(
@@ -482,7 +716,24 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
                   icon: Icons.check_circle_rounded,
                   label: 'Одобрить',
                   color: AurixTokens.positive,
-                  onTap: () {
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AurixTokens.bg1,
+                        title: const Text('Одобрить релиз?', style: TextStyle(color: AurixTokens.text)),
+                        content: Text('Вы уверены что хотите одобрить «${widget.release.title}»?', style: const TextStyle(color: AurixTokens.muted)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: FilledButton.styleFrom(backgroundColor: AurixTokens.positive),
+                            child: const Text('Одобрить', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm != true) return;
                     setState(() => _status = 'approved');
                     _save();
                   },
@@ -494,7 +745,24 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
                   icon: Icons.cancel_rounded,
                   label: 'Отклонить',
                   color: Colors.redAccent,
-                  onTap: () {
+                  onTap: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AurixTokens.bg1,
+                        title: const Text('Отклонить релиз?', style: TextStyle(color: AurixTokens.text)),
+                        content: Text('Вы уверены что хотите отклонить «${widget.release.title}»?', style: const TextStyle(color: AurixTokens.muted)),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                            child: const Text('Отклонить', style: TextStyle(color: Colors.white)),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm != true) return;
                     setState(() => _status = 'rejected');
                     _save();
                   },
@@ -643,6 +911,28 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
                     if (_ownerProfile!.bio != null && _ownerProfile!.bio!.isNotEmpty)
                       _ownerRow(Icons.info_outline, _ownerProfile!.bio!),
                     _ownerRow(Icons.badge_outlined, 'Роль: ${_ownerProfile!.role} · Статус: ${_ownerProfile!.accountStatus}'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _openOwnerAdminSheet,
+                          icon: const Icon(Icons.manage_accounts_rounded, size: 16),
+                          label: const Text('Открыть артиста'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AurixTokens.orange,
+                            side: BorderSide(color: AurixTokens.orange.withValues(alpha: 0.5)),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _contactOwnerQuick,
+                          icon: const Icon(Icons.send_rounded, size: 16),
+                          label: const Text('Написать артисту'),
+                          style: TextButton.styleFrom(foregroundColor: AurixTokens.text),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
         ),
@@ -766,6 +1056,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
         ),
         const SizedBox(height: 32),
       ],
+    ),
     );
   }
 
@@ -828,6 +1119,232 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
         'live' => 'Опубликован',
         _ => s,
       };
+}
+
+class _OwnerAdminSheet extends ConsumerStatefulWidget {
+  const _OwnerAdminSheet({
+    required this.profile,
+    required this.onUpdated,
+  });
+
+  final ProfileModel profile;
+  final Future<void> Function() onUpdated;
+
+  @override
+  ConsumerState<_OwnerAdminSheet> createState() => _OwnerAdminSheetState();
+}
+
+class _OwnerAdminSheetState extends ConsumerState<_OwnerAdminSheet> {
+  late String _status;
+  final _messageCtrl = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.profile.accountStatus;
+  }
+
+  @override
+  void dispose() {
+    _messageCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveStatus() async {
+    setState(() => _loading = true);
+    try {
+      await ref.read(profileRepositoryProvider).updateAccountStatus(
+            widget.profile.userId,
+            _status,
+          );
+      final adminId = ref.read(currentUserProvider)?.id;
+      if (adminId != null) {
+        await ref.read(adminLogRepositoryProvider).log(
+          adminId: adminId,
+          action: 'user_status_changed_from_release',
+          targetType: 'profile',
+          targetId: widget.profile.userId,
+          details: {
+            'old': widget.profile.accountStatus,
+            'new': _status,
+          },
+        );
+      }
+      await widget.onUpdated();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Статус артиста обновлён'),
+          backgroundColor: AurixTokens.positive,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка обновления статуса: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _sendEmail() async {
+    if (widget.profile.email.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email у артиста не указан')),
+      );
+      return;
+    }
+    final body = _messageCtrl.text.trim().isEmpty
+        ? 'Здравствуйте!\n\nПишем вам по вашему релизу в AURIX.'
+        : _messageCtrl.text.trim();
+    final uri = Uri(
+      scheme: 'mailto',
+      path: widget.profile.email,
+      queryParameters: {
+        'subject': 'AURIX: сообщение от администратора',
+        'body': body,
+      },
+    );
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось открыть почтовый клиент')),
+      );
+    }
+  }
+
+  Future<void> _callArtist() async {
+    final phone = widget.profile.phone;
+    if (phone == null || phone.trim().isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Телефон у артиста не указан')),
+      );
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: phone.trim());
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось открыть звонок')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.profile;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 480),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AurixTokens.orange.withValues(alpha: 0.18),
+                  child: Text(
+                    p.displayNameOrName.isNotEmpty ? p.displayNameOrName[0].toUpperCase() : '?',
+                    style: const TextStyle(color: AurixTokens.orange, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    p.displayNameOrName,
+                    style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w700, fontSize: 16),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: AurixTokens.muted),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text('Email: ${p.email.isEmpty ? '—' : p.email}', style: const TextStyle(color: AurixTokens.muted, fontSize: 12)),
+            Text('Телефон: ${(p.phone == null || p.phone!.isEmpty) ? '—' : p.phone!}', style: const TextStyle(color: AurixTokens.muted, fontSize: 12)),
+            const SizedBox(height: 14),
+            const Text('Статус аккаунта', style: TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String>(
+              value: _status,
+              dropdownColor: AurixTokens.bg2,
+              style: const TextStyle(color: AurixTokens.text, fontSize: 14),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: AurixTokens.bg2,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'active', child: Text('Активен')),
+                DropdownMenuItem(value: 'suspended', child: Text('Заблокирован')),
+              ],
+              onChanged: _loading ? null : (v) => setState(() => _status = v ?? _status),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _loading ? null : _saveStatus,
+              icon: const Icon(Icons.save_rounded, size: 16),
+              label: Text(_loading ? 'Сохранение...' : 'Сохранить статус'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AurixTokens.orange,
+                foregroundColor: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('Сообщение артисту', style: TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _messageCtrl,
+              maxLines: 3,
+              style: const TextStyle(color: AurixTokens.text, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Текст письма (необязательно)',
+                hintStyle: const TextStyle(color: AurixTokens.muted, fontSize: 12),
+                filled: true,
+                fillColor: AurixTokens.bg2,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AurixTokens.border)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _sendEmail,
+                  icon: const Icon(Icons.email_outlined, size: 16),
+                  label: const Text('Написать на email'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.orange),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _callArtist,
+                  icon: const Icon(Icons.phone_outlined, size: 16),
+                  label: const Text('Позвонить'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.text),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _QuickAction extends StatelessWidget {

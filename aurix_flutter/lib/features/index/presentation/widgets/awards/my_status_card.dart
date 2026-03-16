@@ -20,39 +20,67 @@ class MyStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasStatus = myIndex != null || myRank != null;
+    final isMobile = MediaQuery.sizeOf(context).width < 700;
 
     return AurixGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (myIndex != null) ...[
-                _Stat('Твой индекс', formatNumber(myIndex!), AurixTokens.orange),
-                const SizedBox(width: 32),
+          if (isMobile) ...[
+            Wrap(
+              spacing: 16,
+              runSpacing: 10,
+              children: [
+                if (myIndex != null) _Stat('Твой индекс', formatNumber(myIndex!), AurixTokens.orange),
+                if (myRank != null) _Stat('Место', '#$myRank', AurixTokens.text),
+                if (toTop10 != null && toTop10! > 0) _Stat('До Top-10', '+$toTop10', Colors.green),
               ],
-              if (myRank != null) ...[
-                _Stat('Место', '#$myRank', AurixTokens.text),
-                const SizedBox(width: 32),
-              ],
-              if (toTop10 != null && toTop10! > 0) ...[
-                _Stat('До Top-10', '+$toTop10', Colors.green),
-                const SizedBox(width: 32),
-              ],
-              const Spacer(),
-              if (onHowToRise != null)
-                FilledButton(
+            ),
+            if (onHowToRise != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
                   onPressed: onHowToRise,
                   style: FilledButton.styleFrom(
                     backgroundColor: AurixTokens.orange,
                     foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   ),
                   child: const Text('Как подняться в рейтинге'),
                 ),
+              ),
             ],
-          ),
+          ] else ...[
+            Row(
+              children: [
+                if (myIndex != null) ...[
+                  _Stat('Твой индекс', formatNumber(myIndex!), AurixTokens.orange),
+                  const SizedBox(width: 32),
+                ],
+                if (myRank != null) ...[
+                  _Stat('Место', '#$myRank', AurixTokens.text),
+                  const SizedBox(width: 32),
+                ],
+                if (toTop10 != null && toTop10! > 0) ...[
+                  _Stat('До Top-10', '+$toTop10', Colors.green),
+                  const SizedBox(width: 32),
+                ],
+                const Spacer(),
+                if (onHowToRise != null)
+                  FilledButton(
+                    onPressed: onHowToRise,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AurixTokens.orange,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    child: const Text('Как подняться в рейтинге'),
+                  ),
+              ],
+            ),
+          ],
           if (!hasStatus)
             Text(
               'Выберите артиста в разделе Профиль, чтобы увидеть свой статус',

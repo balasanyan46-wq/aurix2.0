@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/features/progress/data/models/progress_checkin.dart';
 import 'package:aurix_flutter/features/progress/data/progress_schema_guard.dart';
 
@@ -7,18 +7,18 @@ class ProgressCheckinsRepository {
     required DateTime startDay,
     required DateTime endDay,
   }) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return [];
     final start = _dateOnly(startDay);
     final end = _dateOnly(endDay);
     try {
-      final rows = await supabase
-          .from('progress_checkins')
-          .select()
-          .gte('day', _fmtDate(start))
-          .lte('day', _fmtDate(end))
-          .order('day');
-      return (rows as List).map((e) => ProgressCheckin.fromJson(e)).toList();
+      final res = await ApiClient.get('/progress-checkins', query: {
+        'start_day': _fmtDate(start),
+        'end_day': _fmtDate(end),
+      });
+      final rows = (res.data as List?) ?? const [];
+      return rows
+          .whereType<Map>()
+          .map((e) => ProgressCheckin.fromJson(e.cast<String, dynamic>()))
+          .toList();
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_checkins')) {
         throw const ProgressSchemaMissingException('progress_checkins');
@@ -35,21 +35,15 @@ class ProgressCheckinsRepository {
     required int doneCount,
     String? note,
   }) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) throw StateError('Not authenticated');
     final payload = <String, dynamic>{
-      'user_id': userId,
       'habit_id': habitId,
       'day': _fmtDate(_dateOnly(day)),
       'done_count': doneCount,
     };
     if (note != null) payload['note'] = note;
     try {
-      final row = await supabase
-          .from('progress_checkins')
-          .upsert(payload, onConflict: 'user_id,habit_id,day')
-          .select()
-          .single();
+      final res = await ApiClient.post('/progress-checkins', data: payload);
+      final row = (res.data as Map).cast<String, dynamic>();
       return ProgressCheckin.fromJson(row);
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_checkins')) {
@@ -63,15 +57,10 @@ class ProgressCheckinsRepository {
     required String habitId,
     required DateTime day,
   }) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) throw StateError('Not authenticated');
     try {
-      await supabase
-          .from('progress_checkins')
-          .delete()
-          .eq('user_id', userId)
-          .eq('habit_id', habitId)
-          .eq('day', _fmtDate(_dateOnly(day)));
+      await ApiClient.delete(
+        '/progress-checkins/$habitId/${_fmtDate(_dateOnly(day))}',
+      );
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_checkins')) {
         throw const ProgressSchemaMissingException('progress_checkins');

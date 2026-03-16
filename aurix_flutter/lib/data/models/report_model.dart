@@ -27,17 +27,17 @@ class ReportModel {
 
   factory ReportModel.fromJson(Map<String, dynamic> json) {
     return ReportModel(
-      id: json['id'] as String,
-      periodStart: DateTime.parse(json['period_start'] as String),
-      periodEnd: DateTime.parse(json['period_end'] as String),
-      distributor: json['distributor'] as String? ?? 'zvonko',
-      fileName: json['file_name'] as String?,
-      fileUrl: json['file_url'] as String?,
-      status: json['status'] as String? ?? 'uploaded',
-      createdBy: json['created_by'] as String?,
-      userId: json['user_id'] as String?,
-      releaseId: json['release_id'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: (json['id'])?.toString() ?? '',
+      periodStart: DateTime.tryParse(json['period_start']?.toString() ?? '') ?? DateTime.now(),
+      periodEnd: DateTime.tryParse(json['period_end']?.toString() ?? '') ?? DateTime.now(),
+      distributor: json['distributor']?.toString() ?? 'zvonko',
+      fileName: json['file_name']?.toString(),
+      fileUrl: json['file_url']?.toString(),
+      status: json['status']?.toString() ?? 'uploaded',
+      createdBy: json['created_by']?.toString(),
+      userId: json['user_id']?.toString(),
+      releaseId: json['release_id']?.toString(),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }

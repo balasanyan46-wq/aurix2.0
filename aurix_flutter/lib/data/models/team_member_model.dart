@@ -30,14 +30,14 @@ class TeamMemberModel {
 
   factory TeamMemberModel.fromJson(Map<String, dynamic> json) {
     return TeamMemberModel(
-      id: json['id'] as String,
-      ownerId: json['owner_id'] as String,
-      memberName: json['member_name'] as String? ?? '',
-      memberEmail: json['member_email'] as String?,
-      role: json['role'] as String? ?? 'producer',
+      id: (json['id'])?.toString() ?? '',
+      ownerId: json['owner_id']?.toString() ?? '',
+      memberName: json['member_name']?.toString() ?? '',
+      memberEmail: json['member_email']?.toString(),
+      role: json['role']?.toString() ?? 'producer',
       splitPercent: (json['split_percent'] as num?)?.toDouble() ?? 0,
-      status: json['status'] as String? ?? 'active',
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : DateTime.now(),
+      status: json['status']?.toString() ?? 'active',
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now() : DateTime.now(),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aurix_flutter/design/aurix_theme.dart';
 
 /// Заголовок секции для экранов.
 class SectionHeader extends StatelessWidget {
@@ -24,7 +25,7 @@ class SectionHeader extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             subtitle!,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AurixTokens.muted),
           ),
         ],
       ],

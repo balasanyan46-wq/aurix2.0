@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:aurix_flutter/config/app_config.dart';
 import 'dnk_models.dart';
 
 class DnkService {
-  static const String _workerBase =
-      'https://wandering-snow-3f00.armtelan1.workers.dev';
+  static String get _workerBase => AppConfig.cfBaseUrl;
 
   static const Duration _startTimeout = Duration(seconds: 15);
   static const Duration _answerTimeout = Duration(seconds: 10);

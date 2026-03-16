@@ -19,13 +19,13 @@ class AdminLogModel {
 
   factory AdminLogModel.fromJson(Map<String, dynamic> json) {
     return AdminLogModel(
-      id: json['id'] as String,
-      adminId: json['admin_id'] as String?,
-      action: json['action'] as String,
-      targetType: json['target_type'] as String,
-      targetId: json['target_id'] as String?,
+      id: (json['id'])?.toString() ?? '',
+      adminId: json['admin_id']?.toString(),
+      action: json['action']?.toString() ?? '',
+      targetType: json['target_type']?.toString() ?? '',
+      targetId: json['target_id']?.toString(),
       details: (json['details'] as Map<String, dynamic>?) ?? {},
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 

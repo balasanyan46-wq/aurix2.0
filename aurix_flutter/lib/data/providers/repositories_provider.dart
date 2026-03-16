@@ -7,6 +7,13 @@ import 'package:aurix_flutter/data/repositories/track_repository.dart';
 import 'package:aurix_flutter/data/repositories/report_repository.dart';
 import 'package:aurix_flutter/data/repositories/admin_log_repository.dart';
 import 'package:aurix_flutter/data/repositories/support_ticket_repository.dart';
+import 'package:aurix_flutter/data/repositories/account_deletion_request_repository.dart';
+import 'package:aurix_flutter/data/repositories/legal_compliance_repository.dart';
+import 'package:aurix_flutter/data/repositories/release_delete_request_repository.dart';
+import 'package:aurix_flutter/data/repositories/release_aai_repository.dart';
+import 'package:aurix_flutter/data/repositories/promo_repository.dart';
+import 'package:aurix_flutter/data/repositories/crm_repository.dart';
+import 'package:aurix_flutter/data/repositories/billing_subscription_repository.dart';
 import 'package:aurix_flutter/data/repositories/team_repository.dart';
 import 'package:aurix_flutter/features/legal/data/legal_repository.dart';
 import 'package:aurix_flutter/features/index/data/repositories/index_repository.dart';
@@ -26,6 +33,7 @@ import 'package:aurix_flutter/data/services/billing_service.dart';
 import 'package:aurix_flutter/data/services/tool_service.dart';
 import 'package:aurix_flutter/ai/ai_studio_history_repository.dart';
 import 'package:aurix_flutter/ai/ai_tool_results_repository.dart';
+import 'package:aurix_flutter/features/production/data/production_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final growthPlanServiceProvider = Provider<GrowthPlanService>((ref) => GrowthPlanService());
@@ -46,6 +54,17 @@ final trackRepositoryProvider = Provider<TrackRepository>((ref) => TrackReposito
 final reportRepositoryProvider = Provider<ReportRepository>((ref) => ReportRepository());
 final adminLogRepositoryProvider = Provider<AdminLogRepository>((ref) => AdminLogRepository());
 final supportTicketRepositoryProvider = Provider<SupportTicketRepository>((ref) => SupportTicketRepository());
+final accountDeletionRequestRepositoryProvider =
+    Provider<AccountDeletionRequestRepository>((ref) => AccountDeletionRequestRepository());
+final legalComplianceRepositoryProvider =
+    Provider<LegalComplianceRepository>((ref) => LegalComplianceRepository());
+final releaseDeleteRequestRepositoryProvider =
+    Provider<ReleaseDeleteRequestRepository>((ref) => ReleaseDeleteRequestRepository());
+final releaseAaiRepositoryProvider = Provider<ReleaseAaiRepository>((ref) => ReleaseAaiRepository());
+final promoRepositoryProvider = Provider<PromoRepository>((ref) => PromoRepository());
+final crmRepositoryProvider = Provider<CrmRepository>((ref) => CrmRepository());
+final billingSubscriptionRepositoryProvider =
+    Provider<BillingSubscriptionRepository>((ref) => BillingSubscriptionRepository());
 final teamRepositoryProvider = Provider<TeamRepository>((ref) => TeamRepository());
 final legalRepositoryProvider = Provider<LegalRepository>((ref) => LegalRepository());
 final progressHabitsRepositoryProvider = Provider<ProgressHabitsRepository>((ref) => ProgressHabitsRepository());
@@ -53,6 +72,7 @@ final progressCheckinsRepositoryProvider = Provider<ProgressCheckinsRepository>(
 final progressDailyNotesRepositoryProvider = Provider<ProgressDailyNotesRepository>((ref) => ProgressDailyNotesRepository());
 final aiStudioHistoryRepositoryProvider = Provider<AiStudioHistoryRepository>((ref) => AiStudioHistoryRepository());
 final aiToolResultsRepositoryProvider = Provider<AiToolResultsRepository>((ref) => AiToolResultsRepository());
+final productionServiceProvider = Provider<ProductionService>((ref) => ProductionService());
 
 final indexEngineRepositoryProvider = Provider<engine.MockIndexEngineRepository>((ref) =>
     engine.MockIndexEngineRepository());
@@ -72,5 +92,5 @@ final indexRepositoryProvider = Provider<IndexRepository>((ref) =>
     ));
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return AuthRepository(profileRepository: ref.watch(profileRepositoryProvider));
+  return AuthRepository();
 });

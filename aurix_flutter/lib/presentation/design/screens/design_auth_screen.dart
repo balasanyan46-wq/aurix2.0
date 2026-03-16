@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 
 /// Экран входа/регистрации для Design mode.
@@ -184,9 +184,8 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'Регистрация успешна. Подтвердите email при необходимости.',
-              ),
+              content: Text('Письмо отправлено! Проверьте почту для подтверждения.'),
+              duration: Duration(seconds: 5),
             ),
           );
           setState(() {
@@ -195,26 +194,27 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen>
           });
         }
       } else {
-        await ref
+        final result = await ref
             .read(authRepositoryProvider)
             .signIn(email: email, password: password);
+        ref.read(authStoreProvider).setUser(result.user);
       }
-    } on AuthException catch (e) {
-      String msg = e.message;
-      if (msg == 'Этот номер уже используется') {
-        /* use as is */
-      } else if (msg.contains('Invalid login')) {
-        msg = 'Неверный email или пароль';
-      } else if (msg.contains('already registered')) {
-        msg = 'Этот email уже зарегистрирован';
-      } else if (msg.contains('Email not confirmed')) {
-        msg = 'Подтвердите email по ссылке';
-      }
-      setState(() {
-        _error = msg;
-        _loading = false;
-      });
     } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('уже используется') || msg.contains('already registered')) {
+        setState(() {
+          _error = 'Этот email уже зарегистрирован';
+          _loading = false;
+        });
+        return;
+      }
+      if (msg.contains('Неверный') || msg.contains('invalid credentials')) {
+        setState(() {
+          _error = 'Неверный email или пароль';
+          _loading = false;
+        });
+        return;
+      }
       setState(() {
         _error = 'Нет связи с сервером. Проверьте интернет.';
         _loading = false;
@@ -290,8 +290,6 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen>
                             const SizedBox(height: 6),
                             _buildTagline(),
                             const SizedBox(height: 32),
-                            _buildDivider(),
-                            const SizedBox(height: 32),
                             _buildForm(),
                           ],
                         ),
@@ -366,25 +364,6 @@ class _DesignAuthScreenState extends ConsumerState<DesignAuthScreen>
           fontSize: 11,
           fontWeight: FontWeight.w500,
           letterSpacing: 3,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return FadeTransition(
-      opacity: _formFade,
-      child: Container(
-        width: 40,
-        height: 1,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AurixTokens.orange.withValues(alpha: 0.0),
-              AurixTokens.orange.withValues(alpha: 0.5),
-              AurixTokens.orange.withValues(alpha: 0.0),
-            ],
-          ),
         ),
       ),
     );

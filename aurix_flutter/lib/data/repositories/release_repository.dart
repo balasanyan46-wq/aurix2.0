@@ -1,36 +1,35 @@
 import 'package:flutter/foundation.dart';
-
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
-import 'package:aurix_flutter/data/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/models/admin_note_model.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ReleaseRepository {
-  bool _isMissingColumnError(Object e, {required String column}) {
-    if (e is! PostgrestException) return false;
-    if (e.code != 'PGRST204') return false;
-    final msg = e.message.toLowerCase();
-    return msg.contains(column.toLowerCase());
-  }
-
   Future<List<ReleaseModel>> getReleasesByOwner(String ownerId) async {
-    logSupabaseRequest(table: 'releases', operation: 'select', userId: ownerId);
-    final res = await supabase.from('releases').select().eq('owner_id', ownerId).order('created_at', ascending: false);
-    return (res as List).map((e) => ReleaseModel.fromJson(e as Map<String, dynamic>)).toList();
+    final res = await ApiClient.get('/releases/my');
+    final body = res.data as Map<String, dynamic>;
+    final list = (body['releases'] as List?) ?? [];
+    return list.map((e) => ReleaseModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<ReleaseModel>> getAllReleases() async {
-    logSupabaseRequest(table: 'releases', operation: 'select');
-    final res = await supabase.from('releases').select().order('created_at', ascending: false);
-    return (res as List).map((e) => ReleaseModel.fromJson(e as Map<String, dynamic>)).toList();
+    final res = await ApiClient.get('/releases');
+    final body = res.data as Map<String, dynamic>;
+    final list = (body['releases'] as List?) ?? [];
+    return list.map((e) => ReleaseModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<ReleaseModel?> getRelease(String id) async {
-    logSupabaseRequest(table: 'releases', operation: 'select', payload: {'id': id});
-    final res = await supabase.from('releases').select().eq('id', id).maybeSingle();
-    if (res == null) return null;
-    return ReleaseModel.fromJson(res);
+    try {
+      final res = await ApiClient.get('/releases/$id');
+      final body = res.data as Map<String, dynamic>;
+      if (body['release'] != null) {
+        return ReleaseModel.fromJson(body['release'] as Map<String, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[ReleaseRepository] getRelease($id) failed: $e');
+      return null;
+    }
   }
 
   Future<ReleaseModel> createRelease({
@@ -49,7 +48,6 @@ class ReleaseRepository {
     String? coverPath,
   }) async {
     final payload = <String, dynamic>{
-      'owner_id': ownerId,
       'title': title,
       'artist': artist.isEmpty ? 'Unknown Artist' : artist,
       'release_type': releaseType,
@@ -65,23 +63,9 @@ class ReleaseRepository {
     if (coverUrl != null) payload['cover_url'] = coverUrl;
     if (coverPath != null) payload['cover_path'] = coverPath;
 
-    logSupabaseRequest(table: 'releases', operation: 'insert', payload: payload, userId: ownerId);
-    try {
-      final res = await supabase.from('releases').insert(payload).select().single();
-      return ReleaseModel.fromJson(res);
-    } catch (e) {
-      if (_isMissingColumnError(e, column: 'copyright_year') && payload.containsKey('copyright_year')) {
-        final fallback = Map<String, dynamic>.from(payload)..remove('copyright_year');
-        try {
-          final res = await supabase.from('releases').insert(fallback).select().single();
-          return ReleaseModel.fromJson(res);
-        } catch (_) {
-          // If fallback also fails, preserve original error below.
-        }
-      }
-      debugPrint('[ReleaseRepository] createRelease error: ${formatSupabaseError(e)}');
-      rethrow;
-    }
+    final res = await ApiClient.post('/releases', data: payload);
+    final body = res.data as Map<String, dynamic>;
+    return ReleaseModel.fromJson(body['release'] as Map<String, dynamic>);
   }
 
   Future<void> updateRelease(
@@ -100,7 +84,7 @@ class ReleaseRepository {
     String? coverUrl,
     String? coverPath,
   }) async {
-    final updates = <String, dynamic>{'updated_at': DateTime.now().toIso8601String()};
+    final updates = <String, dynamic>{};
     if (title != null) updates['title'] = title;
     if (artist != null) updates['artist'] = artist;
     if (releaseType != null) updates['release_type'] = releaseType;
@@ -114,90 +98,56 @@ class ReleaseRepository {
     if (status != null) updates['status'] = status;
     if (coverUrl != null) updates['cover_url'] = coverUrl;
     if (coverPath != null) updates['cover_path'] = coverPath;
-    logSupabaseRequest(table: 'releases', operation: 'update', payload: updates, userId: supabase.auth.currentUser?.id);
-    try {
-      await supabase.from('releases').update(updates).eq('id', id);
-    } catch (e) {
-      if (_isMissingColumnError(e, column: 'copyright_year') && updates.containsKey('copyright_year')) {
-        final fallback = Map<String, dynamic>.from(updates)..remove('copyright_year');
-        try {
-          await supabase.from('releases').update(fallback).eq('id', id);
-          return;
-        } catch (_) {
-          // If fallback also fails, preserve original error below.
-        }
-      }
-      debugPrint('[ReleaseRepository] updateRelease error: ${formatSupabaseError(e)}');
-      rethrow;
+    if (updates.isNotEmpty) {
+      await ApiClient.put('/releases/$id', data: updates);
     }
   }
 
   Future<void> submitRelease(String id) async {
-    await updateRelease(id, status: 'submitted');
+    await ApiClient.post('/releases/$id/submit');
   }
 
   Future<List<AdminNoteModel>> getNotesForRelease(String releaseId) async {
-    final res = await supabase.from('admin_notes').select().eq('release_id', releaseId).order('created_at', ascending: false);
-    return (res as List).map((e) => AdminNoteModel.fromJson(e as Map<String, dynamic>)).toList();
+    try {
+      final res = await ApiClient.get('/releases/$releaseId/notes');
+      final body = res.data as Map<String, dynamic>;
+      final list = body['notes'] as List? ?? [];
+      return list.map((e) => AdminNoteModel.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      debugPrint('[ReleaseRepository] getNotesForRelease failed: $e');
+      return [];
+    }
   }
 
   Future<void> addAdminNote({required String releaseId, required String adminId, required String note}) async {
-    await supabase.from('admin_notes').insert({
-      'release_id': releaseId,
+    await ApiClient.post('/releases/$releaseId/notes', data: {
       'admin_id': adminId,
       'note': note,
     });
   }
 
-  /// Полное удаление релиза: Storage (обложка + треки) → tracks → admin_notes → releases
   Future<void> deleteReleaseFully(String releaseId) async {
-    logSupabaseRequest(table: 'releases', operation: 'delete_full', payload: {'id': releaseId});
+    await ApiClient.delete('/releases/$releaseId');
+  }
 
-    final release = await getRelease(releaseId);
-    if (release == null) return;
-
-    // 1. Получить все треки
-    final tracksRes = await supabase.from('tracks').select().eq('release_id', releaseId);
-    final tracks = (tracksRes as List).cast<Map<String, dynamic>>();
-
-    // 2. Удалить аудиофайлы из Storage
-    final trackPaths = tracks
-        .map((t) => t['audio_path'] as String?)
-        .where((p) => p != null && p.isNotEmpty)
-        .cast<String>()
-        .toList();
-    if (trackPaths.isNotEmpty) {
-      try {
-        await supabase.storage.from('tracks').remove(trackPaths);
-      } catch (e) {
-        debugPrint('[ReleaseRepository] delete track files error: $e');
-      }
-    }
-
-    // 3. Удалить обложку из Storage
-    if (release.coverPath != null && release.coverPath!.isNotEmpty) {
-      try {
-        await supabase.storage.from('covers').remove([release.coverPath!]);
-      } catch (e) {
-        debugPrint('[ReleaseRepository] delete cover error: $e');
-      }
-    }
-
-    // 4. Удалить записи треков из БД
+  Future<int> bulkUpdateStatuses(
+    List<String> releaseIds,
+    String newStatus, {
+    String? reason,
+  }) async {
+    final ids = releaseIds.where((e) => e.trim().isNotEmpty).toSet().toList();
+    if (ids.isEmpty) return 0;
     try {
-      await supabase.from('tracks').delete().eq('release_id', releaseId);
+      final res = await ApiClient.post('/releases/bulk-status', data: {
+        'release_ids': ids,
+        'status': newStatus,
+        if (reason != null) 'reason': reason,
+      });
+      final body = res.data as Map<String, dynamic>;
+      return body['count'] as int? ?? ids.length;
     } catch (e) {
-      debugPrint('[ReleaseRepository] delete tracks rows error: $e');
+      debugPrint('[ReleaseRepository] bulkUpdateStatuses failed: $e');
+      return 0;
     }
-
-    // 5. Удалить заметки админа
-    try {
-      await supabase.from('admin_notes').delete().eq('release_id', releaseId);
-    } catch (e) {
-      debugPrint('[ReleaseRepository] delete admin_notes error: $e');
-    }
-
-    // 6. Удалить сам релиз
-    await supabase.from('releases').delete().eq('id', releaseId);
   }
 }

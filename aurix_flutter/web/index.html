@@ -4,37 +4,38 @@
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
-  <meta name="theme-color" content="#08080A">
+  <meta name="theme-color" content="#0B0B0F">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>AURIX — релиз без хаоса</title>
-  <meta name="description" content="AURIX — кабинет релиза: файлы, метаданные, сплиты, контент и AI‑инструменты в одном месте.">
-  <meta property="og:title" content="AURIX — релиз без хаоса">
-  <meta property="og:description" content="Файлы, метаданные, сплиты, контент и AI‑инструменты — в одном кабинете.">
+  <title>AURIX — AI-платформа для артистов</title>
+  <meta name="description" content="AURIX анализирует музыку, прогнозирует потенциал релиза и помогает выстраивать стратегию продвижения с помощью AI.">
+  <meta property="og:title" content="AURIX — AI-платформа для артистов">
+  <meta property="og:description" content="Анализ треков, прогнозы релизов, стратегия продвижения — всё на базе AI.">
   <meta property="og:type" content="website">
   <meta property="og:image" content="icons/Icon-512.png">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="aurix_fx.css">
-  <link rel="preload" href="main.dart.js" as="script">
-  <link rel="preload" href="flutter.js" as="script">
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
-    html,body{width:100%;height:100%;overflow:hidden;background:#08080A}
+    html,body{width:100%;height:100%;overflow:hidden;background:#0B0B0F}
     #loading{
       position:fixed;inset:0;z-index:9999;
       display:flex;flex-direction:column;align-items:center;justify-content:center;
-      background:#08080A;
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:#0B0B0F;
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
       transition:opacity .4s ease;
     }
     #loading.done{opacity:0;pointer-events:none}
     .l-logo{font-size:32px;font-weight:800;letter-spacing:6px;
-      background:linear-gradient(135deg,#FF6B35,#FF8F00);
+      background:linear-gradient(135deg,#FF6A1A,#7B5CFF);
       -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
     .l-bar{margin-top:32px;width:180px;height:3px;background:rgba(255,255,255,.06);
       border-radius:2px;overflow:hidden}
     .l-fill{width:40%;height:100%;border-radius:2px;
-      background:linear-gradient(90deg,#FF6B35,#FF8F00);
+      background:linear-gradient(90deg,#FF6A1A,#7B5CFF);
       animation:s 1.2s ease-in-out infinite}
     .l-hint{margin-top:16px;color:rgba(255,255,255,.25);font-size:12px;letter-spacing:.5px}
     @keyframes s{0%{transform:translateX(-100%)}50%{transform:translateX(200%)}100%{transform:translateX(-100%)}}
@@ -51,6 +52,22 @@
       var el = document.getElementById('loading');
       if (el) { el.classList.add('done'); setTimeout(function() { el.remove(); }, 500); }
     });
+    
+    // CRITICAL FIX: Timeout fallback if Flutter fails to initialize
+    setTimeout(function() {
+      var el = document.getElementById('loading');
+      if (el && !el.classList.contains('done')) {
+        console.warn('Flutter first-frame timeout - checking initialization...');
+        // Check if Flutter actually loaded
+        if (document.querySelector('flt-glass-pane')) {
+          console.log('Flutter loaded but event did not fire - removing loading screen');
+          el.classList.add('done');
+          setTimeout(function() { el.remove(); }, 500);
+        } else {
+          console.error('Flutter failed to initialize after 15 seconds');
+        }
+      }
+    }, 15000);
   </script>
   <script src="aurix_fx.js" defer></script>
   <script src="flutter_bootstrap.js" async></script>

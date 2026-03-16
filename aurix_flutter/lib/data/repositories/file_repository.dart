@@ -1,35 +1,18 @@
 import 'dart:typed_data';
 
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
-import 'package:aurix_flutter/data/supabase_client.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
+import 'package:flutter/foundation.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 
 class FileRepository {
   static const coversBucket = 'covers';
   static const tracksBucket = 'tracks';
 
-  /// Санитизация имени файла: только [a-zA-Z0-9._-], пробелы → '_'
+  /// Sanitize filename: only [a-zA-Z0-9._-], spaces → '_'
   static String _sanitizeFileName(String name) {
     return name
         .replaceAll(' ', '_')
         .replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '')
         .replaceAll(RegExp(r'_+'), '_');
-  }
-
-  static String? _coverContentType(String ext) {
-    final e = ext.toLowerCase();
-    if (e == 'jpg' || e == 'jpeg') return 'image/jpeg';
-    if (e == 'png') return 'image/png';
-    return null;
-  }
-
-  static String? _audioContentType(String ext) {
-    final e = ext.toLowerCase();
-    if (e == 'mp3') return 'audio/mpeg';
-    if (e == 'wav') return 'audio/wav';
-    if (e == 'flac') return 'audio/flac';
-    if (e == 'm4a') return 'audio/mp4';
-    return null;
   }
 
   Future<({String coverPath, String publicUrl})> uploadCoverBytes(
@@ -38,28 +21,23 @@ class FileRepository {
     Uint8List bytes,
     String fileName,
   ) async {
+    if (userId.trim().isEmpty || releaseId.trim().isEmpty) {
+      throw ArgumentError('userId/releaseId must not be empty');
+    }
+    if (bytes.isEmpty) {
+      throw ArgumentError('Cover bytes must not be empty');
+    }
     final safeName = _sanitizeFileName(fileName);
-    final ext = safeName.split('.').lastOrNull ?? 'jpg';
-    final path = '$userId/$releaseId/cover.$ext';
-    final contentType = _coverContentType(ext);
 
-    logSupabaseRequest(
-      table: 'storage/$coversBucket',
-      operation: 'upload',
-      payload: {'path': path},
-      userId: userId,
+    final res = await ApiClient.uploadFile(
+      '/upload/cover',
+      bytes,
+      safeName,
+      fieldName: 'file',
     );
-
-    await supabase.storage.from(coversBucket).uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(
-            upsert: true,
-            contentType: contentType,
-          ),
-        );
-
-    final publicUrl = supabase.storage.from(coversBucket).getPublicUrl(path);
+    final body = res.data as Map<String, dynamic>;
+    final path = body['path'] as String? ?? '';
+    final publicUrl = body['url'] as String? ?? '';
     return (coverPath: path, publicUrl: publicUrl);
   }
 
@@ -70,36 +48,35 @@ class FileRepository {
     Uint8List bytes,
     String ext,
   ) async {
+    if (userId.trim().isEmpty ||
+        releaseId.trim().isEmpty ||
+        trackId.trim().isEmpty) {
+      throw ArgumentError('userId/releaseId/trackId must not be empty');
+    }
+    if (bytes.isEmpty) {
+      throw ArgumentError('Track bytes must not be empty');
+    }
     final safeExt = ext.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
-    final path = '$userId/$releaseId/$trackId.$safeExt';
-    final contentType = _audioContentType(safeExt);
+    final fileName = '$trackId.$safeExt';
 
-    logSupabaseRequest(
-      table: 'storage/$tracksBucket',
-      operation: 'upload',
-      payload: {'path': path},
-      userId: userId,
+    final res = await ApiClient.uploadFile(
+      '/upload/audio',
+      bytes,
+      fileName,
+      fieldName: 'file',
     );
-
-    await supabase.storage.from(tracksBucket).uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(
-            upsert: true,
-            contentType: contentType,
-          ),
-        );
-
-    final publicUrl = supabase.storage.from(tracksBucket).getPublicUrl(path);
+    final body = res.data as Map<String, dynamic>;
+    final path = body['path'] as String? ?? '';
+    final publicUrl = body['url'] as String? ?? '';
     return (path: path, publicUrl: publicUrl);
   }
 
   Future<void> removeFromStorage(String bucket, String path) async {
-    logSupabaseRequest(
-      table: 'storage/$bucket',
-      operation: 'remove',
-      payload: {'path': path},
-    );
-    await supabase.storage.from(bucket).remove([path]);
+    if (bucket.trim().isEmpty || path.trim().isEmpty) return;
+    try {
+      await ApiClient.delete('/upload/$bucket/$path');
+    } catch (e) {
+      debugPrint('[FileRepository] removeFromStorage failed: $e');
+    }
   }
 }

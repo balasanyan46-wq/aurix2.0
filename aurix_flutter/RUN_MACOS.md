@@ -5,21 +5,20 @@
 - Flutter 3.x+
 - Xcode (для сборки macOS)
 
-## Конфигурация Supabase
+## Конфигурация API
 
 Запуск с параметрами:
 
 ```bash
 flutter run -d macos \
-  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=your-anon-key
+  --dart-define=API_BASE_URL=http://194.67.99.229:3000
 ```
 
 ## Сеть (App Sandbox)
 
-Для работы с Supabase приложение должно иметь доступ в интернет. В проекте уже настроены entitlements:
+Для работы с API приложение должно иметь доступ в интернет. В проекте уже настроены entitlements:
 
-- `com.apple.security.network.client` — исходящие подключения (HTTP/HTTPS к Supabase)
+- `com.apple.security.network.client` — исходящие подключения (HTTP/HTTPS к API)
 - `com.apple.security.network.server` — для локальных сервисов (если нужны)
 
 Файлы: `macos/Runner/DebugProfile.entitlements`, `macos/Runner/Release.entitlements`.
@@ -36,5 +35,5 @@ flutter run -d macos \
 ```bash
 cd aurix_flutter
 flutter pub get
-flutter run -d macos --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
+flutter run -d macos --dart-define=API_BASE_URL=http://194.67.99.229:3000
 ```

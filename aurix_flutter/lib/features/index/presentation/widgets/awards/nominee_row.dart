@@ -88,13 +88,13 @@ class NomineeRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 2,
                   children: [
                     Text('Index: ${nominee.scoreProof}', style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
-                    const SizedBox(width: 8),
                     Text('${displayVotes} голосов', style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
-                    if (trendDelta != null && trendDelta != 0) ...[
-                      const SizedBox(width: 8),
+                    if (trendDelta != null && trendDelta != 0)
                       Text(
                         '${trendDelta! > 0 ? '+' : ''}$trendDelta',
                         style: TextStyle(
@@ -103,7 +103,6 @@ class NomineeRow extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ],
                   ],
                 ),
               ],

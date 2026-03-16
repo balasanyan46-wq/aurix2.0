@@ -1,14 +1,16 @@
-import 'package:aurix_flutter/core/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/features/progress/data/models/progress_habit.dart';
 
 class ProgressHabitsRepository {
   Future<List<ProgressHabit>> getHabits({bool activeOnly = false}) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return [];
-    final base = supabase.from('progress_habits').select();
-    final q = activeOnly ? base.eq('is_active', true) : base;
-    final rows = await q.order('sort_order').order('created_at');
-    return (rows as List).map((e) => ProgressHabit.fromJson(e)).toList();
+    final res = await ApiClient.get('/progress-habits', query: {
+      if (activeOnly) 'is_active': true,
+    });
+    final rows = (res.data as List?) ?? const [];
+    return rows
+        .whereType<Map>()
+        .map((e) => ProgressHabit.fromJson(e.cast<String, dynamic>()))
+        .toList();
   }
 
   Future<ProgressHabit> createHabit({
@@ -19,21 +21,15 @@ class ProgressHabitsRepository {
     bool isActive = true,
     int sortOrder = 0,
   }) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) throw StateError('Not authenticated');
-    final row = await supabase
-        .from('progress_habits')
-        .insert({
-          'user_id': userId,
-          'title': title,
-          'category': category,
-          'target_type': targetType,
-          'target_count': targetCount,
-          'is_active': isActive,
-          'sort_order': sortOrder,
-        })
-        .select()
-        .single();
+    final res = await ApiClient.post('/progress-habits', data: {
+      'title': title,
+      'category': category,
+      'target_type': targetType,
+      'target_count': targetCount,
+      'is_active': isActive,
+      'sort_order': sortOrder,
+    });
+    final row = (res.data as Map).cast<String, dynamic>();
     return ProgressHabit.fromJson(row);
   }
 
@@ -54,11 +50,11 @@ class ProgressHabitsRepository {
     if (isActive != null) updates['is_active'] = isActive;
     if (sortOrder != null) updates['sort_order'] = sortOrder;
     if (updates.isEmpty) return;
-    await supabase.from('progress_habits').update(updates).eq('id', id);
+    await ApiClient.put('/progress-habits/$id', data: updates);
   }
 
   Future<void> deleteHabit(String id) async {
-    await supabase.from('progress_habits').delete().eq('id', id);
+    await ApiClient.delete('/progress-habits/$id');
   }
 }
 

@@ -5,6 +5,8 @@ export interface DnkEnv {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   AURIX_CACHE: KVNamespace;
+  ENV?: string;
+  ALLOWED_ORIGINS?: string;
 }
 
 // ── Question bank types ─────────────────────────────────────
@@ -86,6 +88,7 @@ export interface ConfidenceScores {
 export interface AxisAccum {
   sum: number;
   count: number;
+  max_abs?: number;
 }
 
 // ── LLM output schemas ─────────────────────────────────────

@@ -15,11 +15,11 @@ class AdminNoteModel {
 
   factory AdminNoteModel.fromJson(Map<String, dynamic> json) {
     return AdminNoteModel(
-      id: json['id'] as String,
-      releaseId: json['release_id'] as String,
-      adminId: json['admin_id'] as String,
-      note: json['note'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: (json['id'])?.toString() ?? '',
+      releaseId: json['release_id']?.toString() ?? '',
+      adminId: json['admin_id']?.toString() ?? '',
+      note: json['note']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }

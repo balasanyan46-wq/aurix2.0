@@ -14,7 +14,7 @@ import 'package:aurix_flutter/features/legal/presentation/widgets/legal_preview_
 import 'package:aurix_flutter/features/legal/presentation/widgets/legal_field_input.dart';
 import 'package:aurix_flutter/features/legal/services/legal_pdf_service.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -36,7 +36,7 @@ final _myDocumentsProvider = FutureProvider<List<LegalDocumentModel>>((ref) asyn
 
 enum _LegalView { list, detail, history }
 
-/// Юридика: Supabase-интеграция. Используется в DesignShell и MainShellScreen (без go_router).
+/// Юридика. Используется в DesignShell и MainShellScreen (без go_router).
 class LegalScreen extends ConsumerStatefulWidget {
   const LegalScreen({super.key});
 
@@ -140,7 +140,7 @@ class _LegalScreenState extends ConsumerState<LegalScreen> {
       debugPrint('[LegalScreen] saveToHistory error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: ${formatSupabaseError(e)}')),
+          SnackBar(content: Text('Ошибка: ${formatApiError(e)}')),
         );
       }
     } finally {
@@ -294,7 +294,7 @@ class _LegalScreenState extends ConsumerState<LegalScreen> {
                   children: [
                     Text('Ошибка загрузки', style: TextStyle(color: AurixTokens.orange)),
                     const SizedBox(height: 8),
-                    Text(formatSupabaseError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
+                    Text(formatApiError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     AurixButton(
                       text: 'Повторить',
@@ -464,7 +464,7 @@ class _LegalScreenState extends ConsumerState<LegalScreen> {
             children: [
               Text('Ошибка загрузки шаблона', style: TextStyle(color: AurixTokens.orange)),
               const SizedBox(height: 8),
-              Text(formatSupabaseError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
+              Text(formatApiError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
               const SizedBox(height: 16),
               AurixButton(text: 'Назад', onPressed: _backToList),
             ],
@@ -589,7 +589,7 @@ class _LegalScreenState extends ConsumerState<LegalScreen> {
                     const SizedBox(height: 24),
                     Text('Ошибка загрузки', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AurixTokens.text)),
                     const SizedBox(height: 8),
-                    Text(formatSupabaseError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
+                    Text(formatApiError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -717,7 +717,7 @@ class _DocumentCard extends StatelessWidget {
     } catch (e) {
       debugPrint('[LegalScreen] signedUrl error: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${formatSupabaseError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${formatApiError(e)}')));
       }
     }
   }

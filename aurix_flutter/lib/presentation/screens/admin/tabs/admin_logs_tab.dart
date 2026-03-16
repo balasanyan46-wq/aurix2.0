@@ -23,8 +23,16 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
     'user_suspended',
     'user_activated',
     'ticket_replied',
+    'ticket_status_changed',
     'ticket_closed',
     'report_imported',
+    'report_deleted',
+    'releases_bulk_status_changed',
+    'users_bulk_status_changed',
+    'users_bulk_suspended',
+    'users_bulk_activated',
+    'release_delete_request_approved',
+    'release_delete_request_rejected',
   ];
 
   IconData _actionIcon(String action) => switch (action) {
@@ -34,8 +42,16 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
         'user_suspended' => Icons.block_rounded,
         'user_activated' => Icons.check_circle_rounded,
         'ticket_replied' => Icons.reply_rounded,
+        'ticket_status_changed' => Icons.flag_circle_rounded,
         'ticket_closed' => Icons.close_rounded,
         'report_imported' => Icons.upload_file_rounded,
+        'report_deleted' => Icons.delete_sweep_rounded,
+        'releases_bulk_status_changed' => Icons.playlist_add_check_rounded,
+        'users_bulk_status_changed' => Icons.groups_rounded,
+        'users_bulk_suspended' => Icons.block_rounded,
+        'users_bulk_activated' => Icons.check_circle_rounded,
+        'release_delete_request_approved' => Icons.task_alt_rounded,
+        'release_delete_request_rejected' => Icons.do_not_disturb_alt_rounded,
         _ => Icons.history_rounded,
       };
 
@@ -46,7 +62,15 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
         'user_suspended' => Colors.redAccent,
         'user_activated' => AurixTokens.positive,
         'ticket_replied' => Colors.amber,
+        'ticket_status_changed' => Colors.amber,
         'report_imported' => AurixTokens.orange,
+        'report_deleted' => Colors.redAccent,
+        'releases_bulk_status_changed' => Colors.blue,
+        'users_bulk_status_changed' => AurixTokens.orange,
+        'users_bulk_suspended' => Colors.redAccent,
+        'users_bulk_activated' => AurixTokens.positive,
+        'release_delete_request_approved' => AurixTokens.positive,
+        'release_delete_request_rejected' => Colors.redAccent,
         _ => AurixTokens.muted,
       };
 
@@ -210,8 +234,16 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
         'user_suspended' => 'Блокировки',
         'user_activated' => 'Разблокировки',
         'ticket_replied' => 'Ответы',
+        'ticket_status_changed' => 'Статусы тикетов',
         'ticket_closed' => 'Закрытия',
         'report_imported' => 'Импорт',
+        'report_deleted' => 'Удаление отчётов',
+        'releases_bulk_status_changed' => 'Массовая модерация релизов',
+        'users_bulk_status_changed' => 'Массовые статусы пользователей',
+        'users_bulk_suspended' => 'Массовая блокировка',
+        'users_bulk_activated' => 'Массовая разблокировка',
+        'release_delete_request_approved' => 'Одобрение удаления релиза',
+        'release_delete_request_rejected' => 'Отклонение удаления релиза',
         _ => action,
       };
 }

@@ -35,21 +35,21 @@ class ReportRowModel {
 
   factory ReportRowModel.fromJson(Map<String, dynamic> json) {
     return ReportRowModel(
-      id: json['id'] as String,
-      reportId: json['report_id'] as String,
-      reportDate: json['report_date'] != null ? DateTime.tryParse(json['report_date'] as String) : null,
-      trackTitle: json['track_title'] as String?,
-      isrc: json['isrc'] as String?,
-      platform: json['platform'] as String?,
-      country: json['country'] as String?,
+      id: (json['id'])?.toString() ?? '',
+      reportId: json['report_id']?.toString() ?? '',
+      reportDate: json['report_date'] != null ? DateTime.tryParse(json['report_date']?.toString() ?? '') : null,
+      trackTitle: json['track_title']?.toString(),
+      isrc: json['isrc']?.toString(),
+      platform: json['platform']?.toString(),
+      country: json['country']?.toString(),
       streams: (json['streams'] as num?)?.toInt() ?? 0,
       revenue: (json['revenue'] as num?)?.toDouble() ?? 0,
-      currency: json['currency'] as String? ?? 'USD',
-      trackId: json['track_id'] as String?,
-      userId: json['user_id'] as String?,
-      releaseId: json['release_id'] as String?,
+      currency: json['currency']?.toString() ?? 'USD',
+      trackId: json['track_id']?.toString(),
+      userId: json['user_id']?.toString(),
+      releaseId: json['release_id']?.toString(),
       rawRowJson: json['raw_row_json'] as Map<String, dynamic>?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }

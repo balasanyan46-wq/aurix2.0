@@ -24,17 +24,18 @@ class TrackModel {
   });
 
   factory TrackModel.fromJson(Map<String, dynamic> json) {
+    final now = DateTime.now();
     return TrackModel(
-      id: json['id'] as String,
-      releaseId: json['release_id'] as String,
-      audioPath: (json['audio_path'] ?? json['path']) as String,
-      audioUrl: (json['audio_url'] ?? json['file_url'] ?? json['url']) as String,
-      title: json['title'] as String?,
-      isrc: json['isrc'] as String?,
-      trackNumber: json['track_number'] as int? ?? 0,
-      version: json['version'] as String? ?? 'original',
-      explicit: json['explicit'] as bool? ?? false,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: (json['id'])?.toString() ?? '',
+      releaseId: (json['release_id'])?.toString() ?? '',
+      audioPath: (json['audio_path'] ?? json['path'] ?? '').toString(),
+      audioUrl: (json['audio_url'] ?? json['file_url'] ?? json['url'] ?? '').toString(),
+      title: json['title']?.toString(),
+      isrc: json['isrc']?.toString(),
+      trackNumber: json['track_number'] is int ? json['track_number'] : int.tryParse(json['track_number']?.toString() ?? '') ?? 0,
+      version: json['version']?.toString() ?? 'original',
+      explicit: json['explicit'] == true,
+      createdAt: json['created_at'] != null ? (DateTime.tryParse(json['created_at'].toString()) ?? now) : now,
     );
   }
 }

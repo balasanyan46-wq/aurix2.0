@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'release_picker_screen.dart';
 import 'package:aurix_flutter/features/covers/cover_generator_sheet.dart';
+import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/data/models/release_model.dart';
 
 class ToolsHomeScreen extends ConsumerWidget {
   const ToolsHomeScreen({super.key});
@@ -71,7 +74,7 @@ class ToolsHomeScreen extends ConsumerWidget {
           subtitle: 'Генерация обложки: превью + скачать PNG (HQ)',
           color: const Color(0xFFF59E0B),
           tag: 'NEW',
-          onTap: () => CoverGeneratorSheet.open(context),
+          onTap: () => _openCoverTool(context, ref),
         ),
         const SizedBox(height: 24),
       ],
@@ -81,6 +84,59 @@ class ToolsHomeScreen extends ConsumerWidget {
   void _openTool(BuildContext context, ToolType tool) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ReleasePickerScreen(toolType: tool)),
+    );
+  }
+
+  Future<void> _openCoverTool(BuildContext context, WidgetRef ref) async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+
+    final releases =
+        await ref.read(releaseRepositoryProvider).getReleasesByOwner(user.id);
+    if (!context.mounted) return;
+    if (releases.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Сначала создайте релиз, чтобы применить обложку')),
+      );
+      return;
+    }
+
+    final release = await showModalBottomSheet<ReleaseModel>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: releases.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (_, i) {
+            final r = releases[i];
+            return ListTile(
+              leading: CircleAvatar(
+                backgroundImage: r.coverUrl == null ? null : NetworkImage(r.coverUrl!),
+                child: r.coverUrl == null ? const Icon(Icons.album_rounded) : null,
+              ),
+              title: Text(r.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(r.artist ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis),
+              onTap: () => Navigator.of(ctx).pop(r),
+            );
+          },
+        ),
+      ),
+    );
+    if (!context.mounted || release == null) return;
+
+    await CoverGeneratorSheet.open(
+      context,
+      releaseId: release.id,
+      initialArtistName: release.artist,
+      initialReleaseTitle: release.title,
+      initialGenre: release.genre,
+      onApplied: (_, __) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Обложка применена к релизу «${release.title}»')),
+        );
+      },
     );
   }
 }

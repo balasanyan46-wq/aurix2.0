@@ -8,10 +8,13 @@ import 'package:aurix_flutter/core/enums.dart';
 import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_backdrop.dart';
+import 'package:aurix_flutter/design/widgets/app_back_button.dart';
+import 'package:aurix_flutter/design/widgets/premium_ui.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/core/admin_config.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
 import 'package:aurix_flutter/ai/ai_assistant_overlay.dart';
 
 /// Shell: sidebar (desktop) / Drawer (mobile) + topbar + content.
@@ -31,14 +34,74 @@ class AppShellScaffold extends ConsumerStatefulWidget {
 
 class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  String? _paywallShownForUser;
+
+  bool _isSubscriptionLockedSection(String location) {
+    return location == '/ai' ||
+        location == '/promo' ||
+        location == '/team' ||
+        location == '/production' ||
+        location == '/dnk' ||
+        location.startsWith('/dnk/tests');
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
+    final hasActiveSubscription = ref.watch(hasActiveSubscriptionProvider);
+    final profileAsync = ref.watch(currentProfileProvider);
+    final profileLoaded = profileAsync.hasValue;
     final isAdminAsync = ref.watch(isAdminProvider);
     final isAdmin = (isAdminAsync.valueOrNull ?? false) ||
         ref.watch(appStateProvider).isAdmin ||
-        (user?.email != null && adminEmails.contains(user!.email!.toLowerCase()));
+        (user != null && user.email.isNotEmpty && adminEmails.contains(user.email.toLowerCase()));
+    final canShowGlobalPaywall = user != null &&
+        profileLoaded &&
+        !isAdmin &&
+        _isSubscriptionLockedSection(widget.currentLocation) &&
+        widget.currentLocation != '/subscription' &&
+        !widget.currentLocation.startsWith('/admin');
+
+    if (canShowGlobalPaywall &&
+        !hasActiveSubscription &&
+        _paywallShownForUser != user.id) {
+      _paywallShownForUser = user.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: true,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AurixTokens.bg1,
+            title: const Text(
+              'Подписка истекла',
+              style: TextStyle(color: AurixTokens.text),
+            ),
+            content: const Text(
+              'Доступ к инструментам временно закрыт. Продли тариф, чтобы продолжить работу.',
+              style: TextStyle(color: AurixTokens.muted),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Позже'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  if (mounted) context.go('/subscription');
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: AurixTokens.orange,
+                  foregroundColor: Colors.black,
+                ),
+                child: const Text('Открыть тарифы'),
+              ),
+            ],
+          ),
+        );
+      });
+    }
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     final hideTopBar =
         widget.currentLocation == '/releases/create' ||
@@ -52,7 +115,7 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
         key: _scaffoldKey,
         backgroundColor: Colors.transparent,
         drawer: isDesktop ? null : Drawer(
-          backgroundColor: AurixTokens.bg1,
+          backgroundColor: AurixTokens.bg0,
           child: SafeArea(
             child: _NavDrawerContent(
               currentLocation: widget.currentLocation,
@@ -147,7 +210,7 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     _NavItem(path: '/dnk', icon: Icons.fingerprint, label: 'Aurix DNK'),
   ]),
   _NavGroup(titleKey: 'navGroupManagement', items: [
-    _NavItem(path: '/team', icon: Icons.groups_rounded, labelKey: 'team'),
+    _NavItem(path: '/team', icon: Icons.groups_rounded, label: 'Продакшн'),
     _NavItem(path: '/finance', icon: Icons.account_balance_wallet_rounded, labelKey: 'finances'),
     _NavItem(path: '/subscription', icon: Icons.card_membership_rounded, labelKey: 'subscription'),
     if (isAdmin) _NavItem(path: '/admin', icon: Icons.admin_panel_settings_rounded, labelKey: 'admin'),
@@ -156,12 +219,14 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     _NavItem(path: '/stats', icon: Icons.analytics_rounded, labelKey: 'statistics'),
     _NavItem(path: '/promo', icon: Icons.rocket_launch_rounded, labelKey: 'promo'),
     _NavItem(path: '/progress', icon: Icons.calendar_month_rounded, labelKey: 'progress'),
+    _NavItem(path: '/navigator', icon: Icons.explore_rounded, label: 'Навигатор артиста'),
     _NavItem(path: '/ai', icon: Icons.auto_awesome, labelKey: 'studioAi'),
     _NavItem(path: '/services', icon: Icons.build_rounded, labelKey: 'services'),
   ]),
   _NavGroup(titleKey: 'navGroupMore', items: [
-    _NavItem(path: '/legal', icon: Icons.description_outlined, label: 'Юридические документы'),
+    _NavItem(path: '/legal', icon: Icons.description_outlined, label: 'Legal & Compliance'),
     _NavItem(path: '/support', icon: Icons.support_agent_rounded, labelKey: 'support'),
+    _NavItem(path: '/settings', icon: Icons.settings_rounded, labelKey: 'settings'),
     _NavItem(path: '/profile', icon: Icons.person_rounded, labelKey: 'profile'),
   ]),
 ];
@@ -175,10 +240,12 @@ class _NavDrawerContent extends StatelessWidget {
 
   bool _selected(_NavItem i) =>
       currentLocation == i.path ||
+      (currentLocation.startsWith('/production') && i.path == '/team') ||
       (currentLocation.startsWith('/releases/') && i.path == '/releases') ||
       (currentLocation.startsWith('/legal') && i.path == '/legal') ||
       (currentLocation.startsWith('/index') && i.path == '/index') ||
       (currentLocation.startsWith('/progress') && i.path == '/progress') ||
+      (currentLocation.startsWith('/navigator') && i.path == '/navigator') ||
       (currentLocation.startsWith('/admin') && i.path == '/admin') ||
       (currentLocation == '/profile' && i.path == '/profile');
 
@@ -191,7 +258,7 @@ class _NavDrawerContent extends StatelessWidget {
         shrinkWrap: true,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
               'AURIX',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -227,10 +294,12 @@ class _NavDrawerContent extends StatelessWidget {
 
 bool _isSelected(String currentLocation, _NavItem i) =>
     currentLocation == i.path ||
+    (currentLocation.startsWith('/production') && i.path == '/team') ||
     (currentLocation.startsWith('/releases/') && i.path == '/releases') ||
     (currentLocation.startsWith('/legal') && i.path == '/legal') ||
     (currentLocation.startsWith('/index') && i.path == '/index') ||
     (currentLocation.startsWith('/progress') && i.path == '/progress') ||
+    (currentLocation.startsWith('/navigator') && i.path == '/navigator') ||
     (currentLocation.startsWith('/admin') && i.path == '/admin') ||
     (currentLocation == '/profile' && i.path == '/profile');
 
@@ -245,19 +314,40 @@ class _Sidebar extends StatelessWidget {
     final groups = _appNavGroups(isAdmin);
     return Container(
       width: 260,
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.symmetric(vertical: 22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AurixTokens.bg1.withValues(alpha: 0.84),
+            AurixTokens.bg0.withValues(alpha: 0.74),
+          ],
+        ),
+        border: Border(
+          right: BorderSide(color: AurixTokens.stroke(0.2)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 26,
+            spreadRadius: -20,
+            offset: const Offset(10, 0),
+          ),
+        ],
+      ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 'AURIX',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AurixTokens.orange,
-                      letterSpacing: 4,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AurixTokens.accentWarm,
+                      letterSpacing: 3.6,
                       fontWeight: FontWeight.w800,
                     ),
               ),
@@ -315,6 +405,7 @@ class _SidebarItem extends StatefulWidget {
 
 class _SidebarItemState extends State<_SidebarItem> {
   bool _hover = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -322,41 +413,67 @@ class _SidebarItemState extends State<_SidebarItem> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+        onExit: (_) => setState(() {
+          _hover = false;
+          _pressed = false;
+        }),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: (widget.selected || _hover) ? AurixTokens.glass(0.1) : null,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: widget.selected ? AurixTokens.orange.withValues(alpha: 0.5) : Colors.transparent,
-                width: 1,
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            scale: _pressed ? 0.99 : 1,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: (widget.selected || _hover)
+                    ? AurixTokens.bgElevated.withValues(alpha: 0.8)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: widget.selected
+                      ? AurixTokens.accent.withValues(alpha: 0.42)
+                      : (_hover ? AurixTokens.stroke(0.24) : Colors.transparent),
+                  width: 1,
+                ),
+                boxShadow: widget.selected
+                    ? [
+                        BoxShadow(
+                          color: AurixTokens.accentGlow.withValues(alpha: 0.2),
+                          blurRadius: 20,
+                          spreadRadius: -10,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : null,
               ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  widget.icon,
-                  size: 22,
-                  color: widget.selected ? AurixTokens.orange : AurixTokens.muted,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.label,
-                    style: TextStyle(
-                      color: widget.selected ? AurixTokens.text : AurixTokens.muted,
-                      fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 20,
+                    color: widget.selected ? AurixTokens.accentWarm : AurixTokens.muted,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      style: TextStyle(
+                        color: widget.selected ? AurixTokens.text : AurixTokens.textSecondary,
+                        fontWeight: widget.selected ? FontWeight.w700 : FontWeight.w500,
+                        fontSize: 13.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -376,11 +493,37 @@ class _TopBar extends ConsumerWidget {
     final title = _titleFor(context, currentLocation);
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     final padding = isDesktop ? 24.0 : kMobileHorizontalPadding;
+    final showBack = currentLocation != '/home';
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: padding, vertical: 16),
+      padding: EdgeInsets.symmetric(horizontal: padding, vertical: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AurixTokens.bg1.withValues(alpha: 0.56),
+            AurixTokens.bg0.withValues(alpha: 0.26),
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(color: AurixTokens.stroke(0.16)),
+        ),
+      ),
       child: Row(
         children: [
+          if (showBack)
+            AppBackButton(
+              tooltip: L10n.t(context, 'back'),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/home');
+                }
+              },
+            ),
+          if (showBack) const SizedBox(width: 6),
           if (onMenuTap != null)
             IconButton(
               icon: const Icon(Icons.menu, color: AurixTokens.text),
@@ -395,6 +538,7 @@ class _TopBar extends ConsumerWidget {
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     fontSize: isDesktop ? null : 20,
+                    letterSpacing: -0.2,
                   ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -416,10 +560,25 @@ class _TopBar extends ConsumerWidget {
               height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AurixTokens.orange.withValues(alpha: 0.3),
-                border: Border.all(color: AurixTokens.stroke(0.2)),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AurixTokens.bgElevated.withValues(alpha: 0.9),
+                    AurixTokens.bg1.withValues(alpha: 0.92),
+                  ],
+                ),
+                border: Border.all(color: AurixTokens.stroke(0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: AurixTokens.accentGlow.withValues(alpha: 0.08),
+                    blurRadius: 14,
+                    spreadRadius: -8,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
               ),
-              child: const Icon(Icons.person, color: AurixTokens.text, size: 22),
+              child: const Icon(Icons.person, color: AurixTokens.textSecondary, size: 21),
             ),
           ),
         ],
@@ -434,9 +593,12 @@ class _TopBar extends ConsumerWidget {
     if (loc == '/stats') return L10n.t(context, 'statistics');
     if (loc == '/promo') return L10n.t(context, 'promo');
     if (loc.startsWith('/index')) return 'Aurix Рейтинг';
+    if (loc.startsWith('/dnk/artist')) return 'DNK Арстиста';
+    if (loc.startsWith('/dnk/tests') || loc == '/dnk') return 'Aurix DNK';
+    if (loc.startsWith('/navigator')) return 'Навигатор артиста';
     if (loc == '/ai') return L10n.t(context, 'studioAi');
     if (loc == '/finance') return L10n.t(context, 'finances');
-    if (loc == '/team') return L10n.t(context, 'team');
+    if (loc == '/team' || loc == '/production') return 'Продакшн';
     if (loc == '/subscription') return L10n.t(context, 'subscription');
     if (loc == '/services') return L10n.t(context, 'services');
     if (loc == '/support') return L10n.t(context, 'support');
@@ -509,12 +671,17 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
             hintText: L10n.t(context, 'search'),
             hintStyle: TextStyle(color: AurixTokens.muted, fontSize: 14),
             filled: true,
-            fillColor: AurixTokens.glass(0.06),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: AurixTokens.stroke()),
+            fillColor: AurixTokens.bg2.withValues(alpha: 0.68),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 18,
+              color: AurixTokens.muted.withValues(alpha: 0.9),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: AurixTokens.stroke(0.24)),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
             isDense: true,
           ),
         ),
@@ -565,72 +732,13 @@ class _LocaleToggle extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appState = ref.watch(appStateProvider);
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: AurixTokens.glass(0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AurixTokens.stroke(0.15), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _LocalePill(
-            label: 'RU',
-            active: appState.locale == AppLocale.ru,
-            onTap: () => appState.setLocale(AppLocale.ru),
-          ),
-          _LocalePill(
-            label: 'EN',
-            active: appState.locale == AppLocale.en,
-            onTap: () => appState.setLocale(AppLocale.en),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LocalePill extends StatefulWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _LocalePill({required this.label, required this.active, required this.onTap});
-
-  @override
-  State<_LocalePill> createState() => _LocalePillState();
-}
-
-class _LocalePillState extends State<_LocalePill> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final highlighted = widget.active || _hover;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: highlighted ? AurixTokens.orange.withValues(alpha: 0.25) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: highlighted ? AurixTokens.text : AurixTokens.muted,
-              fontSize: 12,
-              fontWeight: widget.active ? FontWeight.w600 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
+    return PremiumSegmentedControl<AppLocale>(
+      options: const [
+        (AppLocale.ru, 'RU'),
+        (AppLocale.en, 'EN'),
+      ],
+      selected: appState.locale,
+      onSelected: appState.setLocale,
     );
   }
 }

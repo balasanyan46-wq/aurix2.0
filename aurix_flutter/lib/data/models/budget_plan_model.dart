@@ -21,14 +21,14 @@ class BudgetPlanModel {
 
   factory BudgetPlanModel.fromJson(Map<String, dynamic> json) {
     return BudgetPlanModel(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      releaseId: json['release_id'] as String,
+      id: (json['id'])?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? '',
+      releaseId: json['release_id']?.toString() ?? '',
       isDemo: json['is_demo'] as bool? ?? false,
       input: json['input'] as Map<String, dynamic>? ?? {},
       budget: json['budget'] as Map<String, dynamic>? ?? {},
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 

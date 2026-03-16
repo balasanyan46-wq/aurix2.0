@@ -21,14 +21,14 @@ class FileModel {
 
   factory FileModel.fromJson(Map<String, dynamic> json) {
     return FileModel(
-      id: json['id'] as String,
-      ownerId: json['owner_id'] as String,
-      releaseId: json['release_id'] as String?,
-      kind: json['kind'] as String,
-      path: json['path'] as String,
-      mime: json['mime'] as String?,
+      id: (json['id'])?.toString() ?? '',
+      ownerId: json['owner_id']?.toString() ?? '',
+      releaseId: json['release_id']?.toString(),
+      kind: json['kind']?.toString() ?? '',
+      path: json['path']?.toString() ?? '',
+      mime: json['mime']?.toString(),
       size: json['size'] as int?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 

@@ -8,7 +8,7 @@ import 'package:aurix_flutter/tools/tools_registry.dart';
 import 'package:aurix_flutter/widgets/animated_ai_result_panel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
 import 'package:aurix_flutter/ai/ai_persistence_guard.dart';
 
 class ToolAiPanel extends ConsumerStatefulWidget {
@@ -105,7 +105,7 @@ class _ToolAiPanelState extends ConsumerState<ToolAiPanel> {
     } on AiSchemaMissingException {
       // migrations not applied yet - ignore (no crash)
     } catch (e) {
-      debugPrint('[ToolAiPanel] persist error: ${formatSupabaseError(e)}');
+      debugPrint('[ToolAiPanel] persist error: ${formatApiError(e)}');
     }
   }
 

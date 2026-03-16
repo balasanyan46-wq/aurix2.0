@@ -53,7 +53,7 @@ serve(async (req: Request) => {
     const isDemo = plan === "start";
 
     const { data: tracks } = await supabase.from("tracks")
-      .select("title, isrc, track_number").eq("release_id", releaseId).order("track_number");
+      .select("title, isrc").eq("release_id", releaseId);
     const { data: otherReleases } = await supabase.from("releases")
       .select("title, artist, genre, release_type, status")
       .eq("owner_id", user.id).neq("id", releaseId)

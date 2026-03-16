@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/presentation/screens/admin/admin_releases_screen.dart';
 import 'package:aurix_flutter/presentation/screens/admin/admin_reports_screen.dart';
 
@@ -47,7 +48,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen>
             if (context.mounted) context.go('/home');
           });
           return const Scaffold(
-            body: Center(child: Text('Доступ запрещён')),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
         return Scaffold(
@@ -56,7 +57,7 @@ class _AdminScreenState extends ConsumerState<AdminScreen>
             backgroundColor: Colors.transparent,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: AurixTokens.text),
-              onPressed: () => context.go('/home'),
+              onPressed: () { if (context.canPop()) context.pop(); else context.go('/home'); },
             ),
             title: Text(
               'Admin',
@@ -64,8 +65,8 @@ class _AdminScreenState extends ConsumerState<AdminScreen>
             ),
             bottom: TabBar(
               controller: _tabController,
-              indicatorColor: AurixTokens.orange,
-              labelColor: AurixTokens.orange,
+              indicatorColor: AurixTokens.accent,
+              labelColor: AurixTokens.accent,
               unselectedLabelColor: AurixTokens.muted,
               tabs: const [
                 Tab(text: 'Заявки'),
@@ -83,9 +84,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen>
         );
       },
       loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: AurixTokens.orange)),
+        backgroundColor: Colors.transparent,
+        body: PremiumLoadingState(message: 'Проверка доступа…'),
       ),
       error: (_, __) => Scaffold(
+        backgroundColor: Colors.transparent,
         body: Center(child: Text('Ошибка', style: TextStyle(color: AurixTokens.muted))),
       ),
     );

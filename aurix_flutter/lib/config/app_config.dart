@@ -1,23 +1,32 @@
-/// Конфигурация приложения через compile-time defines.
+/// Application configuration via compile-time defines.
 ///
-/// Запуск с параметрами:
-/// flutter run -d macos --dart-define=SUPABASE_URL=https://xxx.supabase.co --dart-define=SUPABASE_ANON_KEY=xxx
+/// Run with:
+/// flutter run -d macos --dart-define=API_BASE_URL=https://194.67.99.229
 class AppConfig {
   AppConfig._();
 
-  static const String supabaseUrl = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: 'https://ntnhxqvauvjqvplitbxw.supabase.co',
+  /// REST API base URL (NestJS backend).
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://194.67.99.229',
   );
 
-  static const String supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: 'sb_publishable_fkxVnE-EXF8lZMujbTW5LA_XQf6cOwX',
+  static bool get isConfigured => apiBaseUrl.isNotEmpty;
+
+  /// AI provider: 'openai', 'yandexgpt', 'gigachat', 'polza'
+  static const String aiProvider = String.fromEnvironment(
+    'AI_PROVIDER',
+    defaultValue: 'openai',
   );
 
-  static bool get isConfigured =>
-      supabaseUrl.isNotEmpty &&
-      supabaseAnonKey.isNotEmpty &&
-      supabaseUrl.startsWith('https://') &&
-      supabaseUrl.contains('.supabase.co');
+  static const String cfBaseUrl = String.fromEnvironment(
+    'CF_BASE_URL',
+    defaultValue: 'https://wandering-snow-3f00.armtelan1.workers.dev',
+  );
+
+  /// Feature-flag for direct Studio AI transport.
+  static const bool studioToolsDirectWorker = bool.fromEnvironment(
+    'STUDIO_TOOLS_DIRECT_WORKER',
+    defaultValue: false,
+  );
 }

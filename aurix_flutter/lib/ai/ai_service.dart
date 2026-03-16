@@ -3,13 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:aurix_flutter/services/chat_api_contract.dart';
+
+import 'package:aurix_flutter/config/app_config.dart';
 
 import 'ai_message.dart';
-
-const _cfBaseUrl = String.fromEnvironment(
-  'CF_BASE_URL',
-  defaultValue: 'https://wandering-snow-3f00.armtelan1.workers.dev',
-);
 
 /// Убирает trailing slash, чтобы не было двойных слэшей.
 String _normalizeBaseUrl(String url) {
@@ -21,13 +19,50 @@ String _normalizeBaseUrl(String url) {
 }
 
 Uri get _chatUri {
-  final base = _normalizeBaseUrl(_cfBaseUrl);
+  final base = _normalizeBaseUrl(AppConfig.cfBaseUrl);
   return Uri.parse('$base/api/ai/chat');
 }
 
 /// AI chat service — POST to Cloudflare Worker.
 class AiService {
   static const _timeout = Duration(seconds: 20);
+
+  static Future<http.Response> _postOnce(
+    Uri uri, {
+    required Map<String, String> headers,
+    required String bodyJson,
+  }) {
+    return http
+        .post(
+          uri,
+          headers: headers,
+          body: bodyJson,
+          encoding: utf8,
+        )
+        .timeout(_timeout);
+  }
+
+  static Future<http.Response> _postWithRetry(
+    Uri uri, {
+    required Map<String, String> headers,
+    required String bodyJson,
+  }) async {
+    try {
+      final first = await _postOnce(uri, headers: headers, bodyJson: bodyJson);
+      if (first.statusCode >= 500 && first.statusCode <= 599) {
+        if (kDebugMode) {
+          debugPrint('[AiService] retry_on_5xx status=${first.statusCode}');
+        }
+        return await _postOnce(uri, headers: headers, bodyJson: bodyJson);
+      }
+      return first;
+    } on TimeoutException {
+      if (kDebugMode) {
+        debugPrint('[AiService] retry_on_timeout');
+      }
+      return await _postOnce(uri, headers: headers, bodyJson: bodyJson);
+    }
+  }
 
   /// Send message and get AI reply.
   /// Returns reply string or throws AiServiceException on error.
@@ -40,6 +75,7 @@ class AiService {
     Map<String, dynamic>? context,
     String locale = 'ru',
   }) async {
+    ChatApiContract.runDevSmokeTestOnce();
     final uri = _chatUri;
     final body = <String, dynamic>{
       'message': message,
@@ -64,14 +100,11 @@ class AiService {
     }
 
     try {
-      final response = await http
-          .post(
-            uri,
-            headers: headers,
-            body: bodyJson,
-            encoding: utf8,
-          )
-          .timeout(_timeout);
+      final response = await _postWithRetry(
+        uri,
+        headers: headers,
+        bodyJson: bodyJson,
+      );
 
       if (kDebugMode) {
         debugPrint('[AiService] status: ${response.statusCode}');
@@ -83,22 +116,29 @@ class AiService {
       }
 
       if (response.statusCode != 200) {
-        String err = 'Сервис недоступен (status ${response.statusCode})';
         try {
-          final j = jsonDecode(response.body) as Map<String, dynamic>?;
-          if (j != null && j['error'] != null) {
-            err = j['error'] as String;
-          }
-        } catch (_) {}
-        throw AiServiceException(err);
+          ChatApiContract.parseMessageFromBody(
+            response.body,
+            httpStatus: response.statusCode,
+            logger: kDebugMode ? debugPrint : null,
+          );
+        } on ApiException catch (e) {
+          throw AiServiceException.fromApi(e);
+        } catch (e) {
+          debugPrint('[AiService] error parsing non-200 response: $e');
+        }
+        throw AiServiceException('Сервис недоступен (status ${response.statusCode})');
       }
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>?;
-      final reply = data?['reply'] as String?;
-      if (reply == null || reply.isEmpty) {
-        throw AiServiceException('Пустой ответ');
+      try {
+        return ChatApiContract.parseMessageFromBody(
+          response.body,
+          httpStatus: response.statusCode,
+          logger: kDebugMode ? debugPrint : null,
+        );
+      } on ApiException catch (e) {
+        throw AiServiceException.fromApi(e);
       }
-      return reply;
     } on TimeoutException {
       if (kDebugMode) debugPrint('[AiService] TimeoutException');
       throw AiServiceException('Таймаут, попробуйте ещё раз');
@@ -127,7 +167,23 @@ class AiService {
 
 class AiServiceException implements Exception {
   final String message;
-  AiServiceException(this.message);
+  final String code;
+  final String? requestId;
+
+  AiServiceException(
+    this.message, {
+    this.code = 'AI_ERROR',
+    this.requestId,
+  });
+
+  factory AiServiceException.fromApi(ApiException e) {
+    return AiServiceException(
+      e.message,
+      code: e.code,
+      requestId: e.requestId,
+    );
+  }
+
   @override
   String toString() => message;
 }

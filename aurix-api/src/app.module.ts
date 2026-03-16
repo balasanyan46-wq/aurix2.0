@@ -1,0 +1,62 @@
+import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { DatabaseModule } from './database/database.module';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ArtistsModule } from './artists/artists.module';
+import { ReleasesModule } from './releases/releases.module';
+import { TracksModule } from './tracks/tracks.module';
+import { UploadModule } from './upload/upload.module';
+import { ReleaseMetadataModule } from './release-metadata/release-metadata.module';
+import { ProfilesModule } from './profiles/profiles.module';
+import { MailModule } from './mail/mail.module';
+import { TeamMembersModule } from './team-members/team-members.module';
+import { SupportModule } from './support/support.module';
+import { AdminLogsModule } from './admin-logs/admin-logs.module';
+import { ReportsModule } from './reports/reports.module';
+import { AiToolsModule } from './ai-tools/ai-tools.module';
+import { LegalModule } from './legal/legal.module';
+import { PromoModule } from './promo/promo.module';
+import { ProgressModule } from './progress/progress.module';
+import { ProductionModule } from './production/production.module';
+import { CrmModule } from './crm/crm.module';
+import { NavigatorModule } from './navigator/navigator.module';
+import { AccountModule } from './account/account.module';
+import { AaiModule } from './aai/aai.module';
+
+@Module({
+  imports: [
+    ThrottlerModule.forRoot([{
+      ttl: 60000,   // 1 minute window
+      limit: 60,    // 60 requests per minute globally
+    }]),
+    DatabaseModule,
+    MailModule,
+    AuthModule,
+    UsersModule,
+    ArtistsModule,
+    ReleasesModule,
+    TracksModule,
+    UploadModule,
+    ReleaseMetadataModule,
+    ProfilesModule,
+    TeamMembersModule,
+    SupportModule,
+    AdminLogsModule,
+    ReportsModule,
+    AiToolsModule,
+    LegalModule,
+    PromoModule,
+    ProgressModule,
+    ProductionModule,
+    CrmModule,
+    NavigatorModule,
+    AccountModule,
+    AaiModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}

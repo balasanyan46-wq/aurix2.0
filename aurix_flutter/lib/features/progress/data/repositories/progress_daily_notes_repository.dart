@@ -1,21 +1,17 @@
-import 'package:aurix_flutter/core/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/features/progress/data/models/progress_daily_note.dart';
 import 'package:aurix_flutter/features/progress/data/progress_schema_guard.dart';
 
 class ProgressDailyNotesRepository {
   Future<ProgressDailyNote?> getByDay(DateTime day) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return null;
     final d = _dateOnly(day);
     try {
-      final row = await supabase
-          .from('progress_daily_notes')
-          .select()
-          .eq('user_id', userId)
-          .eq('day', _fmtDate(d))
-          .maybeSingle();
+      final res = await ApiClient.get('/progress-daily-notes', query: {
+        'day': _fmtDate(d),
+      });
+      final row = res.data;
       if (row == null) return null;
-      return ProgressDailyNote.fromJson(row);
+      return ProgressDailyNote.fromJson((row as Map).cast<String, dynamic>());
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_daily_notes')) {
         throw const ProgressSchemaMissingException('progress_daily_notes');
@@ -30,22 +26,15 @@ class ProgressDailyNotesRepository {
     String? win,
     String? blocker,
   }) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) throw StateError('Not authenticated');
     final payload = <String, dynamic>{
-      'user_id': userId,
       'day': _fmtDate(_dateOnly(day)),
       'mood': mood,
       'win': win,
       'blocker': blocker,
     };
     try {
-      final row = await supabase
-          .from('progress_daily_notes')
-          .upsert(payload, onConflict: 'user_id,day')
-          .select()
-          .single();
-      return ProgressDailyNote.fromJson(row);
+      final res = await ApiClient.post('/progress-daily-notes', data: payload);
+      return ProgressDailyNote.fromJson((res.data as Map).cast<String, dynamic>());
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_daily_notes')) {
         throw const ProgressSchemaMissingException('progress_daily_notes');
@@ -55,14 +44,8 @@ class ProgressDailyNotesRepository {
   }
 
   Future<void> deleteByDay(DateTime day) async {
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) throw StateError('Not authenticated');
     try {
-      await supabase
-          .from('progress_daily_notes')
-          .delete()
-          .eq('user_id', userId)
-          .eq('day', _fmtDate(_dateOnly(day)));
+      await ApiClient.delete('/progress-daily-notes/${_fmtDate(_dateOnly(day))}');
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_daily_notes')) {
         throw const ProgressSchemaMissingException('progress_daily_notes');

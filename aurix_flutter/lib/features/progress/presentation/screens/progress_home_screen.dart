@@ -62,13 +62,13 @@ class ProgressHomeScreen extends ConsumerWidget {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.12),
+                          color: AurixTokens.warning.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+                          border: Border.all(color: AurixTokens.warning.withValues(alpha: 0.35)),
                         ),
                         child: Text(
                           state.schemaWarning!,
-                          style: TextStyle(color: Colors.amber.shade200, fontSize: 12, fontWeight: FontWeight.w600),
+                          style: TextStyle(color: AurixTokens.warning, fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                       ),
                     _Ring(

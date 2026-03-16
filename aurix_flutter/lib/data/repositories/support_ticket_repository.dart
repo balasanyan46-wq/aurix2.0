@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/data/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/models/support_ticket_model.dart';
 import 'package:aurix_flutter/data/models/support_message_model.dart';
 
@@ -6,32 +6,27 @@ class SupportTicketRepository {
   // ─── Tickets ───
 
   Future<List<SupportTicketModel>> getAllTickets({String? statusFilter}) async {
-    var query = supabase
-        .from('support_tickets')
-        .select()
-        .order('updated_at', ascending: false);
-
+    final query = <String, dynamic>{
+      'order': 'updated_at.desc',
+    };
     if (statusFilter != null && statusFilter.isNotEmpty) {
-      query = supabase
-          .from('support_tickets')
-          .select()
-          .eq('status', statusFilter)
-          .order('updated_at', ascending: false);
+      query['status'] = statusFilter;
     }
 
-    final res = await query;
-    return (res as List)
+    final res = await ApiClient.get('/support-tickets', query: query);
+    final list = res.data as List;
+    return list
         .map((e) => SupportTicketModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<SupportTicketModel>> getMyTickets(String userId) async {
-    final res = await supabase
-        .from('support_tickets')
-        .select()
-        .eq('user_id', userId)
-        .order('updated_at', ascending: false);
-    return (res as List)
+    final res = await ApiClient.get('/support-tickets', query: {
+      'user_id': userId,
+      'order': 'updated_at.desc',
+    });
+    final list = res.data as List;
+    return list
         .map((e) => SupportTicketModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
@@ -42,13 +37,14 @@ class SupportTicketRepository {
     required String message,
     String priority = 'medium',
   }) async {
-    final res = await supabase.from('support_tickets').insert({
+    final res = await ApiClient.post('/support-tickets', data: {
       'user_id': userId,
       'subject': subject,
       'message': message,
       'priority': priority,
-    }).select().single();
-    return SupportTicketModel.fromJson(res);
+    });
+    final body = res.data as Map<String, dynamic>;
+    return SupportTicketModel.fromJson(body);
   }
 
   Future<void> replyToTicket({
@@ -57,30 +53,39 @@ class SupportTicketRepository {
     required String reply,
     String status = 'resolved',
   }) async {
-    await supabase.from('support_tickets').update({
+    await ApiClient.put('/support-tickets/$ticketId', data: {
       'admin_reply': reply,
       'admin_id': adminId,
       'status': status,
       'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', ticketId);
+    });
   }
 
   Future<void> updateStatus(String ticketId, String status) async {
-    await supabase.from('support_tickets').update({
+    final now = DateTime.now().toIso8601String();
+    final payload = <String, dynamic>{
       'status': status,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', ticketId);
+      'updated_at': now,
+    };
+    if (status == 'in_progress') {
+      payload['first_response_at'] = now;
+    } else if (status == 'resolved') {
+      payload['resolved_at'] = now;
+    } else if (status == 'open') {
+      payload['resolved_at'] = null;
+    }
+    await ApiClient.put('/support-tickets/$ticketId', data: payload);
   }
 
   // ─── Messages (chat) ───
 
   Future<List<SupportMessageModel>> getMessages(String ticketId) async {
-    final res = await supabase
-        .from('support_messages')
-        .select()
-        .eq('ticket_id', ticketId)
-        .order('created_at', ascending: true);
-    return (res as List)
+    final res = await ApiClient.get('/support-messages', query: {
+      'ticket_id': ticketId,
+      'order': 'created_at.asc',
+    });
+    final list = res.data as List;
+    return list
         .map((e) => SupportMessageModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
@@ -91,19 +96,20 @@ class SupportTicketRepository {
     required String senderRole,
     required String body,
   }) async {
-    final res = await supabase.from('support_messages').insert({
+    final res = await ApiClient.post('/support-messages', data: {
       'ticket_id': ticketId,
       'sender_id': senderId,
       'sender_role': senderRole,
       'body': body,
-    }).select().single();
+    });
+    final msgBody = res.data as Map<String, dynamic>;
 
     // Bump ticket updated_at so it floats to top
-    await supabase.from('support_tickets').update({
+    await ApiClient.put('/support-tickets/$ticketId', data: {
       'updated_at': DateTime.now().toIso8601String(),
       if (senderRole == 'user') 'status': 'open',
-    }).eq('id', ticketId);
+    });
 
-    return SupportMessageModel.fromJson(res);
+    return SupportMessageModel.fromJson(msgBody);
   }
 }

@@ -1,36 +1,32 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:aurix_flutter/data/supabase_client.dart';
+import 'package:aurix_flutter/core/api/auth_api.dart';
+import 'package:aurix_flutter/core/api/token_store.dart';
 
-/// Сервис аутентификации — обёртка над Supabase Auth.
+/// Auth service wrapping the REST API.
 class AuthService {
-  User? get currentUser => supabase.auth.currentUser;
+  ApiUser? _currentUser;
 
-  Stream<AuthState> get authState => supabase.auth.onAuthStateChange;
+  ApiUser? get currentUser => _currentUser;
 
-  Future<AuthResponse> signUp({
+  Future<void> signUp({
     required String email,
     required String password,
   }) async {
-    return supabase.auth.signUp(
-      email: email,
-      password: password,
-      emailRedirectTo: null,
-    );
+    await AuthApi.register(email: email, password: password);
   }
 
-  Future<AuthResponse> signIn({
+  Future<AuthResult> signIn({
     required String email,
     required String password,
   }) async {
-    return supabase.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    final result = await AuthApi.login(email: email, password: password);
+    _currentUser = result.user;
+    return result;
   }
 
   Future<void> signOut() async {
-    await supabase.auth.signOut();
+    await AuthApi.signOut();
+    _currentUser = null;
   }
 
-  Session? get currentSession => supabase.auth.currentSession;
+  bool get hasSession => TokenStore.cachedToken != null;
 }

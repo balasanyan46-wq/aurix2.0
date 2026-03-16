@@ -7,9 +7,13 @@
 | Переменная | Описание |
 |---|---|
 | `OPENAI_API_KEY` | OpenAI API key (GPT-4o-mini) |
+| `AI_API_KEY` | Optional alias for AI provider key (if differs from OPENAI_API_KEY) |
+| `AI_BASE_URL` | Optional custom AI endpoint base URL (default: `https://api.openai.com`) |
 | `AURIX_INTERNAL_KEY` | Internal auth key для `/v1/tools/*` |
 | `SUPABASE_URL` | Supabase project URL (e.g. `https://xxx.supabase.co`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (full access, bypasses RLS) |
+| `ALLOWED_ORIGINS` | CSV список разрешённых Origin для CORS в production |
+| `ENV` | Среда (`dev` включает `Access-Control-Allow-Origin: *`) |
 
 ### Установка секретов
 
@@ -69,15 +73,46 @@ curl -X POST http://localhost:8787/dnk/finish \
 ## Деплой
 
 ```bash
+cd cloudflare_worker
+npm run check:api-contract   # обязательный pre-deploy check
 npx wrangler deploy
 ```
 
-URL после деплоя: `https://wandering-snow-3f00.armte1an1.workers.dev`
+URL после деплоя: `https://wandering-snow-3f00.armtelan1.workers.dev`
+
+## API contract policy (обязательно)
+
+- Любое изменение контракта API => повышаем `version`.
+- Нельзя ломать обратную совместимость без migration-плана.
+- До деплоя Worker выполняем:
+  1) один `curl` к `/api/ai/chat`,
+  2) проверку Flutter-декодера (`flutter test test/services/chat_api_contract_test.dart`).
+- Готовая команда: `npm run check:api-contract`.
 
 ## Endpoints
 
 ### AI Chat
 - `POST /api/ai/chat` — общий AI-чат (rate limited)
+  - Legacy request: `{ "message": "text", "history": [] }`
+  - Legacy success (поддерживается): `{ "reply": "text" }`
+  - Envelope success (актуальный контракт):
+    `{ "status": "ok", "version": "2", "tool_id": null, "data": { "message": "text" }, "meta": { "request_id": "uuid" } }`
+  - Envelope error:
+    `{ "status": "error", "version": "2", "tool_id": null | "tool_id", "code": "ERROR_CODE", "message": "text", "meta": { "request_id": "uuid" } }`
+  - Studio tools request:
+    `{ "tool_id": "growth_plan|budget_plan|packaging|content_plan|pitch_pack", "context": {...}, "answers": {...}, "ai_summary": "...", "locale": "ru", "output_format": "json", "output_version": "v2" }`
+  - Studio tools success:
+    `{ "status": "ok", "version": "2", "tool_id": "...", "data": { ...structured_json... }, "meta": { "request_id": "uuid" } }`
+  - Error:
+    `{ "status": "error", "version": "2", "tool_id": "...", "code": "INVALID_MODEL_OUTPUT|INTERNAL_ERROR|...", "message": "...", "meta": { "request_id": "uuid" } }`
+
+### Health
+- `GET /health`
+  - Response: `{ "ok": true, "version": "2" }`
+
+### Debug env
+- `GET /debug/env`
+  - Response: `{ "ok": true, "hasOpenAiKey": true|false, "hasAllowedOrigins": true|false, "env": "dev|prod" }`
 
 ### AI Cover generator
 - `POST /api/ai/cover` — генерация PNG обложки (rate limited)
@@ -99,6 +134,13 @@ URL после деплоя: `https://wandering-snow-3f00.armte1an1.workers.dev`
 - `POST /dnk/finish` — запуск скоринга + LLM-анализа
   - Body: `{ "session_id": "<uuid>" }`
   - Response: `{ "axes": {...}, "confidence": {...}, "profile_text": "...", "recommendations": {...}, "prompts": {...}, ... }`
+
+### AURIX Attention Index (AAI)
+- `GET /s/:release_id` — публичная smart-link страница релиза (логирует визит)
+- `POST /aai/visit` — логирование визита/leave события
+- `GET|POST /aai/click` — логирование клика по платформе; для `GET` выполняет redirect
+- `GET /aai/top10` — JSON топ-10 релизов по AAI
+- `GET /aai/top` — публичная HTML-страница топ-10
 
 ## SQL миграция
 
@@ -154,3 +196,36 @@ const extractResult = await callLLMWithAutoRepair({
 | `zod` | Валидация JSON-ответов LLM (schemas.ts) |
 | `@cloudflare/workers-types` | TypeScript типы для Workers runtime |
 | `wrangler` | CLI для деплоя |
+
+## Manual smoke tests
+
+```bash
+# health
+curl -s https://wandering-snow-3f00.armtelan1.workers.dev/health
+
+# debug env
+curl -s https://wandering-snow-3f00.armtelan1.workers.dev/debug/env
+
+# legacy chat success
+curl -s -X POST https://wandering-snow-3f00.armtelan1.workers.dev/api/ai/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Привет, дай короткий план релиза","history":[]}'
+
+# studio tools success
+curl -s -X POST https://wandering-snow-3f00.armtelan1.workers.dev/api/ai/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool_id":"growth_map",
+    "context":{"title":"Night Drive","artist":"AURIX Artist","genre":"phonk"},
+    "answers":{"releaseGoal":"streams","platforms":["yandex","vk","youtube"]},
+    "ai_summary":"Фокус на growth в RU/CIS",
+    "locale":"ru",
+    "output_format":"json",
+    "output_version":"v2"
+  }'
+
+# chat validation error (empty message => 400)
+curl -s -X POST https://wandering-snow-3f00.armtelan1.workers.dev/api/ai/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"   "}'
+```

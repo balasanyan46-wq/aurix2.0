@@ -20,6 +20,8 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
   String _roleFilter = 'all';
   String _planFilter = 'all';
   String _statusFilter = 'all';
+  final Set<String> _selectedUserIds = <String>{};
+  bool _bulkLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          color: AurixTokens.bg1,
+          color: AurixTokens.bg1.withValues(alpha: 0.84),
           child: Column(
             children: [
               TextField(
@@ -39,7 +41,7 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                   hintStyle: const TextStyle(color: AurixTokens.muted, fontSize: 14),
                   prefixIcon: const Icon(Icons.search, color: AurixTokens.muted, size: 20),
                   filled: true,
-                  fillColor: AurixTokens.bg2,
+                  fillColor: AurixTokens.bg2.withValues(alpha: 0.9),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: AurixTokens.border),
@@ -65,13 +67,39 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                   ],
                 ),
               ),
+              if (_selectedUserIds.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Text(
+                      'Выбрано: ${_selectedUserIds.length}',
+                      style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 10),
+                    OutlinedButton(
+                      onPressed: _bulkLoading ? null : _bulkSuspendSelected,
+                      child: const Text('Заблокировать'),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: _bulkLoading ? null : _bulkActivateSelected,
+                      child: const Text('Разблокировать'),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: _bulkLoading ? null : () => setState(_selectedUserIds.clear),
+                      child: const Text('Сброс'),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
         Expanded(
           child: profilesAsync.when(
             data: (profiles) {
-              var filtered = profiles.where((p) {
+              final filtered = profiles.where((p) {
                 if (_search.isNotEmpty) {
                   final name = p.displayNameOrName.toLowerCase();
                   final email = p.email.toLowerCase();
@@ -97,13 +125,37 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                   final p = filtered[i];
                   return _UserCard(
                     profile: p,
+                    selected: _selectedUserIds.contains(p.userId),
+                    onToggleSelected: (v) {
+                      setState(() {
+                        if (v) {
+                          _selectedUserIds.add(p.userId);
+                        } else {
+                          _selectedUserIds.remove(p.userId);
+                        }
+                      });
+                    },
                     onAction: () => _showActions(context, p),
                   );
                 },
               );
             },
             loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange)),
-            error: (e, _) => Center(child: Text('Ошибка: $e', style: TextStyle(color: AurixTokens.muted))),
+            error: (e, _) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Ошибка: $e', style: const TextStyle(color: AurixTokens.muted), textAlign: TextAlign.center),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: () => ref.invalidate(allProfilesProvider),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Повторить'),
+                    style: TextButton.styleFrom(foregroundColor: AurixTokens.orange),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -138,9 +190,14 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: current != 'all' ? AurixTokens.orange.withValues(alpha: 0.15) : AurixTokens.bg2,
+          color: current != 'all'
+              ? AurixTokens.orange.withValues(alpha: 0.15)
+              : AurixTokens.bg2.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: current != 'all' ? AurixTokens.orange.withValues(alpha: 0.4) : AurixTokens.border),
+          border: Border.all(
+              color: current != 'all'
+                  ? AurixTokens.orange.withValues(alpha: 0.4)
+                  : AurixTokens.stroke(0.22)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -175,11 +232,113 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
       ),
     );
   }
+
+  Future<String?> _askBulkReason(String title) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: Text(title, style: const TextStyle(color: AurixTokens.text)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 2,
+          style: const TextStyle(color: AurixTokens.text),
+          decoration: const InputDecoration(
+            hintText: 'Причина (необязательно)',
+            hintStyle: TextStyle(color: AurixTokens.muted),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Применить')),
+        ],
+      ),
+    );
+    return ok == true ? ctrl.text.trim() : null;
+  }
+
+  Future<void> _bulkSuspendSelected() async {
+    final reason = await _askBulkReason('Массовая блокировка');
+    if (reason == null) return;
+    setState(() => _bulkLoading = true);
+    try {
+      final count = await ref.read(profileRepositoryProvider).bulkUpdateAccountStatus(
+            _selectedUserIds.toList(),
+            'suspended',
+            reason: reason,
+          );
+      final adminId = ref.read(currentUserProvider)?.id;
+      if (adminId != null) {
+        await ref.read(adminLogRepositoryProvider).log(
+          adminId: adminId,
+          action: 'users_bulk_suspended',
+          targetType: 'profile',
+          details: {'count': count, 'reason': reason},
+        );
+      }
+      ref.invalidate(allProfilesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Заблокировано: $count')),
+        );
+      }
+      setState(_selectedUserIds.clear);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _bulkLoading = false);
+    }
+  }
+
+  Future<void> _bulkActivateSelected() async {
+    final reason = await _askBulkReason('Массовая разблокировка');
+    if (reason == null) return;
+    setState(() => _bulkLoading = true);
+    try {
+      final count = await ref.read(profileRepositoryProvider).bulkUpdateAccountStatus(
+            _selectedUserIds.toList(),
+            'active',
+            reason: reason,
+          );
+      final adminId = ref.read(currentUserProvider)?.id;
+      if (adminId != null) {
+        await ref.read(adminLogRepositoryProvider).log(
+          adminId: adminId,
+          action: 'users_bulk_activated',
+          targetType: 'profile',
+          details: {'count': count, 'reason': reason},
+        );
+      }
+      ref.invalidate(allProfilesProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Разблокировано: $count')),
+        );
+      }
+      setState(_selectedUserIds.clear);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _bulkLoading = false);
+    }
+  }
 }
 
 class _UserCard extends StatelessWidget {
-  const _UserCard({required this.profile, required this.onAction});
+  const _UserCard({
+    required this.profile,
+    required this.selected,
+    required this.onToggleSelected,
+    required this.onAction,
+  });
   final ProfileModel profile;
+  final bool selected;
+  final ValueChanged<bool> onToggleSelected;
   final VoidCallback onAction;
 
   @override
@@ -196,6 +355,10 @@ class _UserCard extends StatelessWidget {
         ),
         child: Row(
           children: [
+            Checkbox(
+              value: selected,
+              onChanged: (v) => onToggleSelected(v == true),
+            ),
             CircleAvatar(
               radius: 18,
               backgroundColor: AurixTokens.bg2,
@@ -326,6 +489,8 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
   }
 
   Future<void> _changeRole(String newRole) async {
+    final reason = await _askReason('Изменение роли');
+    if (reason == null) return;
     setState(() => _loading = true);
     try {
       await ref.read(profileRepositoryProvider).updateRole(widget.profile.userId, newRole);
@@ -336,7 +501,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
           action: 'user_role_changed',
           targetType: 'profile',
           targetId: widget.profile.userId,
-          details: {'old': widget.profile.role, 'new': newRole},
+          details: {'old': widget.profile.role, 'new': newRole, 'reason': reason},
         );
       }
       widget.onDone();
@@ -357,17 +522,18 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
     }
   }
 
-  Future<void> _changePlan(String newPlan) async {
+  Future<void> _changePlan(String newPlan, {int? presetDays}) async {
+    final reason = await _askReason('Изменение тарифа');
+    if (reason == null) return;
+    final days = presetDays ?? await _askDurationDays(newPlan);
+    if (days == null) return;
     setState(() => _loading = true);
     try {
-      final res = await ref.read(billingServiceProvider).adminAssignPlan(
+      await ref.read(billingSubscriptionRepositoryProvider).activate(
             userId: widget.profile.userId,
-            plan: newPlan,
-            billingPeriod: 'monthly',
+            planId: newPlan,
+            extendDays: days,
           );
-      if (!res.ok) {
-        throw Exception(res.error ?? 'Не удалось назначить тариф');
-      }
       final adminId = ref.read(currentUserProvider)?.id;
       if (adminId != null) {
         await ref.read(adminLogRepositoryProvider).log(
@@ -375,7 +541,21 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
           action: 'user_plan_changed',
           targetType: 'profile',
           targetId: widget.profile.userId,
-          details: {'old': widget.profile.plan, 'new': newPlan},
+          details: {
+            'old': widget.profile.plan,
+            'new': newPlan,
+            'reason': reason,
+            'duration_days': days,
+          },
+        );
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Тариф ${_planLabel(newPlan)} назначен на $days дн.',
+            ),
+          ),
         );
       }
       widget.onDone();
@@ -387,8 +567,129 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
     }
   }
 
+  Future<void> _changePlanInteractive() async {
+    var selectedPlan = widget.profile.planId;
+    var durationDays = 30;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: const Text(
+          'Изменить тариф',
+          style: TextStyle(color: AurixTokens.text),
+        ),
+        content: StatefulBuilder(
+          builder: (_, setDialogState) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedPlan,
+                dropdownColor: AurixTokens.bg2,
+                decoration: const InputDecoration(labelText: 'Тариф'),
+                items: const [
+                  DropdownMenuItem(value: 'start', child: Text('Старт')),
+                  DropdownMenuItem(
+                    value: 'breakthrough',
+                    child: Text('Прорыв'),
+                  ),
+                  DropdownMenuItem(value: 'empire', child: Text('Империя')),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  setDialogState(() => selectedPlan = v);
+                },
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<int>(
+                initialValue: durationDays,
+                dropdownColor: AurixTokens.bg2,
+                decoration: const InputDecoration(labelText: 'Срок (дней)'),
+                items: const [7, 14, 30, 60, 90, 180, 365]
+                    .map(
+                      (d) =>
+                          DropdownMenuItem<int>(value: d, child: Text('$d дней')),
+                    )
+                    .toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  setDialogState(() => durationDays = v);
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AurixTokens.orange,
+              foregroundColor: Colors.black,
+            ),
+            child: const Text('Применить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _changePlan(selectedPlan, presetDays: durationDays);
+  }
+
+  Future<int?> _askDurationDays(String plan) async {
+    final options = [7, 14, 30, 60, 90, 180, 365];
+    int selected = 30;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: Text(
+          'Срок тарифа: ${_planLabel(plan)}',
+          style: const TextStyle(color: AurixTokens.text),
+        ),
+        content: StatefulBuilder(
+          builder: (dialogCtx, setStateDialog) => DropdownButtonFormField<int>(
+            initialValue: selected,
+            dropdownColor: AurixTokens.bg2,
+            decoration: const InputDecoration(labelText: 'Срок (дней)'),
+            items: options
+                .map((d) => DropdownMenuItem<int>(
+                      value: d,
+                      child: Text('$d дней'),
+                    ))
+                .toList(),
+            onChanged: (v) {
+              if (v == null) return;
+              setStateDialog(() => selected = v);
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AurixTokens.orange,
+              foregroundColor: Colors.black,
+            ),
+            child: const Text('Применить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return null;
+    return selected;
+  }
+
   Future<void> _toggleSuspend() async {
     final newStatus = widget.profile.accountStatus == 'active' ? 'suspended' : 'active';
+    final reason = await _askReason(newStatus == 'suspended' ? 'Блокировка аккаунта' : 'Разблокировка аккаунта');
+    if (reason == null) return;
     setState(() => _loading = true);
     try {
       await ref.read(profileRepositoryProvider).updateAccountStatus(widget.profile.userId, newStatus);
@@ -399,7 +700,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
           action: newStatus == 'suspended' ? 'user_suspended' : 'user_activated',
           targetType: 'profile',
           targetId: widget.profile.userId,
-          details: {'old': widget.profile.accountStatus, 'new': newStatus},
+          details: {'old': widget.profile.accountStatus, 'new': newStatus, 'reason': reason},
         );
       }
       widget.onDone();
@@ -409,6 +710,33 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
       }
       setState(() => _loading = false);
     }
+  }
+
+  Future<String?> _askReason(String title) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: Text(title, style: const TextStyle(color: AurixTokens.text)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 2,
+          style: const TextStyle(color: AurixTokens.text),
+          decoration: const InputDecoration(
+            hintText: 'Причина действия',
+            hintStyle: TextStyle(color: AurixTokens.muted),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Продолжить')),
+        ],
+      ),
+    );
+    final value = ctrl.text.trim();
+    if (ok != true || value.isEmpty) return null;
+    return value;
   }
 
   @override
@@ -481,10 +809,11 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
               if (p.role != 'artist') _actionBtn('Сделать артистом', () => _changeRole('artist')),
             ]),
             const SizedBox(height: 12),
-            _actionRow('План', _planLabel(p.plan), [
-              if (p.plan != 'start') _actionBtn('Старт', () => _changePlan('start')),
-              if (p.plan != 'breakthrough') _actionBtn('Прорыв', () => _changePlan('breakthrough')),
-              if (p.plan != 'empire') _actionBtn('Империя', () => _changePlan('empire')),
+            _actionRow('План', _planLabel(p.planId), [
+              _actionBtn('Изменить…', _changePlanInteractive),
+              if (p.planId != 'start') _actionBtn('Старт', () => _changePlan('start')),
+              if (p.planId != 'breakthrough') _actionBtn('Прорыв', () => _changePlan('breakthrough')),
+              if (p.planId != 'empire') _actionBtn('Империя', () => _changePlan('empire')),
             ]),
             const SizedBox(height: 12),
             _actionRow(

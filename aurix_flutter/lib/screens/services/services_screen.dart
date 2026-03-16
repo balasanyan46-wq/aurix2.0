@@ -247,17 +247,17 @@ class _ServiceCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: service.available
-                      ? Colors.green.withValues(alpha: 0.2)
+                      ? AurixTokens.positive.withValues(alpha: 0.2)
                       : AurixTokens.glass(0.2),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                       color: service.available
-                          ? Colors.green.withValues(alpha: 0.5)
+                          ? AurixTokens.positive.withValues(alpha: 0.5)
                           : AurixTokens.stroke(0.2)),
                 ),
                 child: Text(statusText,
                     style: TextStyle(
-                        color: service.available ? Colors.green : AurixTokens.muted,
+                        color: service.available ? AurixTokens.positive : AurixTokens.muted,
                         fontSize: 12,
                         fontWeight: FontWeight.w600)),
               ),

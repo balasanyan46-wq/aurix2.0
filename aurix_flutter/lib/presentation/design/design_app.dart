@@ -16,17 +16,19 @@ class DesignApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(appStateProvider).locale;
-    final auth = ref.watch(authStoreProvider);
     final hasSupabase = AppConfig.isConfigured;
+    final auth = hasSupabase ? ref.watch(authStoreProvider) : null;
 
     final home = hasSupabase
-        ? (!auth.ready
+        ? (!(auth?.ready ?? false)
             ? const Scaffold(
                 body: Center(
                   child: CircularProgressIndicator(color: AurixTokens.orange),
                 ),
               )
-            : (auth.isAuthed ? const DesignShell() : const _UnauthFlow()))
+            : ((auth?.isAuthed ?? false)
+                ? const DesignShell()
+                : const _UnauthFlow()))
         : const DesignShell();
 
     return MaterialApp(
@@ -67,7 +69,8 @@ class _UnauthFlowState extends State<_UnauthFlow> {
           const MaterialPage(child: DesignAuthScreen()),
         if (_page == _UnauthPage.register)
           MaterialPage(
-            child: DesignAuthScreen(key: const ValueKey('register'), startOnRegister: true),
+            child: DesignAuthScreen(
+                key: const ValueKey('register'), startOnRegister: true),
           ),
       ],
       onDidRemovePage: (_) {
@@ -80,7 +83,8 @@ class _UnauthFlowState extends State<_UnauthFlow> {
 class _DesignLandingAdapter extends StatelessWidget {
   final VoidCallback onLogin;
   final VoidCallback onRegister;
-  const _DesignLandingAdapter({required this.onLogin, required this.onRegister});
+  const _DesignLandingAdapter(
+      {required this.onLogin, required this.onRegister});
 
   @override
   Widget build(BuildContext context) {

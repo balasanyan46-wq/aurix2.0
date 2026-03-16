@@ -43,6 +43,11 @@ class _DnkResultScreenState extends State<DnkResultScreen>
   @override
   Widget build(BuildContext context) {
     final r = widget.result;
+    final hideMirror = _allDuplicate(r.socialSummary.magnets, r.passportHero.magnet) &&
+        _allDuplicate(r.socialSummary.repellers, r.passportHero.repulsion) &&
+        _normText(r.socialSummary.peopleComeFor).isEmpty &&
+        _normText(r.socialSummary.peopleLeaveWhen).isEmpty;
+    final hideTaboos = _allDuplicate(r.socialSummary.taboos, r.passportHero.taboo);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -55,7 +60,7 @@ class _DnkResultScreenState extends State<DnkResultScreen>
               const Icon(Icons.fingerprint, color: AurixTokens.accent, size: 28),
               const SizedBox(width: 10),
               Text(
-                'Твой Aurix DNK',
+                'Твой DNK Арстиста',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: AurixTokens.text,
                       fontWeight: FontWeight.w700,
@@ -99,14 +104,18 @@ class _DnkResultScreenState extends State<DnkResultScreen>
           // ═══════════════════════════════════════════════════
           // 2) MIRROR OF PEOPLE — social magnetism
           // ═══════════════════════════════════════════════════
-          _buildMirrorSection(r.socialSummary),
-          const SizedBox(height: 16),
+          if (!hideMirror) ...[
+            _buildMirrorSection(r.socialSummary),
+            const SizedBox(height: 16),
+          ],
 
           // ═══════════════════════════════════════════════════
           // 3) TABOOS
           // ═══════════════════════════════════════════════════
-          _buildTaboosSection(r.socialSummary.taboos),
-          const SizedBox(height: 16),
+          if (!hideTaboos) ...[
+            _buildTaboosSection(r.socialSummary.taboos),
+            const SizedBox(height: 16),
+          ],
 
           // ═══════════════════════════════════════════════════
           // 4) SCRIPTS
@@ -160,6 +169,44 @@ class _DnkResultScreenState extends State<DnkResultScreen>
                       _buildRecTab(_visualTab(r.recommendations.visual)),
                       _buildPromptsTab(r.prompts),
                     ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AurixTokens.bg1,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AurixTokens.stroke(0.18)),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.hub_outlined, color: AurixTokens.accent, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'DNK → Контент-план автосвязка',
+                      style: TextStyle(
+                        color: AurixTokens.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Результат DNK можно использовать для автозаполнения в инструменте "Контент-план Reels/Shorts".',
+                  style: TextStyle(
+                    color: AurixTokens.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -1029,6 +1076,23 @@ class _DnkResultScreenState extends State<DnkResultScreen>
   String _formatList(dynamic v, {String join = ', '}) {
     if (v is List) return v.map((e) => e.toString()).join(join);
     return v?.toString() ?? '-';
+  }
+
+  String _normText(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'^нельзя:\s*'), '')
+        .replaceAll(RegExp(r'[^a-zа-я0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _allDuplicate(List<String> src, List<String> base) {
+    if (src.isEmpty) return true;
+    final srcNorm = src.map(_normText).where((e) => e.isNotEmpty).toSet();
+    if (srcNorm.isEmpty) return true;
+    final baseNorm = base.map(_normText).where((e) => e.isNotEmpty).toSet();
+    return srcNorm.difference(baseNorm).isEmpty;
   }
 }
 

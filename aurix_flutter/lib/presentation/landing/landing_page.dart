@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
@@ -33,6 +32,8 @@ class _LandingPageState extends State<LandingPage>
 
   int _shimmerCycles = 0;
   static const _maxShimmerCycles = 3;
+  int _mockFxCycles = 0;
+  static const _maxMockFxCycles = 2;
 
   final _sectionKeys = <_NavSection, GlobalKey>{
     _NavSection.hero: GlobalKey(),
@@ -82,6 +83,13 @@ class _LandingPageState extends State<LandingPage>
       }
     });
     _shimmerController.forward();
+
+    _mockFxController.addStatusListener((status) {
+      if (status == AnimationStatus.forward && _mockFxCycles >= _maxMockFxCycles) {
+        _mockFxController.stop();
+      }
+      if (status == AnimationStatus.reverse) _mockFxCycles++;
+    });
 
     _heroFade = CurvedAnimation(
       parent: _heroController,
@@ -365,15 +373,10 @@ class _LandingPageState extends State<LandingPage>
       automaticallyImplyLeading: false,
       backgroundColor: Colors.transparent,
       elevation: 0,
-      flexibleSpace: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AurixTokens.bg0.withValues(alpha: 0.72),
-              border: Border(bottom: BorderSide(color: AurixTokens.stroke(0.12))),
-            ),
-          ),
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          color: AurixTokens.bg0.withValues(alpha: 0.92),
+          border: Border(bottom: BorderSide(color: AurixTokens.stroke(0.12))),
         ),
       ),
       titleSpacing: desktop ? 28 : 16,
@@ -1263,11 +1266,12 @@ class _HeroPreview extends StatelessWidget {
             ),
             if (allowFx)
               Positioned.fill(
-                child: IgnorePointer(
-                  child: AnimatedBuilder(
-                    animation: fx,
-                    builder: (context, _) {
-                      final t = fx.value;
+                child: RepaintBoundary(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: fx,
+                      builder: (context, _) {
+                        final t = fx.value;
                       return Opacity(
                         opacity: 0.85,
                         child: Transform.translate(
@@ -1291,8 +1295,9 @@ class _HeroPreview extends StatelessWidget {
                             ),
                           ),
                         ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -1973,14 +1978,16 @@ class _FeatureCardState extends State<_FeatureCard> {
                   widget.fx != null &&
                   widget.data.title == 'AURIX Studio AI')
                 Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: widget.fx!,
-                      builder: (context, _) {
-                        return CustomPaint(
-                          painter: _AiSpectrumPainter(t: widget.fx!.value, hovered: _hovered),
-                        );
-                      },
+                  child: RepaintBoundary(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: widget.fx!,
+                        builder: (context, _) {
+                          return CustomPaint(
+                            painter: _AiSpectrumPainter(t: widget.fx!.value, hovered: _hovered),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),

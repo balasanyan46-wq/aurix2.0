@@ -10,7 +10,7 @@ import 'package:aurix_flutter/features/legal/presentation/widgets/legal_preview_
 import 'package:aurix_flutter/features/legal/presentation/widgets/legal_field_input.dart';
 import 'package:aurix_flutter/features/legal/services/legal_pdf_service.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
 final _templateProvider = FutureProvider.family<LegalTemplateModel?, String>((ref, id) async {
@@ -96,13 +96,13 @@ class _LegalDetailPageState extends ConsumerState<LegalDetailPage> {
       await repo.updateDocumentPdfPath(doc.id, path);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сохранено в историю')));
-        context.go('/legal/history');
+        context.go('/legal-tools/history');
       }
     } catch (e) {
       debugPrint('[LegalDetail] saveToHistory error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: ${formatSupabaseError(e)}')),
+          SnackBar(content: Text('Ошибка: ${formatApiError(e)}')),
         );
       }
     } finally {
@@ -118,7 +118,7 @@ class _LegalDetailPageState extends ConsumerState<LegalDetailPage> {
     return asyncTemplate.when(
       data: (template) {
         if (template == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/legal'));
+          WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/legal-tools'));
           return const Center(child: CircularProgressIndicator(color: AurixTokens.orange));
         }
         Map<String, String>? profileDefaults;
@@ -147,7 +147,7 @@ class _LegalDetailPageState extends ConsumerState<LegalDetailPage> {
                   child: LegalPreviewPane(
                     title: template.title,
                     previewText: _filledText(template),
-                    onBack: () => context.go('/legal'),
+                    onBack: () { if (context.canPop()) context.pop(); else context.go('/legal-tools'); },
                   ),
                 ),
                 const SizedBox(width: 24),
@@ -179,7 +179,7 @@ class _LegalDetailPageState extends ConsumerState<LegalDetailPage> {
               elevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back, color: AurixTokens.text),
-                onPressed: () => context.go('/legal'),
+                onPressed: () { if (context.canPop()) context.pop(); else context.go('/legal-tools'); },
               ),
               title: Text(
                 template.title,
@@ -276,9 +276,9 @@ class _LegalDetailPageState extends ConsumerState<LegalDetailPage> {
             children: [
               Text('Ошибка загрузки шаблона', style: TextStyle(color: AurixTokens.orange)),
               const SizedBox(height: 8),
-              Text(formatSupabaseError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
+              Text(formatApiError(e), style: TextStyle(color: AurixTokens.muted, fontSize: 12), textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              AurixButton(text: 'Назад', onPressed: () => context.go('/legal')),
+              AurixButton(text: 'Назад', onPressed: () { if (context.canPop()) context.pop(); else context.go('/legal-tools'); }),
             ],
           ),
         ),
@@ -378,13 +378,13 @@ class _FormColumn extends ConsumerWidget {
       await repo.updateDocumentPdfPath(doc.id, path);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сохранено в историю')));
-        context.go('/legal/history');
+        context.go('/legal-tools/history');
       }
     } catch (e) {
       debugPrint('[LegalDetail] saveToHistory error: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: ${formatSupabaseError(e)}')),
+          SnackBar(content: Text('Ошибка: ${formatApiError(e)}')),
         );
       }
     } finally {

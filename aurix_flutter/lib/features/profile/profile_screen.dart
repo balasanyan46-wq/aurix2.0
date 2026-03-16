@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
+import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/design/widgets/aurix_button.dart';
+import 'package:aurix_flutter/design/widgets/premium_ui.dart';
+import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
+import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 
 /// Профиль в shell. Редактирование name, city, phone, gender, bio.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -60,7 +66,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _save() async {
     final user = ref.read(currentUserProvider);
     if (user == null) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Войдите в аккаунт')));
+      if (mounted) _snack('Войдите в аккаунт');
       return;
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -83,17 +89,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await repo.upsertMyProfile(profile);
       ref.invalidate(currentProfileProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Сохранено')));
+        _snack('Сохранено');
         setState(() => _loading = false);
       }
     } catch (e) {
-      final msg = formatSupabaseError(e);
+      final msg = formatApiError(e);
       setState(() {
         _error = msg;
         _loading = false;
       });
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $msg')));
+      if (mounted) _snack('Ошибка: $msg');
     }
+  }
+
+  void _snack(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: AurixTokens.bg2,
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
   @override
@@ -103,22 +117,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Профиль')),
+        backgroundColor: Colors.transparent,
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.person_off, size: 64, color: Theme.of(context).colorScheme.outline),
-                const SizedBox(height: 16),
-                const Text('Войдите в аккаунт'),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => context.go('/login'),
-                  child: const Text('Войти'),
-                ),
-              ],
+          child: FadeInSlide(
+            child: PremiumSectionCard(
+              radius: AurixTokens.radiusHero,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AurixTokens.muted.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.person_off_rounded, size: 40, color: AurixTokens.muted),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Войдите в аккаунт',
+                    style: TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 24),
+                  AurixButton(text: 'Войти', onPressed: () => context.go('/login')),
+                ],
+              ),
             ),
           ),
         ),
@@ -136,109 +160,141 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Профиль'),
-        actions: [
-          if (ref.watch(isAdminProvider).valueOrNull == true)
-            IconButton(
-              icon: const Icon(Icons.admin_panel_settings),
-              onPressed: () => context.push('/admin?tab=releases'),
-              tooltip: 'Админ',
-            ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: profileAsync.when(
-        data: (_) => SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
+        data: (_) => PremiumPageScaffold(
+          title: 'Профиль',
+          subtitle: 'Основная информация',
+          maxWidth: 560,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (ref.watch(isAdminProvider).valueOrNull == true)
+                IconButton(
+                  icon: const Icon(Icons.admin_panel_settings_rounded, color: AurixTokens.muted, size: 20),
+                  onPressed: () => context.push('/admin?tab=releases'),
+                  tooltip: 'Админ',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AurixTokens.glass(0.06),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+            ],
+          ),
+          children: [
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AurixTokens.danger.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AurixTokens.danger.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 16, color: AurixTokens.danger.withValues(alpha: 0.7)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(_error!, style: TextStyle(color: AurixTokens.danger.withValues(alpha: 0.9), fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            PremiumSectionCard(
+              padding: const EdgeInsets.all(20),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_error != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+                    const Text('Имя', style: TextStyle(color: AurixTokens.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(labelText: 'Имя'),
+                      style: const TextStyle(color: AurixTokens.text, fontSize: 15),
+                      decoration: const InputDecoration(hintText: 'Ваше имя'),
                     ),
                     const SizedBox(height: 16),
+                    const Text('Город', style: TextStyle(color: AurixTokens.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: _cityController,
-                      decoration: const InputDecoration(labelText: 'Город'),
+                      style: const TextStyle(color: AurixTokens.text, fontSize: 15),
+                      decoration: const InputDecoration(hintText: 'Город'),
                     ),
                     const SizedBox(height: 16),
+                    const Text('Телефон', style: TextStyle(color: AurixTokens.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Телефон',
-                        hintText: '+7 999 123-45-67',
-                      ),
+                      style: const TextStyle(color: AurixTokens.text, fontSize: 15),
+                      decoration: const InputDecoration(hintText: '+7 999 123-45-67'),
                       validator: _validatePhone,
                     ),
                     const SizedBox(height: 16),
+                    const Text('Пол', style: TextStyle(color: AurixTokens.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
                     DropdownButtonFormField<String?>(
                       value: _gender,
-                      decoration: const InputDecoration(labelText: 'Пол'),
-                      items: _genders.map((g) => DropdownMenuItem(value: g.value, child: Text(g.label))).toList(),
+                      decoration: const InputDecoration(),
+                      dropdownColor: AurixTokens.bg2,
+                      style: const TextStyle(color: AurixTokens.text, fontSize: 15),
+                      items: _genders.map((g) => DropdownMenuItem(
+                        value: g.value,
+                        child: Text(g.label, style: const TextStyle(color: AurixTokens.text)),
+                      )).toList(),
                       onChanged: (v) => setState(() => _gender = v),
                     ),
                     const SizedBox(height: 16),
+                    const Text('О себе', style: TextStyle(color: AurixTokens.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: _bioController,
                       maxLines: 4,
+                      style: const TextStyle(color: AurixTokens.text, fontSize: 15),
                       decoration: const InputDecoration(
-                        labelText: 'О себе',
+                        hintText: 'Краткое описание',
                         alignLabelWithHint: true,
                       ),
                     ),
                     const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: _loading ? null : _save,
-                      child: _loading
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Сохранить'),
+                    PremiumHoverLift(
+                      child: AurixButton(
+                        text: _loading ? 'Сохранение…' : 'Сохранить',
+                        onPressed: _loading ? null : _save,
+                        icon: _loading ? null : Icons.check_rounded,
+                      ),
                     ),
-                    const SizedBox(height: 24),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        await ref.read(authRepositoryProvider).signOut();
-                        // AuthGate/router will switch screens when session updates.
-                      },
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Выйти'),
+                    const SizedBox(height: 16),
+                    PremiumHoverLift(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          await ref.read(authStoreProvider).signOut();
+                          if (context.mounted) context.go('/');
+                        },
+                        icon: const Icon(Icons.logout_rounded, size: 16),
+                        label: const Text('Выйти'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AurixTokens.muted,
+                          side: BorderSide(color: AurixTokens.stroke(0.2)),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
+          ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Ошибка: $e', textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => ref.invalidate(currentProfileProvider),
-                child: const Text('Повторить'),
-              ),
-            ],
-          ),
+        loading: () => const PremiumLoadingState(message: 'Загрузка профиля…'),
+        error: (e, _) => PremiumErrorState(
+          title: 'Ошибка загрузки',
+          message: '$e',
+          onRetry: () => ref.invalidate(currentProfileProvider),
         ),
       ),
     );

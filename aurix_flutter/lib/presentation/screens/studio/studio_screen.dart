@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/screens/studio_ai/studio_ai_screen.dart';
 import 'package:aurix_flutter/presentation/screens/studio/tools/tools_home_screen.dart';
@@ -94,7 +95,7 @@ class _PaywallScreen extends StatelessWidget {
             Text(
               'Оформите подписку Прорыв или Империя, чтобы использовать продюсерский AI.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AurixTokens.muted),
             ),
             const SizedBox(height: 32),
             FilledButton(
@@ -103,7 +104,7 @@ class _PaywallScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: () => context.go('/home'),
+              onPressed: () { if (context.canPop()) context.pop(); else context.go('/home'); },
               child: const Text('На главную'),
             ),
           ],

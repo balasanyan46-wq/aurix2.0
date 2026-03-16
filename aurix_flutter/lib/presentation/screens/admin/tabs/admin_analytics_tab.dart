@@ -38,13 +38,57 @@ class AdminAnalyticsTab extends ConsumerWidget {
               data: (profiles) => releasesAsync.when(
                 data: (releases) => _buildContent(rows, profiles, releases),
                 loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2))),
-                error: (e, _) => Text('Ошибка загрузки релизов: $e', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+                error: (e, _) => _errorWithRetry(
+                  message: 'Ошибка загрузки релизов: $e',
+                  onRetry: () => ref.invalidate(allReleasesAdminProvider),
+                ),
               ),
               loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2))),
-              error: (e, _) => Text('Ошибка загрузки профилей: $e', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              error: (e, _) => _errorWithRetry(
+                message: 'Ошибка загрузки профилей: $e',
+                onRetry: () => ref.invalidate(allProfilesProvider),
+              ),
             ),
             loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2))),
-            error: (e, _) => Text('Ошибка загрузки данных: $e', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+            error: (e, _) => _errorWithRetry(
+              message: 'Ошибка загрузки данных: $e',
+              onRetry: () => ref.invalidate(allReportRowsProvider),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorWithRetry({
+    required String message,
+    required VoidCallback onRetry,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AurixTokens.bg1,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AurixTokens.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Повторить'),
+            style: TextButton.styleFrom(foregroundColor: AurixTokens.orange),
           ),
         ],
       ),

@@ -132,11 +132,11 @@ class ReleasesScreen extends ConsumerWidget {
   Color _statusColor(ReleaseStatus s) {
     switch (s) {
       case ReleaseStatus.live:
-        return Colors.green;
+        return AurixTokens.positive;
       case ReleaseStatus.inReview:
         return AurixTokens.orange;
       case ReleaseStatus.rejected:
-        return Colors.red;
+        return AurixTokens.danger;
       default:
         return AurixTokens.muted;
     }

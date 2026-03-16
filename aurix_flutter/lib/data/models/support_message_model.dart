@@ -20,13 +20,13 @@ class SupportMessageModel {
 
   factory SupportMessageModel.fromJson(Map<String, dynamic> json) {
     return SupportMessageModel(
-      id: json['id'] as String,
-      ticketId: json['ticket_id'] as String,
-      senderId: json['sender_id'] as String,
-      senderRole: json['sender_role'] as String? ?? 'user',
-      body: json['body'] as String,
+      id: (json['id'])?.toString() ?? '',
+      ticketId: json['ticket_id']?.toString() ?? '',
+      senderId: json['sender_id']?.toString() ?? '',
+      senderRole: json['sender_role']?.toString() ?? 'user',
+      body: json['body']?.toString() ?? '',
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'] as String)
+          ? DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now()
           : DateTime.now(),
     );
   }

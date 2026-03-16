@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:flutter/material.dart';
 
-/// Living futuristic backdrop: mesh + orange glow + subtle motion + cursor parallax.
-/// No BackdropFilter (macOS-safe).
+/// Layered premium backdrop: deep base + warm/cool ambience.
 class AurixBackdrop extends StatefulWidget {
   final Widget child;
 
@@ -42,13 +41,29 @@ class _AurixBackdropState extends State<AurixBackdrop> with SingleTickerProvider
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
                 colors: [
                   AurixTokens.bg0,
-                  Color(0xFF0E0C0A),
-                  AurixTokens.bg0,
+                  Color(0xFF0A0A12),
+                  Color(0xFF08080E),
                 ],
+              ),
+            ),
+          ),
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AurixTokens.coolUndertone.withValues(alpha: 0.08),
+                    Colors.transparent,
+                    AurixTokens.coolUndertone.withValues(alpha: 0.06),
+                  ],
+                  stops: const [0, 0.45, 1],
+                ),
               ),
             ),
           ),
@@ -57,8 +72,8 @@ class _AurixBackdropState extends State<AurixBackdrop> with SingleTickerProvider
             builder: (context, _) {
               final size = MediaQuery.of(context).size;
               final t = _controller.value * 2 * 3.14159;
-              final mx = size.width * 0.3 + 80 * (0.5 + 0.5 * _sine(t));
-              final my = size.height * 0.2 + 60 * _sine(t * 0.7);
+              final mx = size.width * 0.25 + 110 * (0.5 + 0.5 * _sine(t));
+              final my = size.height * 0.18 + 70 * _sine(t * 0.7);
               double px = mx;
               double py = my;
               if (_cursor != null) {
@@ -68,20 +83,20 @@ class _AurixBackdropState extends State<AurixBackdrop> with SingleTickerProvider
                 py += dy.clamp(-40.0, 40.0);
               }
               return Positioned(
-                left: px - 150,
-                top: py - 150,
+                left: px - 230,
+                top: py - 210,
                 child: Container(
-                  width: 300,
-                  height: 300,
+                  width: 500,
+                  height: 460,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(300),
                     gradient: RadialGradient(
                       colors: [
-                        AurixTokens.orange.withValues(alpha: 0.25),
-                        AurixTokens.orange2.withValues(alpha: 0.12),
+                        AurixTokens.accentGlow.withValues(alpha: 0.17),
+                        AurixTokens.accentWarm.withValues(alpha: 0.1),
                         Colors.transparent,
                       ],
-                      stops: const [0.0, 0.5, 1.0],
+                      stops: const [0.0, 0.52, 1.0],
                     ),
                   ),
                 ),
@@ -93,27 +108,82 @@ class _AurixBackdropState extends State<AurixBackdrop> with SingleTickerProvider
             builder: (context, _) {
               final size = MediaQuery.of(context).size;
               final t = _controller.value * 2 * 3.14159;
-              final mx = size.width * 0.7 + 70 * _sine(t * 0.8 + 1);
-              final my = size.height * 0.5 + 50 * _sine(t * 0.5 + 2);
+              final mx = size.width * 0.74 + 90 * _sine(t * 0.8 + 1);
+              final my = size.height * 0.52 + 60 * _sine(t * 0.5 + 2);
               return Positioned(
-                left: mx - 120,
-                top: my - 120,
+                left: mx - 220,
+                top: my - 200,
                 child: Container(
-                  width: 240,
-                  height: 240,
+                  width: 420,
+                  height: 380,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(260),
                     gradient: RadialGradient(
                       colors: [
-                        AurixTokens.orange2.withValues(alpha: 0.15),
+                        AurixTokens.coolUndertone.withValues(alpha: 0.12),
+                        const Color(0xFF405B9C).withValues(alpha: 0.07),
                         Colors.transparent,
                       ],
-                      stops: const [0.0, 0.8],
+                      stops: const [0.0, 0.7, 1.0],
                     ),
                   ),
                 ),
               );
             },
+          ),
+          Positioned(
+            left: -80,
+            right: -80,
+            top: -110,
+            height: 210,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AurixTokens.accentGlow.withValues(alpha: 0.1),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -140,
+            right: -140,
+            top: 110,
+            height: 1,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      AurixTokens.accentWarm.withValues(alpha: 0.08),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.03),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.18),
+                  ],
+                ),
+              ),
+            ),
           ),
           Positioned.fill(child: widget.child),
         ],

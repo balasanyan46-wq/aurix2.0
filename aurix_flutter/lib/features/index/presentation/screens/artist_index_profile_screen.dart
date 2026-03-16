@@ -17,8 +17,13 @@ class ArtistIndexProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.read(indexProvider.notifier).selectArtist(artistId);
     final state = ref.watch(indexProvider);
+    final selectedArtistId = state.data?.selectedArtistId;
+    if (selectedArtistId != artistId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(indexProvider.notifier).selectArtist(artistId);
+      });
+    }
     final data = state.data;
     final artist = data?.artistFor(artistId);
     final score = data?.scoreFor(artistId);
@@ -34,7 +39,7 @@ class ArtistIndexProfileScreen extends ConsumerWidget {
                   children: [
                     Text('Артист не найден', style: TextStyle(color: AurixTokens.muted)),
                     const SizedBox(height: 16),
-                    TextButton(onPressed: () => context.go('/index'), child: const Text('Назад')),
+                    TextButton(onPressed: () => context.canPop() ? context.pop() : context.go('/index'), child: const Text('Назад')),
                   ],
                 ),
         ),
@@ -57,7 +62,7 @@ class ArtistIndexProfileScreen extends ConsumerWidget {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back, color: AurixTokens.text),
-                      onPressed: () => context.go('/index'),
+                      onPressed: () => context.canPop() ? context.pop() : context.go('/index'),
                     ),
                     const SizedBox(width: 8),
                     Expanded(

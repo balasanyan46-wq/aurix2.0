@@ -11,6 +11,7 @@ import 'package:aurix_flutter/data/models/report_row_model.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/services/csv_report_parser.dart';
+import 'package:aurix_flutter/data/providers/reports_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
 class AdminFinanceTab extends ConsumerStatefulWidget {
@@ -27,6 +28,9 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
   bool _pickingFile = false;
   String? _error;
   String? _success;
+  String _artistQuery = '';
+  String _releaseQuery = '';
+  String _reportsQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -75,12 +79,28 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
 
           const Text('ЗАГРУЖЕННЫЕ ОТЧЁТЫ', style: TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
           const SizedBox(height: 12),
+          _card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: TextField(
+                onChanged: (v) => setState(() => _reportsQuery = v.trim().toLowerCase()),
+                style: const TextStyle(color: AurixTokens.text, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Поиск по артисту, релизу, файлу...',
+                  hintStyle: const TextStyle(color: AurixTokens.muted, fontSize: 13),
+                  border: InputBorder.none,
+                  icon: Icon(Icons.search_rounded, color: AurixTokens.muted.withValues(alpha: 0.8)),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           reportsAsync.when(
             data: (list) {
               if (list.isEmpty) return _emptyCard('Нет отчётов');
               final profiles = profilesAsync.valueOrNull ?? [];
               final releases = releasesAsync.valueOrNull ?? [];
-              return _buildReportsTable(list, profiles, releases);
+              return _buildReportsTable(list, profiles, releases, _reportsQuery);
             },
             loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2)),
             error: (e, _) => Text('$e', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
@@ -135,9 +155,23 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
   }
 
   Widget _buildImportCard(List<ProfileModel> profiles, List<ReleaseModel> allReleases) {
+    final artistFiltered = profiles
+        .where((p) => p.role != 'admin')
+        .where((p) {
+          if (_artistQuery.isEmpty) return true;
+          final hay = '${p.displayNameOrName} ${p.email}'.toLowerCase();
+          return hay.contains(_artistQuery);
+        })
+        .toList();
+
     final userReleases = _selectedUser != null
         ? allReleases.where((r) => r.ownerId == _selectedUser!.userId).toList()
         : <ReleaseModel>[];
+    final releaseFiltered = userReleases.where((r) {
+      if (_releaseQuery.isEmpty) return true;
+      final hay = '${r.title} ${r.artist ?? ''} ${r.releaseType}'.toLowerCase();
+      return hay.contains(_releaseQuery);
+    }).toList();
 
     if (_selectedRelease != null && !userReleases.any((r) => r.id == _selectedRelease!.id)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -164,10 +198,26 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
             // Step 1: Pick user
             _buildStepLabel('1', 'Выберите артиста'),
             const SizedBox(height: 8),
+            _card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: TextField(
+                  onChanged: (v) => setState(() => _artistQuery = v.trim().toLowerCase()),
+                  style: const TextStyle(color: AurixTokens.text, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Поиск артиста (имя/email)',
+                    hintStyle: const TextStyle(color: AurixTokens.muted, fontSize: 13),
+                    border: InputBorder.none,
+                    icon: Icon(Icons.search_rounded, color: AurixTokens.muted.withValues(alpha: 0.8)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             _buildDropdown<ProfileModel>(
               value: _selectedUser,
               hint: 'Артист',
-              items: profiles.where((p) => p.role != 'admin').toList(),
+              items: artistFiltered,
               labelBuilder: (p) => '${p.displayNameOrName} (${p.email})',
               onChanged: (p) => setState(() {
                 _selectedUser = p;
@@ -182,10 +232,27 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
             // Step 2: Pick release
             _buildStepLabel('2', 'Выберите релиз'),
             const SizedBox(height: 8),
+            _card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: TextField(
+                  onChanged: (v) => setState(() => _releaseQuery = v.trim().toLowerCase()),
+                  enabled: _selectedUser != null,
+                  style: const TextStyle(color: AurixTokens.text, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Поиск релиза (название/артист/тип)',
+                    hintStyle: const TextStyle(color: AurixTokens.muted, fontSize: 13),
+                    border: InputBorder.none,
+                    icon: Icon(Icons.search_rounded, color: AurixTokens.muted.withValues(alpha: 0.8)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             _buildDropdown<ReleaseModel>(
               value: _selectedRelease,
-              hint: _selectedUser == null ? 'Сначала выберите артиста' : (userReleases.isEmpty ? 'Нет релизов' : 'Релиз'),
-              items: userReleases,
+              hint: _selectedUser == null ? 'Сначала выберите артиста' : (releaseFiltered.isEmpty ? 'Нет релизов' : 'Релиз'),
+              items: releaseFiltered,
               labelBuilder: (r) => '${r.title}${r.artist != null ? " — ${r.artist}" : ""} (${r.releaseType})',
               onChanged: _selectedUser == null ? null : (r) => setState(() {
                 _selectedRelease = r;
@@ -295,6 +362,7 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
     List<ReportModel> reports,
     List<ProfileModel> profiles,
     List<ReleaseModel> releases,
+    String query,
   ) {
     String userName(String? uid) {
       if (uid == null) return '—';
@@ -307,9 +375,19 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
       return r.isNotEmpty ? r.first.title : rid.substring(0, 8);
     }
 
+    final filtered = reports.where((r) {
+      if (query.isEmpty) return true;
+      final hay = '${userName(r.userId)} ${releaseName(r.releaseId)} ${r.fileName ?? ''} ${r.status}'.toLowerCase();
+      return hay.contains(query);
+    }).toList();
+
+    if (filtered.isEmpty) {
+      return _emptyCard('По запросу ничего не найдено');
+    }
+
     return _card(
       child: Column(
-        children: reports.map((r) {
+        children: filtered.map((r) {
           final period = '${DateFormat('MMM yyyy', 'ru').format(r.periodStart)} — ${DateFormat('MMM yyyy', 'ru').format(r.periodEnd)}';
           return ListTile(
             dense: true,
@@ -352,19 +430,52 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
   }
 
   void _confirmDelete(String reportId, String? fileName) {
+    final reasonCtrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AurixTokens.bg1,
         title: Text('Удалить отчёт?', style: TextStyle(color: AurixTokens.text)),
-        content: Text('${fileName ?? "Отчёт"} будет удалён вместе со всеми строками.', style: TextStyle(color: AurixTokens.muted)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${fileName ?? "Отчёт"} будет удалён вместе со всеми строками.', style: TextStyle(color: AurixTokens.muted)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 2,
+              style: const TextStyle(color: AurixTokens.text),
+              decoration: const InputDecoration(
+                hintText: 'Причина удаления',
+                hintStyle: TextStyle(color: AurixTokens.muted),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Отмена', style: TextStyle(color: AurixTokens.muted))),
           FilledButton(
             onPressed: () async {
+              final reason = reasonCtrl.text.trim();
+              if (reason.isEmpty) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Укажи причину удаления')));
+                }
+                return;
+              }
               Navigator.pop(ctx);
               try {
                 await ref.read(reportRepositoryProvider).deleteReport(reportId);
+                final adminId = ref.read(currentUserProvider)?.id;
+                if (adminId != null) {
+                  await ref.read(adminLogRepositoryProvider).log(
+                    adminId: adminId,
+                    action: 'report_deleted',
+                    targetType: 'report',
+                    targetId: reportId,
+                    details: {'file_name': fileName ?? '', 'reason': reason},
+                  );
+                }
                 ref.invalidate(adminReportsProvider);
                 ref.invalidate(allReportRowsProvider);
               } catch (e) {
@@ -451,15 +562,29 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
         return;
       }
       final rows = parseResult.rows;
+      final importHash = _quickImportHash(
+        bytes,
+        file.name,
+        _selectedRelease?.id ?? '',
+        _selectedUser?.id ?? '',
+      );
 
       final report = await repo.createReport(
         periodStart: periodStart,
         periodEnd: periodEnd,
         fileName: file.name,
         createdBy: admin.id,
+        userId: _selectedUser!.userId,
+        releaseId: _selectedRelease!.id,
+        importHash: importHash,
       );
       await repo.updateReportStatus(report.id, 'parsing');
-      await repo.addReportRows(report.id, rows);
+      await repo.addReportRows(
+        report.id,
+        rows,
+        userId: _selectedUser!.userId,
+        releaseId: _selectedRelease!.id,
+      );
       final matched = await repo.matchReportRowsByIsrc(report.id);
       await repo.updateReportStatus(report.id, 'ready');
 
@@ -478,6 +603,7 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
 
       ref.invalidate(adminReportsProvider);
       ref.invalidate(allReportRowsProvider);
+      ref.invalidate(userReportRowsProvider);
 
       setState(() {
         _success = 'Импорт завершён: ${rows.length} строк для "${_selectedRelease!.title}" (${_selectedUser!.displayNameOrName})';
@@ -489,6 +615,16 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
         _uploading = false;
       });
     }
+  }
+
+  String _quickImportHash(List<int> bytes, String fileName, String releaseId, String userId) {
+    var h = 2166136261;
+    final max = bytes.length > 8192 ? 8192 : bytes.length;
+    for (var i = 0; i < max; i++) {
+      h ^= bytes[i];
+      h = (h * 16777619) & 0x7fffffff;
+    }
+    return '${fileName.toLowerCase()}|$releaseId|$userId|${bytes.length}|$h';
   }
 
   static String _fmt(double v) {

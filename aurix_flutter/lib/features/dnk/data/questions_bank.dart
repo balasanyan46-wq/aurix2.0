@@ -325,6 +325,35 @@ const List<DnkQuestion> dnkCoreQuestions = [
   ),
 ];
 
+/// Shorter mandatory path (v1.2): core interview asks 24 most informative questions.
+/// Additional depth comes from adaptive follow-ups returned by Worker.
+const Set<String> dnkMandatoryCoreQuestionIds = {
+  'q01_energy_drive',
+  'q02_energy_stamina',
+  'q03_novelty_risk',
+  'q05_darkness_vector',
+  'q07_lyric_truth',
+  'q08_lyric_technique',
+  'q09_structure_planning',
+  'q11_publicness_attention',
+  'q13_conflict_direct',
+  'q15_commercial_instinct',
+  'q16_commercial_integrity',
+  'q17_fc_unique_vs_mass',
+  'q19_fc_plan_vs_flow',
+  'q21_sjt_hate_comment',
+  'q22_sjt_release_failed',
+  'q24_open_identity',
+  'q25_open_nonnegotiable',
+  'q26_sjt_hate_wave',
+  'q29_sjt_viral',
+  'q30_sjt_public_mistake',
+  'q32_fc_close_vs_strong',
+  'q35_fc_face_vs_music',
+  'q36_open_attract',
+  'q37_open_repel',
+};
+
 /// Axis display config for the UI
 class DnkAxisInfo {
   final String key;

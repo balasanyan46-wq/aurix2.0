@@ -44,16 +44,16 @@ class SupportTicketModel {
   factory SupportTicketModel.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
     return SupportTicketModel(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      subject: json['subject'] as String,
-      message: json['message'] as String,
-      status: json['status'] as String? ?? 'open',
-      priority: json['priority'] as String? ?? 'medium',
-      adminReply: json['admin_reply'] as String?,
-      adminId: json['admin_id'] as String?,
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : now,
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : now,
+      id: (json['id'])?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? '',
+      subject: json['subject']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'open',
+      priority: json['priority']?.toString() ?? 'medium',
+      adminReply: json['admin_reply']?.toString(),
+      adminId: json['admin_id']?.toString(),
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']?.toString() ?? '') ?? now : now,
+      updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at']?.toString() ?? '') ?? now : now,
     );
   }
 }

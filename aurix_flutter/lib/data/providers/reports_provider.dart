@@ -10,3 +10,13 @@ final userReportRowsProvider = FutureProvider<List<ReportRowModel>>((ref) async 
   if (user == null) return [];
   return ref.read(reportRepositoryProvider).getRowsByUser(user.id);
 });
+
+final userReportRowsByReleaseProvider =
+    FutureProvider.family<List<ReportRowModel>, String>((ref, releaseId) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null || releaseId.isEmpty) return [];
+  return ref.read(reportRepositoryProvider).getRowsByUserAndRelease(
+        userId: user.id,
+        releaseId: releaseId,
+      );
+});

@@ -1,0 +1,52 @@
+# Quick Fix for AURIX 2.0 Rendering Issue
+# Apply these changes to the deployed files
+
+## Fix 1: Update aurix_fx.css
+## Add these rules at the end of the file
+
+--- a/.gh-pages-worktree/aurix_fx.css
++++ b/.gh-pages-worktree/aurix_fx.css
+@@ -109,3 +109,15 @@
+   #aurixCursorGlow{transition:none}
+ }
+ 
++/* CRITICAL FIX: Ensure Flutter content renders above FX layers */
++flt-glass-pane,
++flt-scene-host,
++flt-semantics-host {
++  position: relative !important;
++  z-index: 100 !important;
++}
++
++/* Ensure loading screen is above everything during load */
++#loading {
++  z-index: 9999 !important;
++}
+
+## Fix 2: Update index.html
+## Add timeout fallback for loading screen removal
+
+--- a/.gh-pages-worktree/index.html
++++ b/.gh-pages-worktree/index.html
+@@ -50,6 +50,17 @@
+     window.addEventListener('flutter-first-frame', function() {
+       var el = document.getElementById('loading');
+       if (el) { el.classList.add('done'); setTimeout(function() { el.remove(); }, 500); }
+     });
++    
++    // CRITICAL FIX: Timeout fallback if Flutter fails to initialize
++    setTimeout(function() {
++      var el = document.getElementById('loading');
++      if (el && !el.classList.contains('done')) {
++        console.warn('Flutter first-frame timeout - checking initialization...');
++        // Check if Flutter actually loaded
++        if (document.querySelector('flt-glass-pane')) {
++          console.log('Flutter loaded but event did not fire - removing loading screen');
++          el.classList.add('done');
++          setTimeout(function() { el.remove(); }, 500);
++        } else {
++          console.error('Flutter failed to initialize after 15 seconds');
++        }
++      }
++    }, 15000);
+   </script>

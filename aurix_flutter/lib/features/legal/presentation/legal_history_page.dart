@@ -10,7 +10,7 @@ import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/features/legal/data/legal_document_model.dart';
 import 'package:aurix_flutter/features/legal/data/legal_repository.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
 
 final _myDocumentsProvider = FutureProvider<List<LegalDocumentModel>>((ref) async {
   final repo = ref.watch(legalRepositoryProvider);
@@ -34,7 +34,7 @@ class LegalHistoryPage extends ConsumerWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.arrow_back, color: AurixTokens.text),
-                onPressed: () => context.go('/legal'),
+                onPressed: () { if (context.canPop()) context.pop(); else context.go('/legal-tools'); },
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -62,7 +62,7 @@ class LegalHistoryPage extends ConsumerWidget {
           async.when(
             data: (docs) {
               if (docs.isEmpty) {
-                return _EmptyState(onBack: () => context.go('/legal'));
+                return _EmptyState(onBack: () => context.go('/legal-tools'));
               }
               return Column(
                 children: docs
@@ -75,9 +75,9 @@ class LegalHistoryPage extends ConsumerWidget {
             },
             loading: () => const Center(child: Padding(padding: EdgeInsets.all(48), child: CircularProgressIndicator(color: AurixTokens.orange))),
             error: (e, _) => _ErrorState(
-              message: formatSupabaseError(e),
+              message: formatApiError(e),
               onRetry: () => ref.invalidate(_myDocumentsProvider),
-              onBack: () => context.go('/legal'),
+              onBack: () { if (context.canPop()) context.pop(); else context.go('/legal-tools'); },
             ),
           ),
         ],
@@ -165,7 +165,7 @@ class _DocumentCard extends StatelessWidget {
     } catch (e) {
       debugPrint('[LegalHistory] signedUrl error: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${formatSupabaseError(e)}')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: ${formatApiError(e)}')));
       }
     }
   }

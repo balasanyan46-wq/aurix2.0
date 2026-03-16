@@ -274,12 +274,12 @@ class _StepParticipants extends StatelessWidget {
                     Expanded(child: Text(s.$1)),
                     Text('${s.$2}%', style: TextStyle(color: AurixTokens.orange, fontWeight: FontWeight.w600)),
                     const SizedBox(width: 8),
-                    Icon(Icons.check_circle, size: 18, color: Colors.green),
+                    Icon(Icons.check_circle, size: 18, color: AurixTokens.positive),
                   ],
                 ),
               )),
           const SizedBox(height: 12),
-          Text('Total: 100%', style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
+          Text('Total: 100%', style: TextStyle(color: AurixTokens.positive, fontWeight: FontWeight.w600)),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -326,7 +326,7 @@ class _StepReview extends StatelessWidget {
                 )),
             const SizedBox(height: 24),
           ],
-          Text('Обязательные поля: ${errors.isEmpty ? "OK" : "Исправьте выше"}', style: TextStyle(color: errors.isEmpty ? Colors.green : AurixTokens.muted, fontSize: 13)),
+          Text('Обязательные поля: ${errors.isEmpty ? "OK" : "Исправьте выше"}', style: TextStyle(color: errors.isEmpty ? AurixTokens.positive : AurixTokens.muted, fontSize: 13)),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

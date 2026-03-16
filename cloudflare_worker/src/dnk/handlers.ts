@@ -47,17 +47,73 @@ function toUiAnswerType(dbType: string): string {
   return DB_TO_UI[dbType] ?? dbType;
 }
 
-const corsHeaders: Record<string, string> = {
+const FOLLOWUP_TOPIC_BY_ID: Record<string, string> = {
+  f01_energy_context: "energy",
+  f02_structure_deadlines: "structure",
+  f03_tradeoff_unique_vs_mass: "novelty_commercial",
+  f04_lyrics_priority_check: "lyric_focus",
+  f05_conflict_reply_style: "conflict_style",
+  f06_attract_hint: "social_magnetism",
+  f07_repel_hint: "social_magnetism",
+};
+
+const DNK_MANDATORY_CORE_IDS = new Set([
+  "q01_energy_drive",
+  "q02_energy_stamina",
+  "q03_novelty_risk",
+  "q05_darkness_vector",
+  "q07_lyric_truth",
+  "q08_lyric_technique",
+  "q09_structure_planning",
+  "q11_publicness_attention",
+  "q13_conflict_direct",
+  "q15_commercial_instinct",
+  "q16_commercial_integrity",
+  "q17_fc_unique_vs_mass",
+  "q19_fc_plan_vs_flow",
+  "q21_sjt_hate_comment",
+  "q22_sjt_release_failed",
+  "q24_open_identity",
+  "q25_open_nonnegotiable",
+  "q26_sjt_hate_wave",
+  "q29_sjt_viral",
+  "q30_sjt_public_mistake",
+  "q32_fc_close_vs_strong",
+  "q35_fc_face_vs_music",
+  "q36_open_attract",
+  "q37_open_repel",
+]);
+
+function topicForQuestionId(id: string): string {
+  if (FOLLOWUP_TOPIC_BY_ID[id]) return FOLLOWUP_TOPIC_BY_ID[id];
+  if (id.startsWith("q26_") || id.startsWith("q27_") || id.startsWith("q28_") || id.startsWith("q29_") || id.startsWith("q30_") || id.startsWith("q31_")) return "social_magnetism";
+  if (id.startsWith("q32_") || id.startsWith("q33_") || id.startsWith("q34_") || id.startsWith("q35_") || id.startsWith("q36_") || id.startsWith("q37_")) return "social_magnetism";
+  if (id.startsWith("q01_") || id.startsWith("q02_")) return "energy";
+  if (id.startsWith("q03_") || id.startsWith("q04_") || id.startsWith("q17_")) return "novelty_commercial";
+  if (id.startsWith("q07_") || id.startsWith("q08_")) return "lyric_focus";
+  if (id.startsWith("q09_") || id.startsWith("q10_") || id.startsWith("q19_")) return "structure";
+  if (id.startsWith("q13_") || id.startsWith("q14_") || id.startsWith("q21_") || id.startsWith("q23_")) return "conflict_style";
+  return id;
+}
+
+import { buildCorsHeaders, corsOptionsResponse } from "../cors";
+
+// Module-level cached cors headers (set per-request via setCorsForRequest)
+let _corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-AURIX-INTERNAL-KEY",
   "Access-Control-Max-Age": "86400",
 };
 
+function setCorsForRequest(request: Request, env: DnkEnv): void {
+  _corsHeaders = buildCorsHeaders(request, env);
+}
+
 function json(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", ...corsHeaders },
+    headers: { "Content-Type": "application/json", ..._corsHeaders },
   });
 }
 
@@ -105,6 +161,7 @@ async function sbQuery(
 
 // ── POST /dnk/start ─────────────────────────────────────────
 export async function handleDnkStart(request: Request, env: DnkEnv): Promise<Response> {
+  setCorsForRequest(request, env);
   let body: any;
   try {
     body = await request.json();
@@ -126,7 +183,7 @@ export async function handleDnkStart(request: Request, env: DnkEnv): Promise<Res
 
     return json({
       session_id: sessionId,
-      questions: DNK_CORE_QUESTIONS,
+      questions: DNK_CORE_QUESTIONS.filter((q) => DNK_MANDATORY_CORE_IDS.has(q.id)),
     });
   } catch (e: any) {
     return json({ error: e.message ?? "Failed to create session" }, 500);
@@ -135,6 +192,7 @@ export async function handleDnkStart(request: Request, env: DnkEnv): Promise<Res
 
 // ── POST /dnk/answer ────────────────────────────────────────
 export async function handleDnkAnswer(request: Request, env: DnkEnv): Promise<Response> {
+  setCorsForRequest(request, env);
   const t0 = Date.now();
   let body: any;
   try {
@@ -176,8 +234,16 @@ export async function handleDnkAnswer(request: Request, env: DnkEnv): Promise<Re
       const isIdk = text.length < 4 || IDK_PATTERNS.some((p) => text.includes(p));
       if (isIdk) {
         const hintId = question_id === "q36_open_attract" ? "f06_attract_hint" : "f07_repel_hint";
+        const allAnswersForHint: any[] = await sbQuery(
+          env,
+          `dnk_answers?session_id=eq.${session_id}&select=question_id&order=created_at.asc`
+        );
+        const answeredIds = new Set(allAnswersForHint.map((a: any) => a.question_id));
+        const askedTopics = new Set([...answeredIds].map((id) => topicForQuestionId(id)));
         const hintQ = getFollowupById(hintId);
-        if (hintQ) followup = hintQ;
+        if (hintQ && !answeredIds.has(hintId) && !askedTopics.has(topicForQuestionId(hintId))) {
+          followup = hintQ;
+        }
       }
     }
 
@@ -195,6 +261,7 @@ export async function handleDnkAnswer(request: Request, env: DnkEnv): Promise<Re
       }
 
       const answeredIds = new Set(allAnswers.map((a: any) => a.question_id));
+      const askedTopics = new Set([...answeredIds].map((id) => topicForQuestionId(id)));
 
       for (const rule of currentQ.followup_rules) {
         let triggered = false;
@@ -206,7 +273,7 @@ export async function handleDnkAnswer(request: Request, env: DnkEnv): Promise<Re
 
         if (triggered) {
           for (const fid of rule.ask) {
-            if (!answeredIds.has(fid)) {
+            if (!answeredIds.has(fid) && !askedTopics.has(topicForQuestionId(fid))) {
               const fq = getFollowupById(fid);
               if (fq) { followup = fq; break; }
             }
@@ -230,6 +297,7 @@ export async function handleDnkFinish(
   env: DnkEnv,
   _ctx: ExecutionContext
 ): Promise<Response> {
+  setCorsForRequest(request, env);
   const t0 = Date.now();
   let body: any;
   try {
@@ -474,6 +542,107 @@ function postProcessProfile(p: any): any {
     s.replace(/\s{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   const cleanArr = (arr: any) =>
     Array.isArray(arr) ? arr.map((s: any) => clean(String(s))) : arr;
+  const STOP = new Set([
+    "и",
+    "но",
+    "или",
+    "а",
+    "в",
+    "во",
+    "на",
+    "по",
+    "с",
+    "со",
+    "к",
+    "ко",
+    "за",
+    "из",
+    "у",
+    "о",
+    "об",
+    "от",
+    "до",
+    "под",
+    "при",
+    "для",
+    "не",
+    "нет",
+    "это",
+    "ты",
+    "твой",
+    "твоя",
+    "тебя",
+    "когда",
+    "потому",
+    "что",
+    "люди",
+    "остаются",
+    "отваливаются",
+    "нельзя",
+    "иначе",
+  ]);
+  const stem = (w: string) =>
+    w
+      .replace(/(иями|ями|ами|ого|ему|ыми|ими|овой|евой|ов|ев|ам|ям|ах|ях|ом|ем|ый|ий|ой|ая|яя|ое|ее|ые|ие|ую|юю|а|я|ы|и|о|е|у|ю)$/u, "")
+      .trim();
+  const norm = (s: string) =>
+    clean(String(s))
+      .toLowerCase()
+      .replace(/^нельзя:\s*/i, "")
+      .replace(/[^\p{L}\p{N}\s]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const toTokenSet = (s: string): Set<string> => {
+    const t = norm(s)
+      .split(" ")
+      .map((x) => stem(x))
+      .filter((x) => x.length >= 3 && !STOP.has(x));
+    return new Set(t);
+  };
+  const jaccard = (a: Set<string>, b: Set<string>): number => {
+    if (a.size === 0 || b.size === 0) return 0;
+    let inter = 0;
+    for (const x of a) if (b.has(x)) inter++;
+    const union = a.size + b.size - inter;
+    return union > 0 ? inter / union : 0;
+  };
+  const nearDup = (a: string, b: string): boolean => {
+    const na = norm(a);
+    const nb = norm(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    if (na.includes(nb) || nb.includes(na)) return true;
+    const sa = toTokenSet(a);
+    const sb = toTokenSet(b);
+    return jaccard(sa, sb) >= 0.62;
+  };
+  const dedupe = (arr: string[], max = 8, against: string[] = []): string[] => {
+    const out: string[] = [];
+    const seen: string[] = [];
+    const black = against.filter(Boolean);
+    for (const raw of arr) {
+      const item = clean(raw);
+      if (!item || item === "—" || item === "-") continue;
+      if (black.some((b) => nearDup(item, b))) continue;
+      if (seen.some((s) => nearDup(item, s))) continue;
+      seen.push(item);
+      out.push(item);
+      if (out.length >= max) break;
+    }
+    return out;
+  };
+  const diffByNorm = (arr: string[], blacklist: string[]): string[] => {
+    return arr.filter((x) => !blacklist.some((b) => nearDup(x, b)));
+  };
+  const appendUnique = (base: string[], extras: string[], max: number): string[] => {
+    const out = [...base];
+    for (const e of extras) {
+      if (!e || out.length >= max) break;
+      if (out.some((x) => nearDup(x, e))) continue;
+      out.push(e);
+    }
+    return out.slice(0, max);
+  };
 
   if (p.passport_hero) {
     const h = p.passport_hero;
@@ -484,6 +653,11 @@ function postProcessProfile(p: any): any {
     h.repulsion = cleanArr(h.repulsion);
     h.taboo = cleanArr(h.taboo);
     h.next_7_days = cleanArr(h.next_7_days);
+
+    h.magnet = dedupe(Array.isArray(h.magnet) ? h.magnet : [], 5);
+    h.repulsion = dedupe(Array.isArray(h.repulsion) ? h.repulsion : [], 5, h.magnet);
+    h.taboo = dedupe(Array.isArray(h.taboo) ? h.taboo : [], 7, [...h.magnet, ...h.repulsion]);
+    h.next_7_days = dedupe(Array.isArray(h.next_7_days) ? h.next_7_days : [], 5, [...h.magnet, ...h.repulsion, ...h.taboo]);
 
     if (Array.isArray(h.taboo)) {
       h.taboo = h.taboo.map((t: string) =>
@@ -503,6 +677,60 @@ function postProcessProfile(p: any): any {
       ss.taboos = ss.taboos.map((t: string) =>
         t.startsWith("Нельзя:") ? t : `Нельзя: ${t}`
       );
+    }
+
+    ss.magnets = dedupe(Array.isArray(ss.magnets) ? ss.magnets : [], 5);
+    ss.repellers = dedupe(Array.isArray(ss.repellers) ? ss.repellers : [], 5, ss.magnets);
+    ss.taboos = dedupe(Array.isArray(ss.taboos) ? ss.taboos : [], 7, [...ss.magnets, ...ss.repellers]);
+
+    if (p.passport_hero) {
+      ss.magnets = diffByNorm(ss.magnets, p.passport_hero.magnet ?? []);
+      ss.repellers = diffByNorm(ss.repellers, p.passport_hero.repulsion ?? []);
+      ss.taboos = diffByNorm(ss.taboos, p.passport_hero.taboo ?? []);
+      const heroText = [
+        p.passport_hero.hook ?? "",
+        p.passport_hero.how_people_feel_you ?? "",
+        p.passport_hero.shadow ?? "",
+      ];
+      if (heroText.some((h: string) => nearDup(ss.people_come_for ?? "", h))) {
+        ss.people_come_for = "";
+      }
+      if (heroText.some((h: string) => nearDup(ss.people_leave_when ?? "", h))) {
+        ss.people_leave_when = "";
+      }
+    }
+
+    ss.magnets = appendUnique(ss.magnets, [
+      "Люди остаются, когда рядом с тобой есть ясный вектор, а не хаос.",
+      "Люди остаются, когда ты держишь контакт без лишней драмы.",
+      "Люди остаются, когда ты совпадаешь словами и действиями.",
+    ], 5);
+    ss.repellers = appendUnique(ss.repellers, [
+      "Люди отваливаются, когда ты резко закрываешься и не объясняешь причину.",
+      "Люди отваливаются, когда тон становится слишком жёстким без контекста.",
+      "Люди отваливаются, когда обещания не подкрепляются ритмом действий.",
+    ], 5);
+    ss.taboos = appendUnique(ss.taboos, [
+      "Нельзя: пропадать после сильного прогрева — иначе теряешь доверие к ритму.",
+      "Нельзя: отвечать на конфликт эмоцией в лоб — иначе теряешь позицию.",
+      "Нельзя: менять публичный вектор каждую неделю — иначе теряешь узнаваемость.",
+      "Нельзя: обещать больше, чем готов сделать — иначе теряешь вес слова.",
+      "Нельзя: копировать чужую манеру общения — иначе теряешь свой голос.",
+    ], 7);
+    ss.taboos = dedupe(ss.taboos, 7, p.passport_hero ? (p.passport_hero.taboo ?? []) : []);
+
+    if (!norm(ss.people_come_for ?? "")) {
+      ss.people_come_for = "К тебе приходят за ясным вектором и ощущением внутреннего стержня.";
+    }
+    if (!norm(ss.people_leave_when ?? "")) {
+      ss.people_leave_when = "Уходят, когда вместо ритма и контакта начинается резкая дистанция.";
+    }
+
+    if (ss.scripts) {
+      ss.scripts.hate_reply = dedupe(Array.isArray(ss.scripts.hate_reply) ? ss.scripts.hate_reply : [], 3);
+      ss.scripts.interview_style = dedupe(Array.isArray(ss.scripts.interview_style) ? ss.scripts.interview_style : [], 2);
+      ss.scripts.conflict_style = dedupe(Array.isArray(ss.scripts.conflict_style) ? ss.scripts.conflict_style : [], 2);
+      ss.scripts.teamwork_rule = dedupe(Array.isArray(ss.scripts.teamwork_rule) ? ss.scripts.teamwork_rule : [], 2);
     }
   }
 
@@ -551,6 +779,7 @@ function buildFallbackProfile(): any {
 
 // ── GET /dnk/result — poll by result_id (or session_id fallback) ────────────
 export async function handleDnkGetResult(request: Request, env: DnkEnv): Promise<Response> {
+  setCorsForRequest(request, env);
   const t0 = Date.now();
   const url = new URL(request.url);
   const resultId = url.searchParams.get("result_id");
@@ -623,6 +852,7 @@ export async function handleDnkGetResult(request: Request, env: DnkEnv): Promise
   }
 }
 
-export function handleDnkOptions(): Response {
-  return new Response(null, { status: 204, headers: corsHeaders });
+export function handleDnkOptions(request?: Request, env?: DnkEnv): Response {
+  const headers = request && env ? buildCorsHeaders(request, env) : _corsHeaders;
+  return new Response(null, { status: 204, headers });
 }

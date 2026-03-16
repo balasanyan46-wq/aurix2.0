@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/features/production/data/production_models.dart';
 
 class ServiceOrderFormModal extends ConsumerStatefulWidget {
   final String serviceName;
@@ -33,21 +35,52 @@ class _ServiceOrderFormModalState extends ConsumerState<ServiceOrderFormModal> {
     }
     setState(() { _loading = true; _error = null; });
     try {
-      await ref.read(supportTicketRepositoryProvider).createTicket(
+      final production = ref.read(productionServiceProvider);
+      final catalog = await production.getCatalog();
+      final matched = _matchService(catalog, widget.serviceName);
+      if (matched == null) {
+        setState(() {
+          _loading = false;
+          _error = 'Эта услуга пока не подключена в Продакшн. Обратитесь к администратору для настройки каталога услуг.';
+        });
+        return;
+      }
+
+      await production.createOrder(
         userId: user.id,
-        subject: 'Заявка на услугу: ${widget.serviceName}',
-        message: _descController.text.trim().isNotEmpty
-            ? _descController.text.trim()
-            : 'Хочу заказать услугу "${widget.serviceName}".',
-        priority: 'medium',
+        title: 'Заказ услуги: ${matched.title}',
+        serviceIds: [matched.id],
       );
       setState(() { _submitted = true; _loading = false; });
-      Future.delayed(const Duration(milliseconds: 1200), () {
-        if (mounted) Navigator.pop(context);
-      });
     } catch (e) {
       setState(() { _error = 'Ошибка: $e'; _loading = false; });
     }
+  }
+
+  ProductionServiceCatalog? _matchService(
+    List<ProductionServiceCatalog> catalog,
+    String serviceName,
+  ) {
+    if (catalog.isEmpty) return null;
+    final target = _norm(serviceName);
+
+    for (final s in catalog) {
+      if (_norm(s.title) == target) return s;
+    }
+    for (final s in catalog) {
+      final t = _norm(s.title);
+      if (t.contains(target) || target.contains(t)) return s;
+    }
+    return null;
+  }
+
+  String _norm(String v) {
+    final lower = v.toLowerCase().trim();
+    return lower
+        .replaceAll('ё', 'е')
+        .replaceAll(RegExp(r'[^a-zа-я0-9]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   @override
@@ -61,11 +94,39 @@ class _ServiceOrderFormModalState extends ConsumerState<ServiceOrderFormModal> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 64),
+              const Icon(Icons.check_circle, color: AurixTokens.positive, size: 64),
               const SizedBox(height: 20),
-              Text('Заявка отправлена!', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: AurixTokens.text)),
+              Text('Услуга добавлена в Продакшн', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: AurixTokens.text)),
               const SizedBox(height: 8),
-              Text('Мы свяжемся с вами в ближайшее время.', style: TextStyle(color: AurixTokens.muted, fontSize: 14)),
+              Text(
+                'Проверяйте статус в разделе «Продакшн». Там будут этапы, дедлайны, файлы и комментарии.',
+                style: TextStyle(color: AurixTokens.muted, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                alignment: WrapAlignment.center,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      if (mounted) context.push('/production');
+                    },
+                    icon: const Icon(Icons.factory_outlined, size: 18),
+                    label: const Text('Открыть Продакшн'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AurixTokens.accent,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Закрыть'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -85,12 +146,12 @@ class _ServiceOrderFormModalState extends ConsumerState<ServiceOrderFormModal> {
             children: [
               Text('Заказать: ${widget.serviceName}', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: AurixTokens.text)),
               const SizedBox(height: 8),
-              Text('Заявка будет отправлена в поддержку.', style: TextStyle(color: AurixTokens.muted, fontSize: 13)),
+              Text('После заказа услуга появится в разделе «Продакшн».', style: TextStyle(color: AurixTokens.muted, fontSize: 13)),
               const SizedBox(height: 20),
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(_error!, style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                  child: Text(_error!, style: TextStyle(color: AurixTokens.danger, fontSize: 13)),
                 ),
               TextField(
                 controller: _descController,
@@ -110,7 +171,7 @@ class _ServiceOrderFormModalState extends ConsumerState<ServiceOrderFormModal> {
                 icon: _loading
                     ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
                     : const Icon(Icons.send_rounded, size: 18),
-                label: const Text('Отправить заявку'),
+                label: const Text('Заказать услугу'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AurixTokens.orange,
                   foregroundColor: Colors.black,

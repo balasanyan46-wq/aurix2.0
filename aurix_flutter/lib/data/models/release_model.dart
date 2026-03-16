@@ -38,24 +38,29 @@ class ReleaseModel {
   });
 
   factory ReleaseModel.fromJson(Map<String, dynamic> json) {
+    DateTime? _parseDate(dynamic v) {
+      if (v == null) return null;
+      return DateTime.tryParse(v.toString());
+    }
+
     return ReleaseModel(
-      id: json['id'] as String,
-      ownerId: json['owner_id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String?,
-      releaseType: json['release_type'] as String,
-      releaseDate: json['release_date'] != null ? DateTime.parse(json['release_date'] as String) : null,
-      genre: json['genre'] as String?,
-      language: json['language'] as String?,
+      id: json['id'].toString(),
+      ownerId: (json['owner_id'] ?? json['artist_id'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      artist: json['artist']?.toString(),
+      releaseType: (json['release_type'] ?? 'single').toString(),
+      releaseDate: _parseDate(json['release_date']),
+      genre: json['genre']?.toString(),
+      language: json['language']?.toString(),
       explicit: json['explicit'] as bool? ?? false,
-      upc: json['upc'] as String?,
-      label: json['label'] as String?,
+      upc: json['upc']?.toString(),
+      label: json['label']?.toString(),
       copyrightYear: json['copyright_year'] as int?,
-      status: json['status'] as String? ?? 'draft',
-      coverUrl: json['cover_url'] as String?,
-      coverPath: json['cover_path'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      status: (json['status'] ?? 'draft').toString(),
+      coverUrl: json['cover_url']?.toString(),
+      coverPath: json['cover_path']?.toString(),
+      createdAt: _parseDate(json['created_at']) ?? DateTime.now(),
+      updatedAt: _parseDate(json['updated_at'] ?? json['created_at']) ?? DateTime.now(),
     );
   }
 

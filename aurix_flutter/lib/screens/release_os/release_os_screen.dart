@@ -205,9 +205,9 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (status) {
-      ReleaseStatus.live => Colors.green,
-      ReleaseStatus.inReview => AurixTokens.orange,
-      ReleaseStatus.rejected => Colors.red,
+      ReleaseStatus.live => AurixTokens.positive,
+      ReleaseStatus.inReview => AurixTokens.warning,
+      ReleaseStatus.rejected => AurixTokens.danger,
       _ => AurixTokens.muted,
     };
     return Container(

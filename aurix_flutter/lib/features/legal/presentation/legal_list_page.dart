@@ -73,7 +73,7 @@ class _LegalListPageState extends ConsumerState<LegalListPage> {
               AurixButton(
                 text: 'История',
                 icon: Icons.history_rounded,
-                onPressed: () => context.go('/legal/history'),
+                onPressed: () => context.go('/legal-tools/history'),
               ),
             ],
           ),
@@ -122,7 +122,7 @@ class _LegalListPageState extends ConsumerState<LegalListPage> {
                             child: LegalTemplateCard(
                               template: t,
                               compact: true,
-                              onOpen: () => context.push('/legal/${t.id}'),
+                              onOpen: () => context.push('/legal-tools/${t.id}'),
                             ),
                           ))
                       .toList(),
@@ -147,7 +147,7 @@ class _LegalListPageState extends ConsumerState<LegalListPage> {
                       final t = templates[index];
                       return LegalTemplateCard(
                         template: t,
-                        onOpen: () => context.push('/legal/${t.id}'),
+                        onOpen: () => context.push('/legal-tools/${t.id}'),
                       );
                     },
                   );

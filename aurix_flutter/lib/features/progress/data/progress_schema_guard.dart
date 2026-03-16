@@ -1,5 +1,3 @@
-import 'package:postgrest/postgrest.dart';
-
 class ProgressSchemaMissingException implements Exception {
   final String table;
   const ProgressSchemaMissingException(this.table);
@@ -9,9 +7,8 @@ class ProgressSchemaMissingException implements Exception {
 }
 
 bool isMissingTableError(Object e, {required String table}) {
-  if (e is! PostgrestException) return false;
-  if (e.code != 'PGRST205') return false;
-  final msg = (e.message).toLowerCase();
-  return msg.contains(table.toLowerCase());
+  final msg = e.toString().toLowerCase();
+  return msg.contains(table.toLowerCase()) &&
+      (msg.contains('404') || msg.contains('not found') || msg.contains('missing'));
 }
 

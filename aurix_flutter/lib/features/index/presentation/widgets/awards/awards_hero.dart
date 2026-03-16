@@ -24,12 +24,13 @@ class AwardsHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 640;
     final artist = leader != null ? lookup.artistFor(leader!.nomineeId) : null;
     final score = leader != null ? lookup.scoreFor(leader!.nomineeId) : null;
     final votes = leader?.votes ?? 0;
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isMobile ? 16 : 28),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
@@ -52,57 +53,168 @@ class AwardsHero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'AURIX AWARDS $seasonYear',
-                      style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
-                            color: AurixTokens.text,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Главная премия независимой сцены. Номинанты на основе Aurix Рейтинг.',
-                      style: TextStyle(
-                        color: AurixTokens.muted,
-                        fontSize: 15,
-                        height: 1.4,
+          if (isMobile) ...[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AURIX AWARDS $seasonYear',
+                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: AurixTokens.text,
                       ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Главная премия независимой сцены. Номинанты на основе Aurix Рейтинг.',
+                  style: TextStyle(
+                    color: AurixTokens.muted,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _KpiChip(icon: Icons.people_rounded, text: 'Участников: ${formatNumber(participants)}'),
+                    _KpiChip(icon: Icons.how_to_vote_rounded, text: 'Голосов: ${formatNumber(votesTotal)}'),
+                    _KpiChip(icon: Icons.update_rounded, text: 'Обновлено: ${_formatTime(updatedAt)}'),
+                  ],
+                ),
+              ],
+            ),
+          ] else ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AURIX AWARDS $seasonYear',
+                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.5,
+                              color: AurixTokens.text,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Главная премия независимой сцены. Номинанты на основе Aurix Рейтинг.',
+                        style: TextStyle(
+                          color: AurixTokens.muted,
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
+                    _KpiChip(icon: Icons.people_rounded, text: 'Участников: ${formatNumber(participants)}'),
+                    _KpiChip(icon: Icons.how_to_vote_rounded, text: 'Голосов: ${formatNumber(votesTotal)}'),
+                    _KpiChip(
+                      icon: Icons.update_rounded,
+                      text: 'Обновлено: ${_formatTime(updatedAt)}',
                     ),
                   ],
                 ),
-              ),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  _KpiChip(icon: Icons.people_rounded, text: 'Участников: ${formatNumber(participants)}'),
-                  _KpiChip(icon: Icons.how_to_vote_rounded, text: 'Голосов: ${formatNumber(votesTotal)}'),
-                  _KpiChip(
-                    icon: Icons.update_rounded,
-                    text: 'Обновлено: ${_formatTime(updatedAt)}',
-                  ),
-                ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
           if (leader != null && artist != null) ...[
-            const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 16 : 32),
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(isMobile ? 14 : 24),
               decoration: BoxDecoration(
                 color: AurixTokens.glass(0.08),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AurixTokens.orange.withValues(alpha: 0.2), width: 1),
               ),
-              child: Row(
+              child: isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: AurixTokens.orange.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: artist.avatarUrl != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(14),
+                                      child: Image.network(artist.avatarUrl!, fit: BoxFit.cover),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        artist.name.trim().isNotEmpty
+                                            ? artist.name.trim().substring(0, 1).toUpperCase()
+                                            : '?',
+                                        style: TextStyle(color: AurixTokens.orange, fontSize: 22, fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Лидер сезона', style: TextStyle(color: AurixTokens.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '#1 ${artist.name}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: AurixTokens.text, fontSize: 18, fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 6,
+                          children: [
+                            Text('Index: ${score?.score ?? leader?.scoreProof ?? 0}', style: TextStyle(color: AurixTokens.orange, fontSize: 14, fontWeight: FontWeight.w600)),
+                            Text('Votes: $votes', style: TextStyle(color: AurixTokens.muted, fontSize: 14)),
+                            if (score != null && score.trendDelta != 0)
+                              Text(
+                                '${score.trendDelta > 0 ? '+' : ''}${score.trendDelta}',
+                                style: TextStyle(color: score.trendDelta > 0 ? Colors.green : AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w600),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => context.push('/index/artist/${leader!.nomineeId}'),
+                            icon: const Icon(Icons.person_rounded, size: 18),
+                            label: const Text('Посмотреть профиль'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AurixTokens.orange,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
                 children: [
                   Container(
                     width: 64,

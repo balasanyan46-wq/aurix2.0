@@ -1,12 +1,14 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'dart:io' if (dart.library.html) 'package:aurix_flutter/io_stub.dart' show File;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/config/responsive.dart';
@@ -97,10 +99,11 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
   }
 
   Future<void> _pickCover() async {
-    if (_isPicking) return;
-    _isPicking = true;
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
+      final result = await _pickFilesSafe(
+        type: FileType.image,
+        allowMultiple: false,
+      );
       if (result == null) return;
       final f = result.files.single;
       if (f.size > 10 * 1024 * 1024) {
@@ -110,17 +113,16 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
       final bytes = await _getFileBytes(f);
       if (bytes != null && mounted) setState(() { _coverFile = f; _coverBytes = bytes; });
     } catch (e) {
-      if (mounted) _snack('Ошибка: $e');
-    } finally {
-      _isPicking = false;
+      if (mounted) _snack('Ошибка выбора обложки: $e');
     }
   }
 
   Future<void> _pickTracks() async {
-    if (_isPicking) return;
-    _isPicking = true;
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.audio, allowMultiple: true, withData: true);
+      final result = await _pickFilesSafe(
+        type: FileType.audio,
+        allowMultiple: true,
+      );
       if (result == null) return;
       if (mounted) {
         setState(() {
@@ -131,9 +133,42 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
         });
       }
     } catch (e) {
-      if (mounted) _snack('Ошибка: $e');
+      if (mounted) _snack('Ошибка выбора треков: $e');
+    }
+  }
+
+  Future<FilePickerResult?> _pickFilesSafe({
+    required FileType type,
+    required bool allowMultiple,
+  }) async {
+    if (_isPicking) {
+      _snack('Окно выбора файлов уже открыто');
+      return null;
+    }
+    setState(() => _isPicking = true);
+    try {
+      return await FilePicker.platform
+          .pickFiles(
+            type: type,
+            allowMultiple: allowMultiple,
+            withData: true,
+          )
+          .timeout(
+            const Duration(seconds: 25),
+            onTimeout: () => throw TimeoutException('Диалог выбора не открылся'),
+          );
+    } on PlatformException catch (e) {
+      if (e.code == 'multiple_request') {
+        _snack('Подожди пару секунд и попробуй снова');
+        return null;
+      }
+      rethrow;
     } finally {
-      _isPicking = false;
+      if (mounted) {
+        setState(() => _isPicking = false);
+      } else {
+        _isPicking = false;
+      }
     }
   }
 
@@ -185,7 +220,6 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
         explicit: _explicit,
         upc: _upcCtrl.text.trim().isEmpty ? null : _upcCtrl.text.trim(),
         label: _labelCtrl.text.trim().isEmpty ? null : _labelCtrl.text.trim(),
-        copyrightYear: DateTime.now().year,
       );
 
       if (_coverFile != null) {
@@ -207,6 +241,7 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
         await trackRepo.addTrack(
           id: trackId,
           releaseId: release.id,
+          userId: userId,
           audioPath: r.path,
           audioUrl: r.publicUrl,
           title: entry.titleCtrl.text.trim().isEmpty ? entry.file.name : entry.titleCtrl.text.trim(),
@@ -221,10 +256,10 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Релиз создан'), backgroundColor: AurixTokens.positive),
         );
-        context.go('/releases/${release.id}');
+        context.pushReplacement('/releases/${release.id}');
       }
     } catch (e, st) {
-      final detail = formatSupabaseError(e);
+      final detail = formatApiError(e);
       debugPrint('Ошибка создания: $detail\n$st');
       setState(() {
         _error = detail.length > 120 ? '${detail.substring(0, 117)}...' : detail;
@@ -319,57 +354,53 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
                     icon: Icons.tune_rounded,
                     child: Column(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(child: _field('Язык', _languageCtrl, hint: 'Русский, English...')),
-                            const SizedBox(width: 12),
-                            Expanded(child: _field('Лейбл', _labelCtrl, hint: 'Самовыпуск')),
-                          ],
+                        _responsiveTwoFields(
+                          _field('Язык', _languageCtrl, hint: 'Русский, English...'),
+                          _field('Лейбл', _labelCtrl, hint: 'Самовыпуск'),
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(child: _field('UPC / EAN', _upcCtrl, hint: 'Штрихкод (необязательно)')),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: InkWell(
-                                onTap: () async {
-                                  final d = await showDatePicker(
-                                    context: context,
-                                    initialDate: _releaseDate ?? DateTime.now(),
-                                    firstDate: DateTime(1900),
-                                    lastDate: DateTime(2100),
-                                    builder: (ctx, child) => Theme(
-                                      data: Theme.of(ctx).copyWith(
-                                        colorScheme: ColorScheme.dark(primary: AurixTokens.orange, surface: AurixTokens.bg1),
-                                      ),
-                                      child: child!,
-                                    ),
-                                  );
-                                  if (d != null) setState(() => _releaseDate = d);
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                  decoration: BoxDecoration(
-                                    color: AurixTokens.bg2,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AurixTokens.border),
+                        _responsiveTwoFields(
+                          _field('UPC / EAN', _upcCtrl, hint: 'Штрихкод (необязательно)'),
+                          InkWell(
+                            onTap: () async {
+                              final d = await showDatePicker(
+                                context: context,
+                                initialDate: _releaseDate ?? DateTime.now(),
+                                firstDate: DateTime(1900),
+                                lastDate: DateTime(2100),
+                                builder: (ctx, child) => Theme(
+                                  data: Theme.of(ctx).copyWith(
+                                    colorScheme: ColorScheme.dark(primary: AurixTokens.orange, surface: AurixTokens.bg1),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.calendar_today_rounded, size: 18, color: AurixTokens.muted),
-                                      const SizedBox(width: 10),
-                                      Text(
-                                        _releaseDate != null ? DateFormat('dd.MM.yyyy').format(_releaseDate!) : 'Дата выхода',
-                                        style: TextStyle(color: _releaseDate != null ? AurixTokens.text : AurixTokens.muted, fontSize: 14),
-                                      ),
-                                    ],
-                                  ),
+                                  child: child!,
                                 ),
+                              );
+                              if (d != null) setState(() => _releaseDate = d);
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              decoration: BoxDecoration(
+                                color: AurixTokens.bg2,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AurixTokens.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.calendar_today_rounded, size: 18, color: AurixTokens.muted),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      _releaseDate != null ? DateFormat('dd.MM.yyyy').format(_releaseDate!) : 'Дата выхода',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(color: _releaseDate != null ? AurixTokens.text : AurixTokens.muted, fontSize: 14),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
                         const SizedBox(height: 12),
                         _buildExplicitToggle(),
@@ -461,27 +492,45 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
         const SizedBox(height: 12),
         _field('Артист *', _artistCtrl, validator: (v) => (v == null || v.trim().isEmpty) ? 'Введите имя артиста' : null),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: _releaseType,
-                dropdownColor: AurixTokens.bg2,
-                style: const TextStyle(color: AurixTokens.text, fontSize: 14),
-                decoration: _inputDecoration('Тип релиза'),
-                items: const [
-                  DropdownMenuItem(value: 'single', child: Text('Сингл')),
-                  DropdownMenuItem(value: 'ep', child: Text('EP')),
-                  DropdownMenuItem(value: 'album', child: Text('Альбом')),
-                ],
-                onChanged: (v) => setState(() => _releaseType = v ?? 'single'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: _field('Жанр', _genreCtrl, hint: 'Pop, Rap, R&B...')),
-          ],
+        _responsiveTwoFields(
+          DropdownButtonFormField<String>(
+            value: _releaseType,
+            dropdownColor: AurixTokens.bg2,
+            style: const TextStyle(color: AurixTokens.text, fontSize: 14),
+            decoration: _inputDecoration('Тип релиза'),
+            items: const [
+              DropdownMenuItem(value: 'single', child: Text('Сингл')),
+              DropdownMenuItem(value: 'ep', child: Text('EP')),
+              DropdownMenuItem(value: 'album', child: Text('Альбом')),
+            ],
+            onChanged: (v) => setState(() => _releaseType = v ?? 'single'),
+          ),
+          _field('Жанр', _genreCtrl, hint: 'Pop, Rap, R&B...'),
         ),
       ],
+    );
+  }
+
+  Widget _responsiveTwoFields(Widget left, Widget right) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth < 520) {
+          return Column(
+            children: [
+              left,
+              const SizedBox(height: 12),
+              right,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 12),
+            Expanded(child: right),
+          ],
+        );
+      },
     );
   }
 
@@ -580,7 +629,7 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AurixTokens.border)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AurixTokens.border)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AurixTokens.orange.withValues(alpha: 0.5))),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.redAccent.withValues(alpha: 0.5))),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AurixTokens.danger.withValues(alpha: 0.5))),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       );
 }
@@ -715,15 +764,15 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.08),
+        color: AurixTokens.danger.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+        border: Border.all(color: AurixTokens.danger.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 20),
+          Icon(Icons.error_outline_rounded, color: AurixTokens.danger, size: 20),
           const SizedBox(width: 12),
-          Expanded(child: Text(message, style: const TextStyle(color: Colors.redAccent, fontSize: 13))),
+          Expanded(child: Text(message, style: const TextStyle(color: AurixTokens.danger, fontSize: 13))),
         ],
       ),
     );
@@ -798,7 +847,7 @@ class _TrackCard extends StatelessWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close_rounded, size: 18, color: Colors.redAccent),
+                icon: const Icon(Icons.close_rounded, size: 18, color: AurixTokens.danger),
                 onPressed: onRemove,
                 visualDensity: VisualDensity.compact,
                 tooltip: 'Удалить трек',

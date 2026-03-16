@@ -10,8 +10,9 @@ import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/design/widgets/premium_ui.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
+import 'package:aurix_flutter/core/api/api_error.dart';
 
 /// Aurix Studio AI — чистый чат. mode="studio", page="studio", context={}.
 class StudioAiScreen extends ConsumerStatefulWidget {
@@ -71,7 +72,7 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
         _persistWarning = 'Нужно применить миграцию для сохранения чата.';
       });
     } catch (e) {
-      debugPrint('[StudioAi] load history error: ${formatSupabaseError(e)}');
+      debugPrint('[StudioAi] load history error: ${formatApiError(e)}');
     }
   }
 
@@ -176,13 +177,13 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
               child: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 0.10),
+                  color: AurixTokens.warning.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
+                  border: Border.all(color: AurixTokens.warning.withValues(alpha: 0.25)),
                 ),
                 child: Text(
                   _persistWarning!,
-                  style: TextStyle(color: Colors.amber.shade200, fontSize: 12, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: AurixTokens.warning, fontSize: 12, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
@@ -276,8 +277,15 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AurixTokens.bg1,
-              border: Border(top: BorderSide(color: AurixTokens.stroke())),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AurixTokens.bg1.withValues(alpha: 0.94),
+                  AurixTokens.bg0.withValues(alpha: 0.95),
+                ],
+              ),
+              border: Border(top: BorderSide(color: AurixTokens.stroke(0.2))),
             ),
             child: SafeArea(
               child: Row(
@@ -311,11 +319,24 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: AurixTokens.orange.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AurixTokens.orange.withValues(alpha: 0.5)),
+                          gradient: LinearGradient(
+                            colors: [
+                              AurixTokens.accentWarm.withValues(alpha: 0.28),
+                              AurixTokens.accent.withValues(alpha: 0.24),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.48)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AurixTokens.accentGlow.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              spreadRadius: -10,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        child: Icon(Icons.send_rounded, color: AurixTokens.orange, size: 22),
+                        child: Icon(Icons.send_rounded, color: AurixTokens.accentWarm, size: 22),
                       ),
                     ),
                   ),
@@ -337,27 +358,12 @@ class _CommandChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: loading ? null : onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: AurixTokens.glass(0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AurixTokens.stroke(0.15)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.auto_awesome, size: 16, color: AurixTokens.orange),
-              const SizedBox(width: 6),
-              Text(label, style: TextStyle(color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: PremiumChip(
+        label: label,
+        icon: Icons.auto_awesome_rounded,
+        selected: !loading,
       ),
     );
   }
@@ -389,10 +395,24 @@ class _ChatBubble extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: isUser ? AurixTokens.orange.withValues(alpha: 0.2) : AurixTokens.glass(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isUser
+                        ? [
+                            AurixTokens.accent.withValues(alpha: 0.2),
+                            AurixTokens.accentWarm.withValues(alpha: 0.14),
+                          ]
+                        : [
+                            AurixTokens.bg2.withValues(alpha: 0.74),
+                            AurixTokens.bg1.withValues(alpha: 0.8),
+                          ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isUser ? AurixTokens.orange.withValues(alpha: 0.4) : AurixTokens.stroke(0.1),
+                    color: isUser
+                        ? AurixTokens.accent.withValues(alpha: 0.45)
+                        : AurixTokens.stroke(0.2),
                   ),
                 ),
                 child: SelectableText(

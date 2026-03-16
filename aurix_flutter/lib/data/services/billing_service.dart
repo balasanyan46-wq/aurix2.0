@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:aurix_flutter/core/supabase_client.dart';
+import 'package:aurix_flutter/core/api/token_store.dart';
 import 'package:aurix_flutter/config/app_config.dart';
 
 class BillingService {
@@ -10,10 +10,10 @@ class BillingService {
     required String billingPeriod,
   }) async {
     try {
-      final token = supabase.auth.currentSession?.accessToken;
+      final token = TokenStore.cachedToken ?? await TokenStore.read();
       if (token == null) return (ok: false, url: null, error: 'Not authenticated');
 
-      final url = Uri.parse('${AppConfig.supabaseUrl}/functions/v1/billing-create-checkout-session');
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/tools/billing-create-checkout-session');
       final res = await http.post(
         url,
         headers: {
@@ -40,10 +40,10 @@ class BillingService {
     String billingPeriod = 'monthly',
   }) async {
     try {
-      final token = supabase.auth.currentSession?.accessToken;
+      final token = TokenStore.cachedToken ?? await TokenStore.read();
       if (token == null) return (ok: false, error: 'Not authenticated');
 
-      final url = Uri.parse('${AppConfig.supabaseUrl}/functions/v1/admin-subscriptions-assign');
+      final url = Uri.parse('${AppConfig.apiBaseUrl}/tools/admin-subscriptions-assign');
       final res = await http.post(
         url,
         headers: {

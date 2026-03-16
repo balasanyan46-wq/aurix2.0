@@ -43,11 +43,6 @@ class _RevealOnScrollState extends State<RevealOnScroll> with SingleTickerProvid
     _slide = Tween<Offset>(begin: Offset(0, widget.offsetY / 100), end: Offset.zero).animate(
       CurvedAnimation(parent: _c, curve: widget.curve),
     );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
     widget.scrollListenable?.addListener(_check);
     WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
@@ -57,7 +52,7 @@ class _RevealOnScrollState extends State<RevealOnScroll> with SingleTickerProvid
     super.didUpdateWidget(oldWidget);
     if (oldWidget.scrollListenable != widget.scrollListenable) {
       oldWidget.scrollListenable?.removeListener(_check);
-      widget.scrollListenable?.addListener(_check);
+      if (!_shown) widget.scrollListenable?.addListener(_check);
     }
   }
 
@@ -75,6 +70,7 @@ class _RevealOnScrollState extends State<RevealOnScroll> with SingleTickerProvid
     if (!isVisible) return;
 
     _shown = true;
+    widget.scrollListenable?.removeListener(_check);
     if (widget.delay == Duration.zero) {
       _c.forward();
     } else {

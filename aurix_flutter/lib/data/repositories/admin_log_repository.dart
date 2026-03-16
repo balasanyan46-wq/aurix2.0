@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/data/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/models/admin_log_model.dart';
 
 class AdminLogRepository {
@@ -9,13 +9,24 @@ class AdminLogRepository {
     String? targetId,
     Map<String, dynamic> details = const {},
   }) async {
-    await supabase.from('admin_logs').insert({
-      'admin_id': adminId,
-      'action': action,
-      'target_type': targetType,
-      'target_id': targetId,
-      'details': details,
-    });
+    try {
+      await ApiClient.post('/rpc/admin_log_event', data: {
+        'p_action': action,
+        'p_target_type': targetType,
+        'p_target_id': targetId,
+        'p_details': details,
+      });
+      return;
+    } catch (_) {
+      // Backward compatibility for environments without RPC.
+      await ApiClient.post('/admin-logs', data: {
+        'admin_id': adminId,
+        'action': action,
+        'target_type': targetType,
+        'target_id': targetId,
+        'details': details,
+      });
+    }
   }
 
   Future<List<AdminLogModel>> getLogs({
@@ -23,29 +34,27 @@ class AdminLogRepository {
     int offset = 0,
     String? actionFilter,
   }) async {
-    var query = supabase
-        .from('admin_logs')
-        .select()
-        .order('created_at', ascending: false)
-        .range(offset, offset + limit - 1);
-
+    final query = <String, dynamic>{
+      'order': 'created_at.desc',
+      'limit': '$limit',
+      'offset': '$offset',
+    };
     if (actionFilter != null && actionFilter.isNotEmpty) {
-      query = supabase
-          .from('admin_logs')
-          .select()
-          .eq('action', actionFilter)
-          .order('created_at', ascending: false)
-          .range(offset, offset + limit - 1);
+      query['action'] = actionFilter;
     }
 
-    final res = await query;
-    return (res as List)
+    final res = await ApiClient.get('/admin-logs', query: query);
+    final list = res.data as List;
+    return list
         .map((e) => AdminLogModel.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<int> getCount() async {
-    final res = await supabase.from('admin_logs').select('id').count();
-    return res.count;
+    final res = await ApiClient.get('/admin-logs/count');
+    final body = res.data;
+    if (body is Map) return (body['count'] as num?)?.toInt() ?? 0;
+    if (body is int) return body;
+    return 0;
   }
 }

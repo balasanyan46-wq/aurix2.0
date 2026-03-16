@@ -1,23 +1,19 @@
 import 'package:flutter/foundation.dart';
-
-import 'package:aurix_flutter/core/supabase_diagnostics.dart';
-import 'package:aurix_flutter/data/supabase_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/models/track_model.dart';
 
 class TrackRepository {
   Future<List<TrackModel>> getTracksByRelease(String releaseId) async {
-    logSupabaseRequest(table: 'tracks', operation: 'select', payload: {'release_id': releaseId});
-    final res = await supabase
-        .from('tracks')
-        .select()
-        .eq('release_id', releaseId)
-        .order('created_at', ascending: true);
-    return (res as List).map((e) => TrackModel.fromJson(e as Map<String, dynamic>)).toList();
+    final res = await ApiClient.get('/tracks/release/$releaseId');
+    final body = res.data as Map<String, dynamic>;
+    final list = body['tracks'] as List? ?? [];
+    return list.map((e) => TrackModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<TrackModel> addTrack({
     String? id,
     required String releaseId,
+    String? userId,
     required String audioPath,
     required String audioUrl,
     String? title,
@@ -36,29 +32,33 @@ class TrackRepository {
     if (version != 'original') data['version'] = version;
     if (explicit) data['explicit'] = explicit;
     if (id != null) data['id'] = id;
-    logSupabaseRequest(table: 'tracks', operation: 'insert', payload: data, userId: supabase.auth.currentUser?.id);
-    try {
-      final res = await supabase.from('tracks').insert(data).select().single();
-      return TrackModel.fromJson(res);
-    } catch (e) {
-      debugPrint('[TrackRepository] addTrack error: ${formatSupabaseError(e)}');
-      rethrow;
-    }
+
+    final res = await ApiClient.post('/tracks', data: data);
+    final body = res.data as Map<String, dynamic>;
+    return TrackModel.fromJson(body['track'] as Map<String, dynamic>);
   }
 
   Future<void> updateTrackIsrc(String trackId, String? isrc) async {
-    await supabase.from('tracks').update({
+    await ApiClient.put('/tracks/$trackId', data: {
       'isrc': isrc?.trim().toUpperCase(),
-    }).eq('id', trackId);
+    });
   }
 
   Future<void> deleteTrack(String id) async {
-    await supabase.from('tracks').delete().eq('id', id);
+    await ApiClient.delete('/tracks/$id');
   }
 
   Future<TrackModel?> getTrack(String id) async {
-    final res = await supabase.from('tracks').select().eq('id', id).maybeSingle();
-    if (res == null) return null;
-    return TrackModel.fromJson(res);
+    try {
+      final res = await ApiClient.get('/tracks/$id');
+      final body = res.data as Map<String, dynamic>;
+      if (body['track'] != null) {
+        return TrackModel.fromJson(body['track'] as Map<String, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[TrackRepository] getTrack($id) failed: $e');
+      return null;
+    }
   }
 }

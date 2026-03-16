@@ -2,9 +2,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/design/widgets/app_back_button.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -145,26 +146,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         });
         return;
       }
-      await ref
+      final result = await ref
           .read(authRepositoryProvider)
           .signIn(email: email, password: password);
-      // Do not navigate here. AuthGate/router will switch screens when session is ready.
-    } on AuthException catch (e) {
-      String msg = 'Ошибка входа';
-      if (e.message.contains('Invalid login')) {
-        msg = 'Неверный email или пароль';
-      } else if (e.message.contains('Email not confirmed')) {
-        msg = 'Подтвердите email по ссылке из письма';
-      }
-      setState(() {
-        _error = msg;
-        _loading = false;
-      });
+      ref.read(authStoreProvider).setUser(result.user);
+      // AuthGate/router will switch screens when auth state changes.
     } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('Неверный email') || msg.contains('invalid credentials')) {
+        setState(() {
+          _error = 'Неверный email или пароль';
+          _loading = false;
+        });
+        return;
+      }
+      if (msg.contains('Подтвердите email') || msg.contains('не подтверждён') || msg.contains('not verified')) {
+        setState(() {
+          _error = 'Подтвердите email перед входом. Проверьте почту.';
+          _loading = false;
+        });
+        return;
+      }
       setState(() {
         _error = 'Нет связи с сервером. Проверьте интернет.';
         _loading = false;
       });
+    }
+  }
+
+  void _goBack() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      context.go('/');
+    }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    final emailCtrl = TextEditingController(text: _emailController.text.trim());
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: const Text('Сброс пароля', style: TextStyle(color: AurixTokens.text)),
+        content: TextField(
+          controller: emailCtrl,
+          keyboardType: TextInputType.emailAddress,
+          style: const TextStyle(color: AurixTokens.text),
+          decoration: const InputDecoration(
+            hintText: 'Введите ваш email',
+            hintStyle: TextStyle(color: AurixTokens.muted),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AurixTokens.orange,
+              foregroundColor: Colors.black,
+            ),
+            child: const Text('Отправить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final email = emailCtrl.text.trim();
+    emailCtrl.dispose();
+    if (email.isEmpty) return;
+    try {
+      await ref.read(authRepositoryProvider).resetPasswordForEmail(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Если аккаунт существует, письмо со ссылкой отправлено.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка: $e')),
+        );
+      }
     }
   }
 
@@ -219,6 +288,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           SafeArea(
             child: Column(
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: AppBackButton(onPressed: _goBack),
+                ),
                 Expanded(
                   child: Center(
                     child: SingleChildScrollView(
@@ -235,8 +308,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               _buildLogo(),
                               const SizedBox(height: 6),
                               _buildTagline(),
-                              const SizedBox(height: 32),
-                              _buildDivider(),
                               const SizedBox(height: 32),
                               _buildForm(),
                             ],
@@ -318,25 +389,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildDivider() {
-    return FadeTransition(
-      opacity: _formFade,
-      child: Container(
-        width: 40,
-        height: 1,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AurixTokens.orange.withValues(alpha: 0.0),
-              AurixTokens.orange.withValues(alpha: 0.5),
-              AurixTokens.orange.withValues(alpha: 0.0),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildForm() {
     return FadeTransition(
       opacity: _formFade,
@@ -413,7 +465,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               validator: (v) =>
                   (v == null || v.isEmpty) ? 'Введите пароль' : null,
             ),
-            const SizedBox(height: 28),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => _showForgotPasswordDialog(),
+                child: Text(
+                  'Забыли пароль?',
+                  style: TextStyle(
+                    color: AurixTokens.muted,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             _buildShimmerButton(),
             const SizedBox(height: 20),
             TextButton(
@@ -533,29 +598,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       child: Padding(
         padding: const EdgeInsets.only(bottom: 20),
         child: Center(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: 'AURIX',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.4,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                spacing: 4,
+                children: [
+                  TextButton(
+                    onPressed: () => context.push('/legal/privacy'),
+                    child: const Text('Privacy'),
                   ),
-                ),
-                TextSpan(
-                  text: ' • by Armen Balasanyan',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.55),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0.3,
+                  TextButton(
+                    onPressed: () => context.push('/legal/terms'),
+                    child: const Text('Terms'),
                   ),
+                ],
+              ),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'AURIX',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' • by Armen Balasanyan',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

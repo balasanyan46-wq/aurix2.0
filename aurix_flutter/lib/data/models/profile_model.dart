@@ -15,7 +15,10 @@ class ProfileModel {
   final String role;
   final String accountStatus;
   final String plan;
+  final String planId;
   final String billingPeriod;
+  final String subscriptionStatus;
+  final DateTime? subscriptionEnd;
 
   const ProfileModel({
     required this.userId,
@@ -33,7 +36,10 @@ class ProfileModel {
     this.role = 'artist',
     this.accountStatus = 'active',
     this.plan = 'start',
+    this.planId = 'start',
     this.billingPeriod = 'monthly',
+    this.subscriptionStatus = 'trial',
+    this.subscriptionEnd,
   });
 
   String get id => userId;
@@ -47,26 +53,32 @@ class ProfileModel {
   factory ProfileModel.fromJson(Map<String, dynamic> json) {
     final now = DateTime.now();
     return ProfileModel(
-      userId: (json['id'] ?? json['user_id']) as String? ?? '',
-      name: json['name'] as String?,
-      city: json['city'] as String?,
-      phone: json['phone'] as String?,
-      gender: json['gender'] as String?,
-      bio: json['bio'] as String?,
-      avatarUrl: json['avatar_url'] as String?,
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : now,
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : now,
-      email: json['email'] as String? ?? '',
-      displayName: json['display_name'] as String?,
-      artistName: json['artist_name'] as String?,
-      role: json['role'] as String? ?? 'artist',
-      accountStatus: json['account_status'] as String? ?? 'active',
-      plan: _migratePlanSlug(json['plan'] as String?),
-      billingPeriod: json['billing_period'] as String? ?? 'monthly',
+      userId: (json['user_id'] ?? json['id'])?.toString() ?? '',
+      name: json['name']?.toString(),
+      city: json['city']?.toString(),
+      phone: json['phone']?.toString(),
+      gender: json['gender']?.toString(),
+      bio: json['bio']?.toString(),
+      avatarUrl: json['avatar_url']?.toString(),
+      createdAt: json['created_at'] != null ? (DateTime.tryParse(json['created_at'].toString()) ?? now) : now,
+      updatedAt: json['updated_at'] != null ? (DateTime.tryParse(json['updated_at'].toString()) ?? now) : now,
+      email: json['email']?.toString() ?? '',
+      displayName: json['display_name']?.toString(),
+      artistName: json['artist_name']?.toString(),
+      role: json['role']?.toString() ?? 'artist',
+      accountStatus: json['account_status']?.toString() ?? 'active',
+      plan: _migratePlanSlug((json['plan_id'] ?? json['plan'])?.toString()),
+      planId: _migratePlanSlug((json['plan_id'] ?? json['plan'])?.toString()),
+      billingPeriod: json['billing_period']?.toString() ?? 'monthly',
+      subscriptionStatus: json['subscription_status']?.toString() ?? 'trial',
+      subscriptionEnd: json['subscription_end'] != null
+          ? DateTime.tryParse(json['subscription_end'].toString())
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() => {
+        'user_id': userId,
         'id': userId,
         'name': name,
         'city': city,
@@ -82,7 +94,10 @@ class ProfileModel {
         'role': role,
         'account_status': accountStatus,
         'plan': plan,
+        'plan_id': planId,
         'billing_period': billingPeriod,
+        'subscription_status': subscriptionStatus,
+        'subscription_end': subscriptionEnd?.toIso8601String(),
       };
 
   bool get isYearly => billingPeriod == 'yearly';
@@ -97,7 +112,10 @@ class ProfileModel {
     String? displayName,
     String? artistName,
     String? plan,
+    String? planId,
     String? billingPeriod,
+    String? subscriptionStatus,
+    DateTime? subscriptionEnd,
   }) {
     return ProfileModel(
       userId: userId,
@@ -115,7 +133,10 @@ class ProfileModel {
       role: role,
       accountStatus: accountStatus,
       plan: plan ?? this.plan,
+      planId: planId ?? this.planId,
       billingPeriod: billingPeriod ?? this.billingPeriod,
+      subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+      subscriptionEnd: subscriptionEnd ?? this.subscriptionEnd,
     );
   }
 }

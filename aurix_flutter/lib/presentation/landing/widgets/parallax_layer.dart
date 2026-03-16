@@ -46,7 +46,7 @@ class _ParallaxLayerState extends State<ParallaxLayer> {
     final pos = scrollable?.position;
     final off = pos?.pixels ?? 0.0;
     final next = (-off * widget.depth).clamp(-widget.maxShift, widget.maxShift).toDouble();
-    if ((_shift - next).abs() < 0.2) return;
+    if ((_shift - next).abs() < 2.0) return;
     setState(() => _shift = next);
   }
 

@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:aurix_flutter/core/supabase_client.dart';
+import 'package:go_router/go_router.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/design/widgets/premium_ui.dart';
+import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
+import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import '../data/dnk_models.dart';
 import '../data/dnk_service.dart';
 import 'dnk_interview_screen.dart';
 import 'dnk_result_screen.dart';
+
+const bool kEnableDnkTests = true;
 
 /// Fetches the latest finished DNK result for current user
 final _latestDnkResultProvider =
@@ -14,13 +20,11 @@ final _latestDnkResultProvider =
   final user = ref.watch(currentUserProvider);
   if (user == null) return null;
 
-  final rows = await supabase
-      .from('dnk_results')
-      .select('*, dnk_sessions!inner(user_id, status)')
-      .eq('dnk_sessions.user_id', user.id)
-      .eq('dnk_sessions.status', 'finished')
-      .order('created_at', ascending: false)
-      .limit(1);
+  final res = await ApiClient.get('/dnk-results/latest', query: {
+    'user_id': user.id,
+    'status': 'finished',
+  });
+  final rows = (res.data as List?) ?? const [];
 
   if (rows.isEmpty) return null;
   return rows.first;
@@ -74,9 +78,12 @@ class _AurixDnkScreenState extends ConsumerState<AurixDnkScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: resultAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('Ошибка: $e', style: const TextStyle(color: AurixTokens.negative)),
+        loading: () => const PremiumLoadingState(message: 'Загрузка DNK профиля…'),
+        error: (e, _) => PremiumErrorState(
+          title: 'Не удалось загрузить',
+          message: 'Проверьте подключение к сети и попробуйте снова.',
+          icon: Icons.fingerprint,
+          onRetry: () => ref.invalidate(_latestDnkResultProvider),
         ),
         data: (data) {
           if (data != null) {
@@ -92,67 +99,112 @@ class _AurixDnkScreenState extends ConsumerState<AurixDnkScreen> {
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [AurixTokens.accent, AurixTokens.accentMuted],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: const Icon(Icons.fingerprint, size: 44, color: Colors.white),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Aurix DNK',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: AurixTokens.text,
-                    fontWeight: FontWeight.w700,
+        child: FadeInSlide(
+          child: PremiumSectionCard(
+            radius: AurixTokens.radiusHero,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        AurixTokens.accent.withValues(alpha: 0.15),
+                        AurixTokens.bg2.withValues(alpha: 0.9),
+                      ],
+                    ),
+                    border: Border.all(color: AurixTokens.stroke(0.2)),
                   ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Пройди интервью из 37 вопросов и получи уникальный '
-              'артистический профиль: стиль, поведение, социальный магнетизм, '
-              'рекомендации по музыке, контенту и визуалу.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AurixTokens.textSecondary, fontSize: 15, height: 1.5),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '~15 минут • 12 осей • AI-профайл • Социальный магнетизм',
-              style: TextStyle(color: AurixTokens.muted, fontSize: 13),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: 260,
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: _starting ? null : _startInterview,
-                icon: _starting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.play_arrow_rounded),
-                label: Text(_starting ? 'Создаём сессию…' : 'Начать Aurix DNK'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AurixTokens.accent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                  child: const Icon(Icons.fingerprint, size: 38, color: AurixTokens.accent),
+                ),
+                const SizedBox(height: 24),
+                FadeInSlide(
+                  delayMs: 100,
+                  child: Text(
+                    'DNK Артиста',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: AurixTokens.text,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 12),
+                FadeInSlide(
+                  delayMs: 150,
+                  child: const Text(
+                    'Пройди интервью из ~24 ключевых вопросов и получи уникальный '
+                    'артистический профиль: стиль, поведение, социальный магнетизм, '
+                    'рекомендации по музыке, контенту и визуалу.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AurixTokens.textSecondary, fontSize: 14.5, height: 1.55),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                FadeInSlide(
+                  delayMs: 200,
+                  child: Wrap(
+                    spacing: 6,
+                    children: ['~9 мин', '12 осей', 'AI-профайл', 'Магнетизм'].map((t) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AurixTokens.glass(0.05),
+                        borderRadius: BorderRadius.circular(AurixTokens.radiusChip),
+                        border: Border.all(color: AurixTokens.stroke(0.12)),
+                      ),
+                      child: Text(t, style: const TextStyle(color: AurixTokens.muted, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    )).toList(),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                FadeInSlide(
+                  delayMs: 250,
+                  child: SizedBox(
+                    width: 260,
+                    height: 52,
+                    child: PremiumHoverLift(
+                      child: FilledButton.icon(
+                        onPressed: _starting ? null : _startInterview,
+                        icon: _starting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.play_arrow_rounded),
+                        label: Text(_starting ? 'Создаём сессию…' : 'Начать DNK Артиста'),
+                      ),
+                    ),
+                  ),
+                ),
+                if (kEnableDnkTests) ...[
+                  const SizedBox(height: 12),
+                  FadeInSlide(
+                    delayMs: 300,
+                    child: SizedBox(
+                      width: 260,
+                      height: 48,
+                      child: PremiumHoverLift(
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.go('/dnk/tests'),
+                          icon: const Icon(Icons.psychology_alt_outlined, size: 18),
+                          label: const Text('Проф. тесты DNK'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AurixTokens.textSecondary,
+                            side: BorderSide(color: AurixTokens.stroke(0.22)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -206,12 +258,31 @@ class _AurixDnkScreenState extends ConsumerState<AurixDnkScreen> {
 
     final sessionId = raw['session_id']?.toString();
 
-    return DnkResultScreen(
-      result: result,
-      sessionId: sessionId,
-      onRegenerate: sessionId != null ? () => _regenerate(sessionId, 'normal') : null,
-      onRegenerateHard: sessionId != null ? () => _regenerate(sessionId, 'hard') : null,
-      onStartNew: _startInterview,
+    return Stack(
+      children: [
+        DnkResultScreen(
+          result: result,
+          sessionId: sessionId,
+          onRegenerate: sessionId != null ? () => _regenerate(sessionId, 'normal') : null,
+          onRegenerateHard: sessionId != null ? () => _regenerate(sessionId, 'hard') : null,
+          onStartNew: _startInterview,
+        ),
+        if (kEnableDnkTests)
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: FilledButton.icon(
+              onPressed: () => context.go('/dnk/tests'),
+              icon: const Icon(Icons.psychology_alt_outlined),
+              label: const Text('Проф. тесты'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AurixTokens.bg2,
+                foregroundColor: AurixTokens.text,
+                side: const BorderSide(color: AurixTokens.border),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

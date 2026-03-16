@@ -207,7 +207,7 @@ class _TicketRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (ticket.status) {
-      'open' => Colors.amber,
+      'open' => AurixTokens.warning,
       'in_progress' => Colors.blue,
       'resolved' => AurixTokens.positive,
       'closed' => AurixTokens.muted,
@@ -377,13 +377,13 @@ class _ChatViewState extends ConsumerState<_ChatView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: (widget.ticket.isResolved ? AurixTokens.positive : Colors.amber).withValues(alpha: 0.15),
+                  color: (widget.ticket.isResolved ? AurixTokens.positive : AurixTokens.warning).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   widget.ticket.statusLabel,
                   style: TextStyle(
-                    color: widget.ticket.isResolved ? AurixTokens.positive : Colors.amber,
+                    color: widget.ticket.isResolved ? AurixTokens.positive : AurixTokens.warning,
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),
