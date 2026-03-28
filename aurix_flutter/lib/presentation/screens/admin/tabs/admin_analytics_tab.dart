@@ -74,12 +74,12 @@ class AdminAnalyticsTab extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 18),
+          const Icon(Icons.error_outline_rounded, color: AurixTokens.danger, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              style: const TextStyle(color: AurixTokens.danger, fontSize: 12),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -570,11 +570,11 @@ class AdminAnalyticsTab extends ConsumerWidget {
       case 'draft':
         return AurixTokens.muted;
       case 'submitted':
-        return Colors.amber;
+        return AurixTokens.warning;
       case 'approved':
         return AurixTokens.positive;
       case 'rejected':
-        return Colors.redAccent;
+        return AurixTokens.danger;
       case 'live':
         return Colors.blue;
       default:

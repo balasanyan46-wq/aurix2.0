@@ -114,7 +114,7 @@ class _ProfileHeader extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         '${score.trendDelta > 0 ? '+' : ''}${score.trendDelta} за период',
-                        style: TextStyle(color: score.trendDelta > 0 ? Colors.green : AurixTokens.muted, fontSize: 14),
+                        style: TextStyle(color: score.trendDelta > 0 ? AurixTokens.positive : AurixTokens.muted, fontSize: 14),
                       ),
                     ),
                 ],

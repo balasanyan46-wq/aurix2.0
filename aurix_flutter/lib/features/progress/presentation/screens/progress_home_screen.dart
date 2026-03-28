@@ -1225,7 +1225,7 @@ class _TodayNoteSheetState extends State<_TodayNoteSheet> {
                     },
               icon: const Icon(Icons.save_rounded, size: 18),
               label: Text(_saving ? L10n.t(context, 'progressSaving') : L10n.t(context, 'progressSave')),
-              style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: Colors.black),
+              style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: AurixTokens.bg0),
             ),
           ),
         ],

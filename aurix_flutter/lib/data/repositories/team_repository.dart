@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/team_member_model.dart';
 
 class TeamRepository {
@@ -8,7 +8,7 @@ class TeamRepository {
       'status_neq': 'removed',
       'order': 'created_at.asc',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list.map((e) => TeamMemberModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
@@ -26,7 +26,7 @@ class TeamRepository {
       'role': role,
       'split_percent': splitPercent,
     });
-    final body = res.data as Map<String, dynamic>;
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     return TeamMemberModel.fromJson(body);
   }
 

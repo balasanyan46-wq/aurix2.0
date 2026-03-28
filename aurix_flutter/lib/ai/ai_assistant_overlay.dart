@@ -16,7 +16,7 @@ const _historyKeyPrefix = 'aurix_ai_history';
 
 typedef OnNavigateCb = void Function(AppScreen screen, [String? releaseId]);
 
-/// AI chat overlay — floating "Aurix AI" button, calls Cloudflare Worker.
+/// AI chat overlay — floating "Aurix AI" button, calls backend API.
 class AiAssistantOverlay extends ConsumerStatefulWidget {
   final OnNavigateCb? onNavigate;
   final String page;

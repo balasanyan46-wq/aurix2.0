@@ -1,29 +1,30 @@
 import 'package:flutter/foundation.dart';
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/models/admin_note_model.dart';
 
 class ReleaseRepository {
   Future<List<ReleaseModel>> getReleasesByOwner(String ownerId) async {
     final res = await ApiClient.get('/releases/my');
-    final body = res.data as Map<String, dynamic>;
+    final body = _asMap(res.data);
     final list = (body['releases'] as List?) ?? [];
-    return list.map((e) => ReleaseModel.fromJson(e as Map<String, dynamic>)).toList();
+    return list.map((e) => ReleaseModel.fromJson(_asMap(e))).toList();
   }
 
   Future<List<ReleaseModel>> getAllReleases() async {
-    final res = await ApiClient.get('/releases');
-    final body = res.data as Map<String, dynamic>;
+    final res = await ApiClient.get('/releases/');
+    final body = _asMap(res.data);
     final list = (body['releases'] as List?) ?? [];
-    return list.map((e) => ReleaseModel.fromJson(e as Map<String, dynamic>)).toList();
+    return list.map((e) => ReleaseModel.fromJson(_asMap(e))).toList();
   }
 
   Future<ReleaseModel?> getRelease(String id) async {
     try {
       final res = await ApiClient.get('/releases/$id');
-      final body = res.data as Map<String, dynamic>;
-      if (body['release'] != null) {
-        return ReleaseModel.fromJson(body['release'] as Map<String, dynamic>);
+      final body = _asMap(res.data);
+      final release = body['release'];
+      if (release != null) {
+        return ReleaseModel.fromJson(_asMap(release));
       }
       return null;
     } catch (e) {
@@ -63,9 +64,11 @@ class ReleaseRepository {
     if (coverUrl != null) payload['cover_url'] = coverUrl;
     if (coverPath != null) payload['cover_path'] = coverPath;
 
-    final res = await ApiClient.post('/releases', data: payload);
-    final body = res.data as Map<String, dynamic>;
-    return ReleaseModel.fromJson(body['release'] as Map<String, dynamic>);
+    final res = await ApiClient.post('/releases/', data: payload);
+    final body = _asMap(res.data);
+    // Backend returns {success, release} — but handle both wrapped and unwrapped
+    final releaseData = body['release'] ?? body;
+    return ReleaseModel.fromJson(_asMap(releaseData));
   }
 
   Future<void> updateRelease(
@@ -110,9 +113,15 @@ class ReleaseRepository {
   Future<List<AdminNoteModel>> getNotesForRelease(String releaseId) async {
     try {
       final res = await ApiClient.get('/releases/$releaseId/notes');
-      final body = res.data as Map<String, dynamic>;
-      final list = body['notes'] as List? ?? [];
-      return list.map((e) => AdminNoteModel.fromJson(e as Map<String, dynamic>)).toList();
+      // Backend may return raw array or {notes: [...]}
+      List list;
+      if (res.data is List) {
+        list = asList(res.data);
+      } else {
+        final body = _asMap(res.data);
+        list = body['notes'] as List? ?? [];
+      }
+      return list.map((e) => AdminNoteModel.fromJson(_asMap(e))).toList();
     } catch (e) {
       debugPrint('[ReleaseRepository] getNotesForRelease failed: $e');
       return [];
@@ -122,7 +131,7 @@ class ReleaseRepository {
   Future<void> addAdminNote({required String releaseId, required String adminId, required String note}) async {
     await ApiClient.post('/releases/$releaseId/notes', data: {
       'admin_id': adminId,
-      'note': note,
+      'body': note,
     });
   }
 
@@ -143,11 +152,18 @@ class ReleaseRepository {
         'status': newStatus,
         if (reason != null) 'reason': reason,
       });
-      final body = res.data as Map<String, dynamic>;
-      return body['count'] as int? ?? ids.length;
+      final body = _asMap(res.data);
+      return body['updated'] as int? ?? body['count'] as int? ?? ids.length;
     } catch (e) {
       debugPrint('[ReleaseRepository] bulkUpdateStatuses failed: $e');
       return 0;
     }
+  }
+
+  /// Safely cast dynamic to Map<String, dynamic>.
+  static Map<String, dynamic> _asMap(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return <String, dynamic>{};
   }
 }

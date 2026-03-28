@@ -261,6 +261,7 @@ class _CreateReleaseScreenState extends ConsumerState<CreateReleaseScreen> {
     } catch (e, st) {
       final detail = formatApiError(e);
       debugPrint('Ошибка создания: $detail\n$st');
+      if (!mounted) return;
       setState(() {
         _error = detail.length > 120 ? '${detail.substring(0, 117)}...' : detail;
         _loading = false;

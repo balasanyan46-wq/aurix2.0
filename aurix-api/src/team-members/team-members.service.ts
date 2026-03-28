@@ -42,4 +42,25 @@ export class TeamMembersService {
     );
     return rows[0];
   }
+
+  /** Update a team member with ownership check. */
+  async updateForOwner(id: number, ownerId: number, data: Record<string, any>) {
+    const sets: string[] = [];
+    const vals: any[] = [];
+    let i = 1;
+    for (const [k, v] of Object.entries(data)) {
+      if (['member_name','member_email','role','split_percent','status'].includes(k)) {
+        sets.push(`${k} = $${i++}`);
+        vals.push(v);
+      }
+    }
+    if (!sets.length) return null;
+    sets.push(`updated_at = NOW()`);
+    vals.push(id, ownerId);
+    // SECURITY: AND owner_id check
+    const { rows } = await this.pool.query(
+      `UPDATE team_members SET ${sets.join(', ')} WHERE id = $${i} AND owner_id = $${i + 1} RETURNING *`, vals,
+    );
+    return rows[0];
+  }
 }

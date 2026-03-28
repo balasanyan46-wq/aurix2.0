@@ -265,6 +265,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
       widget.onApplied?.call(uploaded.publicUrl, uploaded.coverPath);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _loading = false;
@@ -607,7 +608,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                                           onPressed: _loading ? null : () => _generate(variant: false),
                                           icon: const Icon(Icons.auto_awesome_rounded, size: 18),
                                           label: const Text('Сгенерировать по уточнениям'),
-                                          style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: Colors.black),
+                                          style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: AurixTokens.bg0),
                                         ),
                                       ),
                                     ],
@@ -637,7 +638,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                                         },
                                   icon: const Icon(Icons.check_circle_rounded, size: 18),
                                 label: const Text('Использовать в форме'),
-                                  style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: Colors.black),
+                                  style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: AurixTokens.bg0),
                                 ),
                               ),
                             ],
@@ -648,7 +649,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                                   onPressed: _loading ? null : _applyToRelease,
                                   icon: const Icon(Icons.check_circle_rounded, size: 18),
                                   label: const Text('Применить к релизу'),
-                                  style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: Colors.black),
+                                  style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: AurixTokens.bg0),
                                 ),
                               ),
                             ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:aurix_flutter/screens/subscription/subscription_screen.dart';
+import 'package:aurix_flutter/presentation/screens/subscription/subscription_screen.dart';
 
 class SubscriptionRouteScreen extends ConsumerWidget {
   const SubscriptionRouteScreen({super.key});

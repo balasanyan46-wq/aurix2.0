@@ -22,6 +22,7 @@ import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { CreateReleaseDto } from './dto/create-release.dto';
 import { RejectReleaseDto } from './dto/reject-release.dto';
+import { UserEventsService } from '../user-events/user-events.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('releases')
@@ -32,7 +33,19 @@ export class ReleasesController {
     private readonly artistsService: ArtistsService,
     private readonly usersService: UsersService,
     private readonly mailService: MailService,
+    private readonly events: UserEventsService,
   ) {}
+
+  /** Verify that the logged-in user owns the release (or is admin). */
+  private async assertOwnership(req: any, release: any): Promise<void> {
+    // Check admin from DB (JWT role may be stale)
+    const { rows } = await this.pool.query('SELECT role FROM users WHERE id = $1', [req.user.id]);
+    if (rows[0]?.role === 'admin') return;
+    const artist = await this.artistsService.findByUserId(req.user.id);
+    if (!artist || release.artist_id !== artist.id) {
+      throw new HttpException('not your release', HttpStatus.FORBIDDEN);
+    }
+  }
 
   // ── Create release ─────────────────────────────────────
   @Post()
@@ -50,6 +63,7 @@ export class ReleasesController {
     }
 
     const release = await this.releasesService.create(artist.id, dto);
+    this.events.log({ user_id: req.user.id, event: 'release_created', target_type: 'release', target_id: String(release.id), meta: { title: dto.title } }).catch(() => {});
     return { success: true, release };
   }
 
@@ -94,6 +108,9 @@ export class ReleasesController {
       throw new HttpException('release not found', HttpStatus.NOT_FOUND);
     }
 
+    // Ownership check
+    await this.assertOwnership(req, release);
+
     return { success: true, release };
   }
 
@@ -114,15 +131,10 @@ export class ReleasesController {
       throw new HttpException('release not found', HttpStatus.NOT_FOUND);
     }
 
-    // Verify ownership (unless admin)
-    if (req.user.role !== 'admin') {
-      const artist = await this.artistsService.findByUserId(req.user.id);
-      if (!artist || release.artist_id !== artist.id) {
-        throw new HttpException('not your release', HttpStatus.FORBIDDEN);
-      }
-    }
+    await this.assertOwnership(req, release);
 
     const updated = await this.releasesService.update(releaseId, body);
+    console.log(`[Releases] PUT ${id} by user ${req.user.id} (role: ${req.user.role}) → fields: ${Object.keys(body).join(', ')}`);
     return { success: true, release: updated };
   }
 
@@ -139,13 +151,7 @@ export class ReleasesController {
       throw new HttpException('release not found', HttpStatus.NOT_FOUND);
     }
 
-    // Verify ownership (unless admin)
-    if (req.user.role !== 'admin') {
-      const artist = await this.artistsService.findByUserId(req.user.id);
-      if (!artist || release.artist_id !== artist.id) {
-        throw new HttpException('not your release', HttpStatus.FORBIDDEN);
-      }
-    }
+    await this.assertOwnership(req, release);
 
     await this.releasesService.deleteRelease(releaseId);
     return { success: true };
@@ -177,6 +183,7 @@ export class ReleasesController {
     }
 
     const updated = await this.releasesService.submit(releaseId);
+    this.events.log({ user_id: req.user.id, event: 'release_submitted', target_type: 'release', target_id: String(releaseId) }).catch(() => {});
     return { success: true, status: updated.status };
   }
 
@@ -243,6 +250,7 @@ export class ReleasesController {
   }
 
   // ── Release notes (admin) ───────────────────────────────
+  @UseGuards(AdminGuard)
   @Get(':id/notes')
   async getNotes(@Param('id') id: string) {
     const { rows } = await this.pool.query(
@@ -252,6 +260,7 @@ export class ReleasesController {
     return rows;
   }
 
+  @UseGuards(AdminGuard)
   @Post(':id/notes')
   async addNote(
     @Req() req: any,
@@ -273,7 +282,7 @@ export class ReleasesController {
   ) {
     let updated = 0;
     for (const rid of body.release_ids) {
-      const r = await this.releasesService.update(rid, { status: body.status });
+      const r = await this.releasesService.updateStatus(rid, body.status);
       if (r) updated++;
     }
     return { success: true, updated };

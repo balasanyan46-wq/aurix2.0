@@ -98,7 +98,7 @@ class NomineeRow extends StatelessWidget {
                       Text(
                         '${trendDelta! > 0 ? '+' : ''}$trendDelta',
                         style: TextStyle(
-                          color: trendDelta! > 0 ? Colors.green : AurixTokens.muted,
+                          color: trendDelta! > 0 ? AurixTokens.positive : AurixTokens.muted,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),

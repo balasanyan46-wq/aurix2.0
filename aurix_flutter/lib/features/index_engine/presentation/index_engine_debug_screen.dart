@@ -32,6 +32,7 @@ class _IndexEngineDebugScreenState extends ConsumerState<IndexEngineDebugScreen>
       final periodStart = DateTime(now.year, now.month - 1, 1);
       final periodEnd = now;
       final leaderboard = await service.getLeaderboard(periodStart, periodEnd);
+      if (!mounted) return;
       setState(() {
         _data = leaderboard.map((e) => (
           name: e.artist.name,
@@ -42,6 +43,7 @@ class _IndexEngineDebugScreenState extends ConsumerState<IndexEngineDebugScreen>
         )).toList();
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = e.toString());
     }
   }

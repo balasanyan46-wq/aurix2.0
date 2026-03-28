@@ -59,18 +59,18 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
         'release_status_changed' => Colors.blue,
         'user_role_changed' => AurixTokens.orange,
         'user_plan_changed' => AurixTokens.positive,
-        'user_suspended' => Colors.redAccent,
+        'user_suspended' => AurixTokens.danger,
         'user_activated' => AurixTokens.positive,
-        'ticket_replied' => Colors.amber,
-        'ticket_status_changed' => Colors.amber,
+        'ticket_replied' => AurixTokens.warning,
+        'ticket_status_changed' => AurixTokens.warning,
         'report_imported' => AurixTokens.orange,
-        'report_deleted' => Colors.redAccent,
+        'report_deleted' => AurixTokens.danger,
         'releases_bulk_status_changed' => Colors.blue,
         'users_bulk_status_changed' => AurixTokens.orange,
-        'users_bulk_suspended' => Colors.redAccent,
+        'users_bulk_suspended' => AurixTokens.danger,
         'users_bulk_activated' => AurixTokens.positive,
         'release_delete_request_approved' => AurixTokens.positive,
-        'release_delete_request_rejected' => Colors.redAccent,
+        'release_delete_request_rejected' => AurixTokens.danger,
         _ => AurixTokens.muted,
       };
 
@@ -191,7 +191,7 @@ class _AdminLogsTabState extends ConsumerState<AdminLogsTab> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${log.targetType}${log.targetId != null ? " • ${log.targetId!.substring(0, 8)}..." : ""}',
+                                '${log.targetType}${log.targetId != null ? " • ${log.targetId!.length > 8 ? '${log.targetId!.substring(0, 8)}...' : log.targetId!}" : ""}',
                                 style: const TextStyle(color: AurixTokens.muted, fontSize: 11),
                               ),
                               if (log.details.isNotEmpty) ...[
@@ -261,7 +261,7 @@ class _ErrorRetry extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline_rounded, size: 40, color: Colors.redAccent.withValues(alpha: 0.6)),
+            Icon(Icons.error_outline_rounded, size: 40, color: AurixTokens.danger.withValues(alpha: 0.6)),
             const SizedBox(height: 12),
             Text(
               message.replaceAll('Exception: ', ''),

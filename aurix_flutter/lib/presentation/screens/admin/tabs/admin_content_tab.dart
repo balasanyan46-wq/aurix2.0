@@ -6,7 +6,7 @@ import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/features/legal/data/legal_template_model.dart';
 import 'package:aurix_flutter/features/navigator/data/navigator_models.dart';
 import 'package:aurix_flutter/services/ai_chat_service.dart';
@@ -20,8 +20,8 @@ final _navigatorAdminMaterialsProvider =
   final res = await ApiClient.get('/artist-navigator-materials', query: {
     'limit': 120,
   });
-  final rows = (res.data as List?) ?? const [];
-  return (rows as List)
+  final rows = asList(res.data);
+  return rows
       .whereType<Map>()
       .map((e) => NavigatorMaterial.fromJson(e.cast<String, dynamic>()))
       .toList();
@@ -219,8 +219,8 @@ class AdminContentTab extends ConsumerWidget {
 
   static Widget _errorWidget(String msg) => Container(
     padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-    child: Text('Ошибка: $msg', style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+    decoration: BoxDecoration(color: AurixTokens.danger.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+    child: Text('Ошибка: $msg', style: const TextStyle(color: AurixTokens.danger, fontSize: 13)),
   );
 
   static Widget _emptyCard(String text) => Container(
@@ -365,7 +365,7 @@ class _TemplateCard extends StatelessWidget {
       LegalCategory.distribution => Colors.blue,
       LegalCategory.team => AurixTokens.positive,
       LegalCategory.production => AurixTokens.orange,
-      LegalCategory.nda => Colors.amber,
+      LegalCategory.nda => AurixTokens.warning,
       LegalCategory.all => AurixTokens.muted,
     };
     return Container(
@@ -723,7 +723,7 @@ class _NavigatorArticleAdminSectionState
                 if (_error != null) ...[
                   const SizedBox(height: 10),
                   Text(_error!,
-                      style: const TextStyle(color: Colors.redAccent)),
+                      style: const TextStyle(color: AurixTokens.danger)),
                 ],
                 if (_ok != null) ...[
                   const SizedBox(height: 10),
@@ -842,7 +842,7 @@ class _NavigatorArticleAdminSectionState
                   ),
                   error: (e, _) => Text(
                     'Ошибка загрузки статей: $e',
-                    style: const TextStyle(color: Colors.redAccent),
+                    style: const TextStyle(color: AurixTokens.danger),
                   ),
                 ),
               ],

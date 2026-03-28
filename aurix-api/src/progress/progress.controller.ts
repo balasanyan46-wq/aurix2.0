@@ -19,13 +19,13 @@ export class ProgressController {
   }
 
   @Put('progress-habits/:id')
-  async updateHabit(@Param('id') id: string, @Body() body: Record<string, any>) {
-    return this.svc.updateHabit(+id, body);
+  async updateHabit(@Req() req: any, @Param('id') id: string, @Body() body: Record<string, any>) {
+    return this.svc.updateHabit(+id, req.user.id, body);
   }
 
   @Delete('progress-habits/:id')
-  async deleteHabit(@Param('id') id: string) {
-    await this.svc.deleteHabit(+id);
+  async deleteHabit(@Req() req: any, @Param('id') id: string) {
+    await this.svc.deleteHabit(+id, req.user.id);
     return { success: true };
   }
 
@@ -41,8 +41,8 @@ export class ProgressController {
   }
 
   @Delete('progress-checkins/:habitId/:day')
-  async deleteCheckin(@Param('habitId') habitId: string, @Param('day') day: string) {
-    await this.svc.deleteCheckin(+habitId, day);
+  async deleteCheckin(@Req() req: any, @Param('habitId') habitId: string, @Param('day') day: string) {
+    await this.svc.deleteCheckin(+habitId, day, req.user.id);
     return { success: true };
   }
 

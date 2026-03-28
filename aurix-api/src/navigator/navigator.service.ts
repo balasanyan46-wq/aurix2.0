@@ -43,7 +43,7 @@ export class NavigatorService {
     return rows[0];
   }
 
-  async updateUserMaterial(id: number, data: Record<string, any>) {
+  async updateUserMaterial(id: number, data: Record<string, any>, userId: number) {
     const sets: string[] = []; const vals: any[] = []; let i = 1;
     for (const [k,v] of Object.entries(data)) {
       if (['is_saved','is_completed','progress_percent'].includes(k)) { sets.push(`${k}=$${i++}`); vals.push(v); }
@@ -51,7 +51,8 @@ export class NavigatorService {
     if (!sets.length) return null;
     sets.push('updated_at=NOW()');
     vals.push(id);
-    const { rows } = await this.pool.query(`UPDATE artist_navigator_user_materials SET ${sets.join(',')} WHERE id=$${i} RETURNING *`, vals);
+    vals.push(userId);
+    const { rows } = await this.pool.query(`UPDATE artist_navigator_user_materials SET ${sets.join(',')} WHERE id=$${i} AND user_id=$${i+1} RETURNING *`, vals);
     return rows[0];
   }
 

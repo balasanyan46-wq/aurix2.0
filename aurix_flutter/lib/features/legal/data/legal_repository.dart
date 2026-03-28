@@ -1,11 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/features/legal/data/legal_document_model.dart';
 import 'package:aurix_flutter/features/legal/data/legal_template_model.dart';
-
-const _bucket = 'documents';
 
 class LegalRepository {
   /// Шаблоны из public.legal_templates с опциональным поиском и фильтром.
@@ -16,7 +14,7 @@ class LegalRepository {
     final res = await ApiClient.get('/legal-templates', query: {
       if (category != null && category != LegalCategory.all) 'category': category.name,
     });
-    final rows = (res.data as List?) ?? const [];
+    final rows = asList(res.data);
     var list = rows.map((e) => LegalTemplateModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
     debugPrint('[LegalRepository] fetchTemplates count=${list.length}');
     if (query != null && query.trim().isNotEmpty) {
@@ -32,13 +30,13 @@ class LegalRepository {
     final res = await ApiClient.get('/legal-templates/$id');
     final row = res.data;
     if (row == null) return null;
-    return LegalTemplateModel.fromJson((row as Map).cast<String, dynamic>());
+    return LegalTemplateModel.fromJson(row is Map ? (row as Map).cast<String, dynamic>() : <String, dynamic>{});
   }
 
   /// Документы текущего пользователя.
   Future<List<LegalDocumentModel>> fetchMyDocuments() async {
     final res = await ApiClient.get('/legal-documents/my');
-    final rows = (res.data as List?) ?? const [];
+    final rows = asList(res.data);
     return rows.map((e) => LegalDocumentModel.fromJson(Map<String, dynamic>.from(e as Map))).toList();
   }
 
@@ -56,7 +54,7 @@ class LegalRepository {
       'status': 'generated',
     };
     final response = await ApiClient.post('/legal-documents', data: data);
-    final res = (response.data as Map).cast<String, dynamic>();
+    final res = response.data is Map ? (response.data as Map).cast<String, dynamic>() : <String, dynamic>{};
     debugPrint('[LegalRepository] createDocumentRecord documentId=${res['id']}');
     return LegalDocumentModel.fromJson(Map<String, dynamic>.from(res));
   }
@@ -81,7 +79,8 @@ class LegalRepository {
         'path': path,
         'expires_in': expiresIn,
       });
-      final url = (res.data as Map<String, dynamic>)['url']?.toString();
+      final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+      final url = body['url']?.toString();
       debugPrint('[LegalRepository] signedPdfUrl path=$path ok');
       return url;
     } catch (e) {

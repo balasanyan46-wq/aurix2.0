@@ -47,6 +47,11 @@ export class PromoService {
     return rows[0];
   }
 
+  async findById(id: number) {
+    const { rows } = await this.pool.query('SELECT * FROM promo_requests WHERE id=$1', [id]);
+    return rows[0] ?? null;
+  }
+
   async getEvents(promoRequestId: number) {
     const { rows } = await this.pool.query(
       'SELECT * FROM promo_events WHERE promo_request_id=$1 ORDER BY created_at DESC', [promoRequestId],

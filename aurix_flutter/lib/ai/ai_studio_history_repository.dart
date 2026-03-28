@@ -1,12 +1,12 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/ai/ai_persistence_guard.dart';
 
 class AiStudioHistoryRepository {
   Future<List<({String role, String content})>> getMessages({int limit = 80}) async {
     try {
       final res = await ApiClient.get('/ai-studio-messages', query: {'limit': limit});
-      final rows = (res.data as List?) ?? const [];
-      return (rows as List)
+      final rows = asList(res.data);
+      return rows
           .map((r) => (role: (r['role'] as String?) ?? 'assistant', content: (r['content'] as String?) ?? ''))
           .where((m) => m.content.trim().isNotEmpty)
           .toList();

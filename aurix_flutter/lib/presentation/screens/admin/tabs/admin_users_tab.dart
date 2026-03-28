@@ -7,6 +7,7 @@ import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/presentation/screens/admin/admin_user_detail_screen.dart';
 
 class AdminUsersTab extends ConsumerStatefulWidget {
   const AdminUsersTab({super.key});
@@ -136,6 +137,14 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                       });
                     },
                     onAction: () => _showActions(context, p),
+                    onDetail: () {
+                      final id = int.tryParse(p.userId);
+                      if (id != null) {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => AdminUserDetailScreen(userId: id, userName: p.displayNameOrName),
+                        ));
+                      }
+                    },
                   );
                 },
               );
@@ -335,16 +344,19 @@ class _UserCard extends StatelessWidget {
     required this.selected,
     required this.onToggleSelected,
     required this.onAction,
+    this.onDetail,
   });
   final ProfileModel profile;
   final bool selected;
   final ValueChanged<bool> onToggleSelected;
   final VoidCallback onAction;
+  final VoidCallback? onDetail;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onAction,
+      onLongPress: onDetail,
       borderRadius: BorderRadius.circular(10),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -413,7 +425,7 @@ class _UserCard extends StatelessWidget {
             _badge(_planBadgeLabel(profile.plan), AurixTokens.positive),
             const SizedBox(width: 6),
             if (profile.accountStatus == 'suspended')
-              _badge('blocked', Colors.redAccent),
+              _badge('blocked', AurixTokens.danger),
             const SizedBox(width: 8),
             Text(
               DateFormat('dd.MM.yy').format(profile.createdAt),
@@ -583,7 +595,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: selectedPlan,
+                value: selectedPlan,
                 dropdownColor: AurixTokens.bg2,
                 decoration: const InputDecoration(labelText: 'Тариф'),
                 items: const [
@@ -601,7 +613,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
-                initialValue: durationDays,
+                value: durationDays,
                 dropdownColor: AurixTokens.bg2,
                 decoration: const InputDecoration(labelText: 'Срок (дней)'),
                 items: const [7, 14, 30, 60, 90, 180, 365]
@@ -651,7 +663,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
         ),
         content: StatefulBuilder(
           builder: (dialogCtx, setStateDialog) => DropdownButtonFormField<int>(
-            initialValue: selected,
+            value: selected,
             dropdownColor: AurixTokens.bg2,
             decoration: const InputDecoration(labelText: 'Срок (дней)'),
             items: options
@@ -801,6 +813,24 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
             ),
           ],
           const SizedBox(height: 20),
+          // Detail button
+          Center(
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                final id = int.tryParse(widget.profile.userId);
+                if (id != null) {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AdminUserDetailScreen(userId: id, userName: widget.profile.displayNameOrName),
+                  ));
+                }
+              },
+              icon: const Icon(Icons.person_search_rounded, size: 18),
+              label: const Text('Подробный профиль и история'),
+              style: TextButton.styleFrom(foregroundColor: AurixTokens.accent),
+            ),
+          ),
+          const SizedBox(height: 8),
           if (_loading)
             const Center(child: CircularProgressIndicator(color: AurixTokens.orange))
           else ...[
@@ -823,7 +853,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
                 _actionBtn(
                   p.accountStatus == 'active' ? 'Заблокировать' : 'Разблокировать',
                   _toggleSuspend,
-                  color: p.accountStatus == 'active' ? Colors.redAccent : AurixTokens.positive,
+                  color: p.accountStatus == 'active' ? AurixTokens.danger : AurixTokens.positive,
                 ),
               ],
             ),

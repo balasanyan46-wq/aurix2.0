@@ -15,7 +15,6 @@ import 'package:aurix_flutter/design/widgets/premium_ui.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart'
     show currentProfileProvider, currentUserProvider;
 import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
-import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/features/profile/presentation/profile_gate.dart'
     show profileNeedsFillProvider;
 
@@ -159,7 +158,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         fieldName: 'file',
         contentType: _avatarContentType(ext),
       );
-      final body = (res.data as Map).cast<String, dynamic>();
+      final body = res.data is Map ? (res.data as Map).cast<String, dynamic>() : <String, dynamic>{};
       final publicUrl = (body['url'] ?? '').toString();
       _avatarUrlController.text = publicUrl;
       _showSnack('Фото профиля загружено');
@@ -188,7 +187,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 userId: user.id,
                 createdAt: DateTime.now(),
                 updatedAt: DateTime.now(),
-                email: user.email ?? '',
+                email: user.email,
               ))
           .copyWith(
         artistName: _artistNameController.text.trim().isEmpty
@@ -227,8 +226,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       }
     } catch (e) {
       final msg = formatApiError(e);
+      if (!mounted) return;
       setState(() => _loading = false);
-      if (mounted) _showSnack('Ошибка: $msg');
+      _showSnack('Ошибка: $msg');
     }
   }
 
@@ -355,7 +355,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       if (!widget.isMandatory) ...[
                         _ProfileSummaryBlock(
                           profile: profile,
-                          fallbackEmail: user.email ?? '',
+                          fallbackEmail: user.email,
                           completion: _completionProgress(),
                           planLabel: _planLabel(profile?.plan ?? 'start'),
                           subscriptionStatus: subscription?.status ??

@@ -13,15 +13,24 @@ import 'package:aurix_flutter/presentation/screens/releases/release_detail_scree
 import 'package:aurix_flutter/presentation/screens/releases/create_release_screen.dart';
 import 'package:aurix_flutter/presentation/screens/admin/admin_panel.dart';
 import 'package:aurix_flutter/presentation/screens/studio/studio_screen.dart';
+import 'package:aurix_flutter/presentation/screens/studio/studio_hub_screen.dart';
+import 'package:aurix_flutter/presentation/screens/studio/artist_screen.dart';
 import 'package:aurix_flutter/presentation/screens/subscription/subscription_route_screen.dart';
-import 'package:aurix_flutter/screens/home/home_screen.dart';
-import 'package:aurix_flutter/screens/analytics/analytics_screen.dart';
-import 'package:aurix_flutter/screens/promotion/promotion_screen.dart';
-import 'package:aurix_flutter/screens/finances/finances_screen.dart';
-import 'package:aurix_flutter/screens/team/team_screen.dart';
-import 'package:aurix_flutter/screens/services/services_screen.dart';
-import 'package:aurix_flutter/screens/support/support_screen.dart';
-import 'package:aurix_flutter/screens/settings/settings_screen.dart';
+import 'package:aurix_flutter/presentation/screens/billing/credits_screen.dart';
+import 'package:aurix_flutter/presentation/screens/growth/achievements_screen.dart';
+import 'package:aurix_flutter/presentation/screens/growth/goals_screen.dart';
+import 'package:aurix_flutter/presentation/screens/growth/public_profile_screen.dart';
+import 'package:aurix_flutter/presentation/screens/home/home_screen.dart';
+import 'package:aurix_flutter/presentation/screens/analytics/analytics_screen.dart';
+import 'package:aurix_flutter/presentation/screens/analytics/release_plan_screen.dart';
+import 'package:aurix_flutter/presentation/screens/analytics/promo_ideas_screen.dart';
+import 'package:aurix_flutter/presentation/screens/promotion/promotion_screen.dart';
+import 'package:aurix_flutter/presentation/screens/finances/finances_screen.dart';
+import 'package:aurix_flutter/presentation/screens/team/team_screen.dart';
+import 'package:aurix_flutter/features/production/presentation/production_page.dart';
+import 'package:aurix_flutter/presentation/screens/services/services_screen.dart';
+import 'package:aurix_flutter/presentation/screens/support/support_screen.dart';
+import 'package:aurix_flutter/presentation/screens/settings/settings_screen.dart';
 import 'package:aurix_flutter/features/legal/presentation/legal_list_page.dart';
 import 'package:aurix_flutter/features/legal/presentation/legal_detail_page.dart';
 import 'package:aurix_flutter/features/legal/presentation/legal_history_page.dart';
@@ -44,6 +53,7 @@ import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_
 import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_article_screen.dart';
 import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_saved_screen.dart';
 import 'package:aurix_flutter/presentation/widgets/subscription_guard.dart';
+import 'package:aurix_flutter/presentation/screens/promo/promo_video_screen.dart';
 
 /// Fade transition for shell-internal pages (200ms, easeOut).
 class _FadePage<T> extends CustomTransitionPage<T> {
@@ -131,6 +141,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => _FadePage(child: const AnalyticsScreen()),
           ),
           GoRoute(
+            path: '/stats/release-plan',
+            pageBuilder: (context, state) => _FadePage(child: const ReleasePlanScreen()),
+          ),
+          GoRoute(
+            path: '/stats/promo-ideas',
+            pageBuilder: (context, state) => _FadePage(child: const PromoIdeasScreen()),
+          ),
+          GoRoute(
             path: '/promo',
             pageBuilder: (context, state) => _FadePage(
               child: const SubscriptionGuard(
@@ -140,11 +158,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/promo/video',
+            pageBuilder: (context, state) => _FadePage(
+              child: const SubscriptionGuard(
+                requiredPlan: 'breakthrough',
+                child: PromoVideoScreen(),
+              ),
+            ),
+          ),
+          GoRoute(
             path: '/ai',
             pageBuilder: (context, state) => _FadePage(
               child: const SubscriptionGuard(
                 requiredPlan: 'breakthrough',
-                child: StudioScreen(),
+                child: StudioHubScreen(),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/artist',
+            pageBuilder: (context, state) => _FadePage(
+              child: const SubscriptionGuard(
+                requiredPlan: 'breakthrough',
+                child: ArtistScreen(),
               ),
             ),
           ),
@@ -167,7 +203,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => _FadePage(
               child: const SubscriptionGuard(
                 requiredPlan: 'empire',
-                child: TeamScreen(),
+                child: ProductionPage(),
                 lockedTitle: 'Продакшн доступен на Империи',
               ),
             ),
@@ -175,6 +211,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/subscription',
             pageBuilder: (context, state) => _FadePage(child: const SubscriptionRouteScreen()),
+          ),
+          GoRoute(
+            path: '/credits',
+            pageBuilder: (context, state) => _FadePage(child: const CreditsScreen()),
+          ),
+          GoRoute(
+            path: '/achievements',
+            pageBuilder: (context, state) => _FadePage(child: const AchievementsScreen()),
+          ),
+          GoRoute(
+            path: '/goals',
+            pageBuilder: (context, state) => _FadePage(child: const GoalsScreen()),
+          ),
+          GoRoute(
+            path: '/public-profile',
+            pageBuilder: (context, state) => _FadePage(child: const PublicProfileScreen()),
           ),
           GoRoute(
             path: '/services',
@@ -249,20 +301,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: '/dnk/tests/:slug',
-            pageBuilder: (context, state) => _FadePage(
-              child: SubscriptionGuard(
-                requiredPlan: 'breakthrough',
-                child: DnkTestLaunchScreen(testSlug: state.pathParameters['slug']!),
-              ),
-            ),
-          ),
-          GoRoute(
             path: '/dnk/tests/result/:id',
             pageBuilder: (context, state) => _FadePage(
               child: SubscriptionGuard(
                 requiredPlan: 'breakthrough',
                 child: DnkTestResultLoaderScreen(resultId: state.pathParameters['id']!),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/dnk/tests/:slug',
+            pageBuilder: (context, state) => _FadePage(
+              child: SubscriptionGuard(
+                requiredPlan: 'breakthrough',
+                child: DnkTestLaunchScreen(testSlug: state.pathParameters['slug']!),
               ),
             ),
           ),
@@ -366,8 +418,10 @@ class _HomeRoute extends StatelessWidget {
       onOpenAnalytics: () => context.push('/stats'),
       onOpenFinances: () => context.push('/finance'),
       onOpenTeam: () => context.push('/team'),
-      onOpenLegal: () => context.push('/legal'),
+      onOpenLegal: () => context.push('/legal-tools'),
       onOpenReleaseDetails: (id) => context.push('/releases/$id'),
+      onOpenAchievements: () => context.push('/achievements'),
+      onOpenGoals: () => context.push('/goals'),
     );
   }
 }

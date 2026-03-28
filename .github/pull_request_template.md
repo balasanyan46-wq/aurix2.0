@@ -13,6 +13,6 @@
 
 ## Test Plan
 
-- [ ] `cd cloudflare_worker && npm run check:api-contract`
 - [ ] Manual smoke in Flutter chat/studio screens
+- [ ] Verify API endpoints respond correctly (`/api/ai/chat`, `/api/ai/cover`)
 

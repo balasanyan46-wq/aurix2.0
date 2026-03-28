@@ -318,7 +318,7 @@ class _AdminSubscriptionsTabState extends ConsumerState<AdminSubscriptionsTab> {
               ),
               ListTile(
                 leading:
-                    const Icon(Icons.cancel_outlined, color: Colors.redAccent),
+                    const Icon(Icons.cancel_outlined, color: AurixTokens.danger),
                 title: const Text('Отменить сейчас'),
                 onTap: () async {
                   Navigator.of(ctx).pop();
@@ -371,7 +371,7 @@ class _AdminSubscriptionsTabState extends ConsumerState<AdminSubscriptionsTab> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                initialValue: selected,
+                value: selected,
                 dropdownColor: AurixTokens.bg2,
                 items: const [
                   DropdownMenuItem(value: 'start', child: Text('Старт')),
@@ -385,7 +385,7 @@ class _AdminSubscriptionsTabState extends ConsumerState<AdminSubscriptionsTab> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
-                initialValue: durationDays,
+                value: durationDays,
                 dropdownColor: AurixTokens.bg2,
                 decoration: const InputDecoration(labelText: 'Срок (дней)'),
                 items: const [7, 14, 30, 60, 90, 180, 365]
@@ -450,7 +450,7 @@ class _AdminSubscriptionsTabState extends ConsumerState<AdminSubscriptionsTab> {
             style: TextStyle(color: AurixTokens.text)),
         content: StatefulBuilder(
           builder: (dialogCtx, setSt) => DropdownButtonFormField<int>(
-            initialValue: selected,
+            value: selected,
             dropdownColor: AurixTokens.bg2,
             decoration: const InputDecoration(labelText: 'Срок (дней)'),
             items: const [7, 14, 30, 60, 90, 180, 365]

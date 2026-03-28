@@ -9,6 +9,7 @@ import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/data/providers/crm_providers.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 
 class AdminSupportTab extends ConsumerStatefulWidget {
   const AdminSupportTab({super.key});
@@ -25,7 +26,7 @@ class _AdminSupportTabState extends ConsumerState<AdminSupportTab> {
   static const _statuses = ['all', 'open', 'in_progress', 'resolved', 'closed'];
 
   Color _statusColor(String status) => switch (status) {
-        'open' => Colors.amber,
+        'open' => AurixTokens.warning,
         'in_progress' => Colors.blue,
         'resolved' => AurixTokens.positive,
         'closed' => AurixTokens.muted,
@@ -168,7 +169,7 @@ class _AdminSupportTabState extends ConsumerState<AdminSupportTab> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline_rounded, size: 40, color: Colors.redAccent.withValues(alpha: 0.6)),
+                    Icon(Icons.error_outline_rounded, size: 40, color: AurixTokens.danger.withValues(alpha: 0.6)),
                     const SizedBox(height: 12),
                     Text(e.toString().replaceAll('Exception: ', ''), style: const TextStyle(color: AurixTokens.muted, fontSize: 13), textAlign: TextAlign.center),
                     const SizedBox(height: 16),
@@ -200,8 +201,8 @@ class _TicketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final priorityColor = switch (ticket.priority) {
-      'high' => Colors.redAccent,
-      'medium' => Colors.amber,
+      'high' => AurixTokens.danger,
+      'medium' => AurixTokens.warning,
       _ => AurixTokens.muted,
     };
 
@@ -241,7 +242,7 @@ class _TicketCard extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                Text('ID: ${ticket.userId.substring(0, 8)}...', style: const TextStyle(color: AurixTokens.muted, fontSize: 10, fontFamily: 'monospace')),
+                Text('ID: ${ticket.userId.length > 8 ? '${ticket.userId.substring(0, 8)}...' : ticket.userId}', style: const TextStyle(color: AurixTokens.muted, fontSize: 10, fontFamily: 'monospace')),
                 const Spacer(),
                 Text(DateFormat('dd.MM.yy HH:mm').format(ticket.updatedAt), style: const TextStyle(color: AurixTokens.muted, fontSize: 10)),
               ],
@@ -270,6 +271,7 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
   List<SupportMessageModel> _messages = [];
   bool _loading = true;
   bool _sending = false;
+  bool _notifyingEmail = false;
 
   @override
   void initState() {
@@ -361,6 +363,33 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
     }
   }
 
+  Future<void> _notifyByEmail() async {
+    // Get the last admin message to include in email
+    final lastAdminMsg = _messages.lastWhere(
+      (m) => m.isAdmin,
+      orElse: () => _messages.last,
+    );
+
+    setState(() => _notifyingEmail = true);
+    try {
+      await ApiClient.post('/support-tickets/${widget.ticket.id}/notify-email', data: {
+        'message_text': lastAdminMsg.body,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Email-уведомление отправлено'), backgroundColor: AurixTokens.positive),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка отправки email: $e'), backgroundColor: AurixTokens.danger),
+        );
+      }
+    }
+    if (mounted) setState(() => _notifyingEmail = false);
+  }
+
   Future<String?> _askReasonForStatus(String nextStatus) async {
     final ctrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -408,7 +437,7 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(widget.ticket.subject, style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w600, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text('User: ${widget.ticket.userId.substring(0, 8)}...', style: const TextStyle(color: AurixTokens.muted, fontSize: 11, fontFamily: 'monospace')),
+                    Text('User: ${widget.ticket.userId.length > 8 ? '${widget.ticket.userId.substring(0, 8)}...' : widget.ticket.userId}', style: const TextStyle(color: AurixTokens.muted, fontSize: 11, fontFamily: 'monospace')),
                   ],
                 ),
               ),
@@ -482,10 +511,18 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               _sending
                   ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: AurixTokens.orange)))
                   : IconButton(onPressed: _send, icon: const Icon(Icons.send_rounded, color: AurixTokens.orange)),
+              _notifyingEmail
+                  ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue)))
+                  : IconButton(
+                      onPressed: _messages.any((m) => m.isAdmin) ? _notifyByEmail : null,
+                      icon: const Icon(Icons.email_outlined, size: 20),
+                      color: Colors.blue,
+                      tooltip: 'Оповестить на почту',
+                    ),
             ],
           ),
         ),

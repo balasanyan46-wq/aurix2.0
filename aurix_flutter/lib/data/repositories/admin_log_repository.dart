@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/admin_log_model.dart';
 
 class AdminLogRepository {
@@ -44,7 +44,7 @@ class AdminLogRepository {
     }
 
     final res = await ApiClient.get('/admin-logs', query: query);
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .map((e) => AdminLogModel.fromJson(e as Map<String, dynamic>))
         .toList();

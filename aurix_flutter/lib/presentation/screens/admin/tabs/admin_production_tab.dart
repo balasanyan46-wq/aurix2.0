@@ -106,7 +106,7 @@ class _CatalogTab extends ConsumerWidget {
                 TextField(controller: desc, decoration: const InputDecoration(labelText: 'Описание')),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  initialValue: category,
+                  value: category,
                   items: const [
                     DropdownMenuItem(value: 'music', child: Text('Музыка')),
                     DropdownMenuItem(value: 'visual', child: Text('Визуал')),
@@ -195,7 +195,7 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
       error: (e, _) => Center(child: Text('$e', style: const TextStyle(color: AurixTokens.negative))),
       data: (data) => profilesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const SizedBox.shrink(),
+        error: (e, _) => Center(child: Text('Ошибка профилей: $e', style: const TextStyle(color: AurixTokens.negative, fontSize: 12))),
         data: (profiles) {
           final profileName = {for (final p in profiles) p.id: (p.name?.isNotEmpty == true ? p.name! : p.email)};
           final orders = data.$1;
@@ -203,7 +203,7 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
           final q = _searchCtrl.text.trim().toLowerCase();
           return assigneesAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (e, _) => Center(child: Text('Ошибка исполнителей: $e', style: const TextStyle(color: AurixTokens.negative, fontSize: 12))),
             data: (assignees) => ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -300,7 +300,7 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
               child: Column(
                 children: [
                   DropdownButtonFormField<String>(
-                    initialValue: selectedUser,
+                    value: selectedUser,
                     decoration: const InputDecoration(labelText: 'Артист'),
                     items: profiles
                         .map((p) => DropdownMenuItem<String>(

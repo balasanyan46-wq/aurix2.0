@@ -456,7 +456,7 @@ class NavigatorController extends StateNotifier<NavigatorState> {
     if (userId == null) return null;
     try {
       final res = await ApiClient.get('/dnk-results/latest', query: {'user_id': userId});
-      final row = res.data as Map<String, dynamic>?;
+      final row = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : null;
       final raw = (row?['tags'] as List?) ?? const [];
       return NavigatorDnkSignal(
         focusTags: raw.map((e) => e.toString()).toList(),

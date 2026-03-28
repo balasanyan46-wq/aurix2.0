@@ -70,9 +70,9 @@ class _AccountDeletionRequestPageState extends ConsumerState<AccountDeletionRequ
                       margin: const EdgeInsets.only(top: 16),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.08),
+                        color: AurixTokens.positive.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.green.withValues(alpha: 0.28)),
+                        border: Border.all(color: AurixTokens.positive.withValues(alpha: 0.28)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,13 +123,13 @@ class _AccountDeletionRequestPageState extends ConsumerState<AccountDeletionRequ
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AurixTokens.text),
                             )
                           : const Icon(Icons.delete_forever_rounded),
                       label: Text(_submitting ? 'Отправляем...' : 'Отправить запрос'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AurixTokens.danger,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AurixTokens.text,
                       ),
                     ),
                   ],

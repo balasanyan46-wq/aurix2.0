@@ -34,7 +34,7 @@ class MyStatusCard extends StatelessWidget {
               children: [
                 if (myIndex != null) _Stat('Твой индекс', formatNumber(myIndex!), AurixTokens.orange),
                 if (myRank != null) _Stat('Место', '#$myRank', AurixTokens.text),
-                if (toTop10 != null && toTop10! > 0) _Stat('До Top-10', '+$toTop10', Colors.green),
+                if (toTop10 != null && toTop10! > 0) _Stat('До Top-10', '+$toTop10', AurixTokens.positive),
               ],
             ),
             if (onHowToRise != null) ...[
@@ -45,7 +45,7 @@ class MyStatusCard extends StatelessWidget {
                   onPressed: onHowToRise,
                   style: FilledButton.styleFrom(
                     backgroundColor: AurixTokens.orange,
-                    foregroundColor: Colors.black,
+                    foregroundColor: AurixTokens.bg0,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   ),
                   child: const Text('Как подняться в рейтинге'),
@@ -64,7 +64,7 @@ class MyStatusCard extends StatelessWidget {
                   const SizedBox(width: 32),
                 ],
                 if (toTop10 != null && toTop10! > 0) ...[
-                  _Stat('До Top-10', '+$toTop10', Colors.green),
+                  _Stat('До Top-10', '+$toTop10', AurixTokens.positive),
                   const SizedBox(width: 32),
                 ],
                 const Spacer(),
@@ -73,7 +73,7 @@ class MyStatusCard extends StatelessWidget {
                     onPressed: onHowToRise,
                     style: FilledButton.styleFrom(
                       backgroundColor: AurixTokens.orange,
-                      foregroundColor: Colors.black,
+                      foregroundColor: AurixTokens.bg0,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
                     child: const Text('Как подняться в рейтинге'),

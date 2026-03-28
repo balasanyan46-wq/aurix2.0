@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/features/progress/data/models/progress_habit.dart';
 
 class ProgressHabitsRepository {
@@ -6,7 +6,7 @@ class ProgressHabitsRepository {
     final res = await ApiClient.get('/progress-habits', query: {
       if (activeOnly) 'is_active': true,
     });
-    final rows = (res.data as List?) ?? const [];
+    final rows = asList(res.data);
     return rows
         .whereType<Map>()
         .map((e) => ProgressHabit.fromJson(e.cast<String, dynamic>()))
@@ -29,7 +29,7 @@ class ProgressHabitsRepository {
       'is_active': isActive,
       'sort_order': sortOrder,
     });
-    final row = (res.data as Map).cast<String, dynamic>();
+    final row = res.data is Map ? (res.data as Map).cast<String, dynamic>() : <String, dynamic>{};
     return ProgressHabit.fromJson(row);
   }
 

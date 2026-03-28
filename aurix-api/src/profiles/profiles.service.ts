@@ -14,7 +14,24 @@ export class ProfilesService {
     return rows[0] || null;
   }
 
+  async findArtistById(artistId: number) {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM artists WHERE id = $1`,
+      [artistId],
+    );
+    return rows[0] || null;
+  }
+
   async create(userId: string, data: Record<string, any>) {
+    // SECURITY: strip privileged fields — only admin endpoints should set these
+    delete data.role;
+    delete data.account_status;
+    delete data.plan;
+    delete data.plan_id;
+    delete data.billing_period;
+    delete data.subscription_status;
+    delete data.subscription_end;
+
     const fields = [
       'email',
       'name',
@@ -25,13 +42,6 @@ export class ProfilesService {
       'gender',
       'bio',
       'avatar_url',
-      'role',
-      'account_status',
-      'plan',
-      'plan_id',
-      'billing_period',
-      'subscription_status',
-      'subscription_end',
     ];
 
     const provided = fields.filter((f) => data[f] !== undefined);
@@ -73,11 +83,6 @@ export class ProfilesService {
       'gender',
       'bio',
       'avatar_url',
-      'plan',
-      'plan_id',
-      'billing_period',
-      'subscription_status',
-      'subscription_end',
     ];
 
     const provided = fields.filter((f) => data[f] !== undefined);
@@ -107,11 +112,27 @@ export class ProfilesService {
   }
 
   async updateRole(userId: string, role: string) {
+    // Update both profiles AND users tables so AdminGuard (which checks users.role) works
+    await this.pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
     const { rows } = await this.pool.query(
       `UPDATE profiles SET role = $1, updated_at = now()
        WHERE user_id = $2
        RETURNING *`,
       [role, userId],
+    );
+    return rows[0] || null;
+  }
+
+  /** Admin-only: update subscription fields on a profile. */
+  async updateSubscription(userId: string, data: Record<string, any>) {
+    const fields = ['plan', 'plan_id', 'billing_period', 'subscription_status', 'subscription_end'];
+    const provided = fields.filter((f) => data[f] !== undefined);
+    if (provided.length === 0) return this.findByUserId(userId);
+    const setClause = provided.map((f, i) => `${f} = $${i + 1}`).join(', ');
+    const values = [...provided.map((f) => data[f]), userId];
+    const { rows } = await this.pool.query(
+      `UPDATE profiles SET ${setClause}, updated_at = now() WHERE user_id = $${values.length} RETURNING *`,
+      values,
     );
     return rows[0] || null;
   }

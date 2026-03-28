@@ -4,21 +4,22 @@ import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
-import 'package:aurix_flutter/data/providers/crm_providers.dart';
 import 'package:aurix_flutter/data/providers/promo_providers.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_dashboard_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_users_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_releases_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_delete_requests_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_finance_tab.dart';
-import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_content_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_analytics_tab.dart';
-import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_logs_tab.dart';
-import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_support_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_content_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_production_tab.dart';
-import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_promo_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_crm_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_subscriptions_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_promo_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_logs_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_support_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_billing_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_system_tab.dart';
 
 const _kDesktopBreak = 800.0;
 
@@ -34,15 +35,17 @@ const _tabs = [
   _TabDef('users', 'Пользователи', Icons.people_rounded),
   _TabDef('releases', 'Релизы', Icons.album_rounded),
   _TabDef('delete_requests', 'Запросы на удаление', Icons.delete_sweep_rounded),
-  _TabDef('finance', 'Финансы', Icons.payments_rounded),
+  _TabDef('finance', 'Финансы', Icons.monetization_on_rounded),
   _TabDef('analytics', 'Аналитика', Icons.bar_chart_rounded),
-  _TabDef('content', 'Контент', Icons.description_rounded),
-  _TabDef('production', 'Продакшн', Icons.precision_manufacturing_rounded),
-  _TabDef('crm', 'CRM', Icons.view_kanban_rounded),
-  _TabDef('subscriptions', 'Подписки', Icons.workspace_premium_rounded),
+  _TabDef('content', 'Контент', Icons.article_rounded),
+  _TabDef('production', 'Продакшн', Icons.engineering_rounded),
+  _TabDef('crm', 'CRM', Icons.contact_mail_rounded),
+  _TabDef('subscriptions', 'Подписки', Icons.card_membership_rounded),
   _TabDef('promo', 'Промо', Icons.campaign_rounded),
-  _TabDef('logs', 'Логи', Icons.history_rounded),
+  _TabDef('logs', 'Логи', Icons.receipt_long_rounded),
   _TabDef('support', 'Поддержка', Icons.support_agent_rounded),
+  _TabDef('billing', 'Биллинг', Icons.payments_rounded),
+  _TabDef('system', 'Система', Icons.settings_rounded),
 ];
 
 class AdminPanel extends ConsumerStatefulWidget {
@@ -120,21 +123,21 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
   }
 
   void _refreshAll() {
+    ref.invalidate(adminDashboardProvider);
+    ref.invalidate(adminDauProvider);
+    ref.invalidate(adminEventsBreakdownProvider);
     ref.invalidate(allReleasesAdminProvider);
     ref.invalidate(allReleaseDeleteRequestsProvider);
     ref.invalidate(allProfilesProvider);
     ref.invalidate(allReportRowsProvider);
     ref.invalidate(adminLogsProvider);
     ref.invalidate(allTicketsProvider);
-    ref.invalidate(adminProductionCatalogProvider);
-    ref.invalidate(adminProductionAssigneesProvider);
-    ref.invalidate(adminProductionOrdersProvider);
-    ref.invalidate(adminCrmLeadsProvider);
-    ref.invalidate(adminCrmDealsProvider);
-    ref.invalidate(adminCrmInvoicesProvider);
     ref.invalidate(adminBillingSubscriptionsProvider);
-    ref.invalidate(adminCrmTasksProvider);
     ref.invalidate(adminPromoRequestsProvider);
+    ref.invalidate(adminAiActionsProvider);
+    ref.invalidate(adminBillingStatsProvider);
+    ref.invalidate(adminBillingTransactionsProvider);
+    ref.invalidate(adminSignalsProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Данные обновлены'),
@@ -144,6 +147,24 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
       ),
     );
   }
+
+  List<Widget> _buildTabWidgets() => [
+        AdminDashboardTab(onGoToTab: goToTab),
+        const AdminUsersTab(),
+        const AdminReleasesTab(),
+        const AdminDeleteRequestsTab(),
+        const AdminFinanceTab(),
+        const AdminAnalyticsTab(),
+        const AdminContentTab(),
+        const AdminProductionTab(),
+        const AdminCrmTab(),
+        const AdminSubscriptionsTab(),
+        const AdminPromoTab(),
+        const AdminLogsTab(),
+        const AdminSupportTab(),
+        const AdminBillingTab(),
+        const AdminSystemTab(),
+      ];
 
   Widget _buildDesktop(BuildContext context) {
     return Scaffold(
@@ -213,21 +234,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
       ),
       body: TabBarView(
         controller: _tc,
-        children: [
-          AdminDashboardTab(onGoToTab: goToTab),
-          const AdminUsersTab(),
-          const AdminReleasesTab(),
-          const AdminDeleteRequestsTab(),
-          const AdminFinanceTab(),
-          const AdminAnalyticsTab(),
-          const AdminContentTab(),
-          const AdminProductionTab(),
-          const AdminCrmTab(),
-          const AdminSubscriptionsTab(),
-          const AdminPromoTab(),
-          const AdminLogsTab(),
-          const AdminSupportTab(),
-        ],
+        children: _buildTabWidgets(),
       ),
     );
   }
@@ -273,7 +280,8 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
       drawer: Drawer(
         backgroundColor: AurixTokens.bg0,
         child: SafeArea(
-          child: Column(
+          child: ListView(
+            padding: EdgeInsets.zero,
             children: [
               const SizedBox(height: 24),
               Padding(
@@ -330,21 +338,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
         builder: (context, _) {
           return IndexedStack(
             index: _tc.index,
-            children: [
-              AdminDashboardTab(onGoToTab: goToTab),
-              const AdminUsersTab(),
-              const AdminReleasesTab(),
-              const AdminDeleteRequestsTab(),
-              const AdminFinanceTab(),
-              const AdminAnalyticsTab(),
-              const AdminContentTab(),
-              const AdminProductionTab(),
-              const AdminCrmTab(),
-              const AdminSubscriptionsTab(),
-              const AdminPromoTab(),
-              const AdminLogsTab(),
-              const AdminSupportTab(),
-            ],
+            children: _buildTabWidgets(),
           );
         },
       ),

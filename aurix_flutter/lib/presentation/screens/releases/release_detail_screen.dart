@@ -1,4 +1,5 @@
 import 'dart:io' if (dart.library.html) 'package:aurix_flutter/io_stub.dart' show File;
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
@@ -18,6 +20,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/premium_ui.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
+import 'package:aurix_flutter/presentation/screens/releases/widgets/track_player.dart';
 
 final releaseDetailProvider = FutureProvider.family<ReleaseModel?, String>((ref, id) async {
   return ref.watch(releaseRepositoryProvider).getRelease(id);
@@ -321,6 +324,14 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
                     delayMs: 150,
                     child: ReleaseAaiBlock(aaiAsync: aai, dnkHintsAsync: dnkHints),
                   ),
+                  const SizedBox(height: 12),
+
+                  // AI Analysis button
+                  if (isOwner)
+                    FadeInSlide(
+                      delayMs: 200,
+                      child: _AiAnalyzeButton(releaseId: widget.releaseId, releaseTitle: r.title),
+                    ),
                   const SizedBox(height: 16),
 
                   // Actions
@@ -370,9 +381,9 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: r.coverUrl != null
+              child: r.coverUrl != null && r.coverUrl!.isNotEmpty
                   ? Image.network(
-                      r.coverUrl!,
+                      ApiClient.fixUrl(r.coverUrl),
                       height: 220,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -848,73 +859,83 @@ class _TrackItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final audioUrl = ApiClient.fixUrl(track.audioUrl);
+
     return PremiumSectionCard(
       padding: const EdgeInsets.all(14),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AurixTokens.bg2,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: Text(
-                '$index',
-                style: const TextStyle(
-                  color: AurixTokens.muted,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  fontFeatures: AurixTokens.tabularFigures,
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AurixTokens.bg2,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.title ?? track.audioPath.split('/').last,
-                  style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w600, fontSize: 14),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                if (track.isrc != null && track.isrc!.isNotEmpty)
-                  Text(
-                    'ISRC: ${track.isrc}',
-                    style: TextStyle(color: AurixTokens.accent.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w500),
-                  )
-                else if (canEdit)
-                  Text(
-                    'ISRC не указан',
-                    style: TextStyle(color: AurixTokens.warning.withValues(alpha: 0.7), fontSize: 12),
+                child: Center(
+                  child: Text(
+                    '$index',
+                    style: const TextStyle(
+                      color: AurixTokens.muted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: AurixTokens.tabularFigures,
+                    ),
                   ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      track.title ?? track.audioPath.split('/').last,
+                      style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w600, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    if (track.isrc != null && track.isrc!.isNotEmpty)
+                      Text(
+                        'ISRC: ${track.isrc}',
+                        style: TextStyle(color: AurixTokens.accent.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w500),
+                      )
+                    else if (canEdit)
+                      Text(
+                        'ISRC не указан',
+                        style: TextStyle(color: AurixTokens.warning.withValues(alpha: 0.7), fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
+              if (canEdit) ...[
+                IconButton(
+                  icon: const Icon(Icons.edit_note_rounded, size: 18, color: AurixTokens.muted),
+                  onPressed: onEditIsrc,
+                  tooltip: 'ISRC',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AurixTokens.glass(0.06),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(Icons.delete_outline_rounded, size: 18, color: AurixTokens.danger.withValues(alpha: 0.6)),
+                  onPressed: onDelete,
+                  style: IconButton.styleFrom(
+                    backgroundColor: AurixTokens.glass(0.06),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
               ],
-            ),
+            ],
           ),
-          if (canEdit) ...[
-            IconButton(
-              icon: const Icon(Icons.edit_note_rounded, size: 18, color: AurixTokens.muted),
-              onPressed: onEditIsrc,
-              tooltip: 'ISRC',
-              style: IconButton.styleFrom(
-                backgroundColor: AurixTokens.glass(0.06),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              icon: Icon(Icons.delete_outline_rounded, size: 18, color: AurixTokens.danger.withValues(alpha: 0.6)),
-              onPressed: onDelete,
-              style: IconButton.styleFrom(
-                backgroundColor: AurixTokens.glass(0.06),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
+          if (audioUrl.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            TrackPlayer(url: audioUrl),
           ],
         ],
       ),
@@ -960,6 +981,72 @@ class _SecondaryActionState extends State<_SecondaryAction> {
               Text(
                 widget.label,
                 style: TextStyle(color: accentColor.withValues(alpha: 0.9), fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiAnalyzeButton extends StatefulWidget {
+  final String releaseId;
+  final String releaseTitle;
+  const _AiAnalyzeButton({required this.releaseId, required this.releaseTitle});
+
+  @override
+  State<_AiAnalyzeButton> createState() => _AiAnalyzeButtonState();
+}
+
+class _AiAnalyzeButtonState extends State<_AiAnalyzeButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: () {
+          // Navigate to studio tab with this release pre-selected
+          context.push('/studio?release=${widget.releaseId}');
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AurixTokens.accent.withValues(alpha: _hovered ? 0.18 : 0.1),
+                AurixTokens.accentWarm.withValues(alpha: _hovered ? 0.1 : 0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AurixTokens.accent.withValues(alpha: _hovered ? 0.3 : 0.15),
+            ),
+            boxShadow: _hovered ? [
+              BoxShadow(
+                color: AurixTokens.accentGlow.withValues(alpha: 0.1),
+                blurRadius: 20,
+                spreadRadius: -8,
+              ),
+            ] : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.auto_awesome_rounded, size: 18, color: AurixTokens.accent),
+              const SizedBox(width: 8),
+              Text(
+                'AI разбор трека',
+                style: TextStyle(
+                  color: AurixTokens.accent,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),

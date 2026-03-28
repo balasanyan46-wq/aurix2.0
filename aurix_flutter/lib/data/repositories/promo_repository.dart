@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/promo_request_model.dart';
 
 class PromoRepository {
@@ -10,7 +10,7 @@ class PromoRepository {
       query['release_id'] = releaseId;
     }
     final res = await ApiClient.get('/promo-requests', query: query);
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .cast<Map<String, dynamic>>()
         .map(PromoRequestModel.fromJson)
@@ -21,7 +21,7 @@ class PromoRepository {
     final res = await ApiClient.get('/promo-requests', query: {
       'order': 'created_at.desc',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .cast<Map<String, dynamic>>()
         .map(PromoRequestModel.fromJson)
@@ -33,7 +33,7 @@ class PromoRepository {
       'promo_request_id': promoRequestId,
       'order': 'created_at.desc',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .cast<Map<String, dynamic>>()
         .map(PromoEventModel.fromJson)
@@ -55,7 +55,7 @@ class PromoRepository {
       'form_data': formData,
     };
     final res = await ApiClient.post('/promo-requests', data: payload);
-    final body = res.data as Map<String, dynamic>;
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     final req = PromoRequestModel.fromJson(body);
     await addEvent(
       promoRequestId: req.id,
@@ -82,15 +82,15 @@ class PromoRepository {
         'order': 'created_at.desc',
         'limit': '1',
       });
-      final existingList = existingRes.data as List;
+      final existingList = asList(existingRes.data);
       if (existingList.isNotEmpty) {
-        final existing = existingList.first as Map<String, dynamic>;
-        final existingId = existing['id'] as String;
+        final existing = existingList.first is Map ? Map<String, dynamic>.from(existingList.first as Map) : <String, dynamic>{};
+        final existingId = existing['id']?.toString() ?? '';
         final updatedRes = await ApiClient.put('/promo-requests/$existingId', data: {
           'form_data': formData,
           'status': status,
         });
-        final updatedBody = updatedRes.data as Map<String, dynamic>;
+        final updatedBody = updatedRes.data is Map ? Map<String, dynamic>.from(updatedRes.data as Map) : <String, dynamic>{};
         await addEvent(
           promoRequestId: existingId,
           eventType: 'status_changed',

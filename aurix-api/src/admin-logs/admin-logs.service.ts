@@ -23,9 +23,11 @@ export class AdminLogsService {
   }
 
   async create(data: Record<string, any>) {
+    const raw = data.details || data.p_details || null;
+    const details = raw == null ? null : (typeof raw === 'string' ? raw : JSON.stringify(raw));
     const { rows } = await this.pool.query(
       `INSERT INTO admin_logs (admin_id, action, target_type, target_id, details) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [data.admin_id || data.p_admin_id || null, data.action || data.p_action, data.target_type || data.p_target_type || null, data.target_id || data.p_target_id || null, data.details || data.p_details ? JSON.stringify(data.details || data.p_details) : null],
+      [data.admin_id || data.p_admin_id || null, data.action || data.p_action, data.target_type || data.p_target_type || null, data.target_id || data.p_target_id || null, details],
     );
     return rows[0];
   }

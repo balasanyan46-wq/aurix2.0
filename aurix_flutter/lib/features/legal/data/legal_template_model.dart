@@ -40,7 +40,7 @@ extension LegalCategoryX on LegalCategory {
   }
 }
 
-/// Шаблон из public.legal_templates (Supabase).
+/// Шаблон из public.legal_templates.
 class LegalTemplateModel {
   const LegalTemplateModel({
     required this.id,

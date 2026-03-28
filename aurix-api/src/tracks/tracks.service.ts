@@ -26,6 +26,19 @@ export class TracksService {
     return rows[0];
   }
 
+  async findByUserId(userId: number) {
+    const { rows } = await this.pool.query(
+      `SELECT t.*, r.title AS release_title, r.cover_url, r.artist
+       FROM tracks t
+       JOIN releases r ON r.id = t.release_id
+       JOIN artists a ON a.id = r.artist_id
+       WHERE a.user_id = $1
+       ORDER BY t.created_at DESC`,
+      [userId],
+    );
+    return rows;
+  }
+
   async findByReleaseId(releaseId: number) {
     const { rows } = await this.pool.query(
       `SELECT * FROM tracks WHERE release_id = $1 ORDER BY track_number ASC, id ASC`,
@@ -41,6 +54,18 @@ export class TracksService {
 
   async findByIsrc(isrc: string) {
     const { rows } = await this.pool.query('SELECT * FROM tracks WHERE isrc = $1', [isrc]);
+    return rows;
+  }
+
+  /** ISRC search scoped to the requesting user's releases. */
+  async findByIsrcForUser(isrc: string, userId: number) {
+    const { rows } = await this.pool.query(
+      `SELECT t.* FROM tracks t
+       JOIN releases r ON r.id = t.release_id
+       JOIN artists a ON a.id = r.artist_id
+       WHERE t.isrc = $1 AND a.user_id = $2`,
+      [isrc, userId],
+    );
     return rows;
   }
 

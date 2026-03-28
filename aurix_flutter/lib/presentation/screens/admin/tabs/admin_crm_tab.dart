@@ -441,7 +441,7 @@ class _AdminCrmTabState extends ConsumerState<AdminCrmTab> {
                       loading: () => const CircularProgressIndicator(
                           color: AurixTokens.orange),
                       error: (e, _) => Text('Ошибка: $e',
-                          style: const TextStyle(color: Colors.redAccent)),
+                          style: const TextStyle(color: AurixTokens.danger)),
                     ),
                     const SizedBox(height: 10),
                     const Text(
@@ -486,7 +486,7 @@ class _AdminCrmTabState extends ConsumerState<AdminCrmTab> {
                       loading: () => const CircularProgressIndicator(
                           color: AurixTokens.orange),
                       error: (e, _) => Text('Ошибка: $e',
-                          style: const TextStyle(color: Colors.redAccent)),
+                          style: const TextStyle(color: AurixTokens.danger)),
                     ),
                   ],
                 ),
@@ -506,7 +506,7 @@ class _AdminCrmTabState extends ConsumerState<AdminCrmTab> {
     String Function(String)? labelBuilder,
   }) {
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      value: value,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: AurixTokens.muted),
@@ -725,7 +725,7 @@ class _CrmKanbanView extends StatelessWidget {
                                       Text(
                                         'до ${DateFormat('dd.MM').format(lead.dueAt!)}',
                                         style: const TextStyle(
-                                            color: Colors.amber, fontSize: 11),
+                                            color: AurixTokens.warning, fontSize: 11),
                                       ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -760,7 +760,7 @@ class _CrmKanbanView extends StatelessWidget {
           child: CircularProgressIndicator(color: AurixTokens.orange)),
       error: (e, _) => Center(
           child: Text('Ошибка: $e',
-              style: const TextStyle(color: Colors.redAccent))),
+              style: const TextStyle(color: AurixTokens.danger))),
     );
   }
 }
@@ -918,7 +918,7 @@ class _CrmLeadsTableView extends ConsumerWidget {
                           if (lead.dueAt != null)
                             Text(DateFormat('dd.MM').format(lead.dueAt!),
                                 style: const TextStyle(
-                                    color: Colors.amber, fontSize: 11)),
+                                    color: AurixTokens.warning, fontSize: 11)),
                         ],
                       ),
                     );
@@ -931,7 +931,7 @@ class _CrmLeadsTableView extends ConsumerWidget {
               child: CircularProgressIndicator(color: AurixTokens.orange),
             ),
             error: (e, _) => Text('Ошибка: $e',
-                style: const TextStyle(color: Colors.redAccent)),
+                style: const TextStyle(color: AurixTokens.danger)),
           ),
         ],
       ),
@@ -1045,7 +1045,7 @@ class _CrmDealsView extends ConsumerWidget {
           child: CircularProgressIndicator(color: AurixTokens.orange)),
       error: (e, _) => Center(
           child: Text('Ошибка: $e',
-              style: const TextStyle(color: Colors.redAccent))),
+              style: const TextStyle(color: AurixTokens.danger))),
     );
   }
 }
@@ -1108,7 +1108,7 @@ Future<void> _openDealFinance({
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    initialValue: status,
+                    value: status,
                     decoration: const InputDecoration(
                       labelText: 'Статус счёта',
                       labelStyle: TextStyle(color: AurixTokens.muted),
@@ -1353,7 +1353,7 @@ class _CrmTasksViewState extends ConsumerState<_CrmTasksView> {
                                 Text(
                                   'Дедлайн: ${DateFormat('dd.MM.yyyy').format(t.dueAt!)}',
                                   style: const TextStyle(
-                                      color: Colors.amber, fontSize: 12),
+                                      color: AurixTokens.warning, fontSize: 12),
                                 ),
                             ],
                           ),
@@ -1380,7 +1380,7 @@ class _CrmTasksViewState extends ConsumerState<_CrmTasksView> {
           child: CircularProgressIndicator(color: AurixTokens.orange)),
       error: (e, _) => Center(
           child: Text('Ошибка: $e',
-              style: const TextStyle(color: Colors.redAccent))),
+              style: const TextStyle(color: AurixTokens.danger))),
     );
   }
 }
@@ -1432,7 +1432,7 @@ class _CrmProfileViewState extends ConsumerState<_CrmProfileView> {
                 )
               else
                 DropdownButtonFormField<String>(
-                  initialValue: _selectedUserId,
+                  value: _selectedUserId,
                   decoration: const InputDecoration(
                     labelText: 'Артист',
                     labelStyle: TextStyle(color: AurixTokens.muted),
@@ -1442,10 +1442,7 @@ class _CrmProfileViewState extends ConsumerState<_CrmProfileView> {
                       .map((id) => DropdownMenuItem<String>(
                             value: id,
                             child: Text(
-                              widget.profiles
-                                      .firstWhere((p) => p.userId == id)
-                                      .displayNameOrName +
-                                  ' · $id',
+                              '${widget.profiles.where((p) => p.userId == id).firstOrNull?.displayNameOrName ?? 'User'} · $id',
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: AurixTokens.text,
@@ -1527,7 +1524,7 @@ class _CrmProfileViewState extends ConsumerState<_CrmProfileView> {
           ),
           error: (e, _) => Text(
             'Ошибка CRM Profile: $e',
-            style: const TextStyle(color: Colors.redAccent),
+            style: const TextStyle(color: AurixTokens.danger),
           ),
         ),
       ],
@@ -1579,7 +1576,7 @@ class _FilterField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      value: value,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: AurixTokens.muted),

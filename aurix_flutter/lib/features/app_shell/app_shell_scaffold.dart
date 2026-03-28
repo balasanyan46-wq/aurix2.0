@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +17,8 @@ import 'package:aurix_flutter/core/admin_config.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
 import 'package:aurix_flutter/ai/ai_assistant_overlay.dart';
+import 'package:aurix_flutter/data/providers/billing_providers.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 
 /// Shell: sidebar (desktop) / Drawer (mobile) + topbar + content.
 class AppShellScaffold extends ConsumerStatefulWidget {
@@ -35,10 +38,26 @@ class AppShellScaffold extends ConsumerStatefulWidget {
 class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _paywallShownForUser;
+  bool _checkedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dailyCheckin();
+  }
+
+  void _dailyCheckin() {
+    if (_checkedIn) return;
+    _checkedIn = true;
+    // Fire-and-forget daily checkin for streak + XP
+    ApiClient.post('/growth/checkin').ignore();
+  }
 
   bool _isSubscriptionLockedSection(String location) {
     return location == '/ai' ||
+        location == '/artist' ||
         location == '/promo' ||
+        location == '/promo/video' ||
         location == '/team' ||
         location == '/production' ||
         location == '/dnk' ||
@@ -205,26 +224,28 @@ class _NavGroup {
 List<_NavGroup> _appNavGroups(bool isAdmin) => [
   _NavGroup(titleKey: null, items: [
     _NavItem(path: '/home', icon: Icons.home_rounded, labelKey: 'home'),
+    _NavItem(path: '/ai', icon: Icons.auto_awesome, labelKey: 'studioAi'),
+    _NavItem(path: '/artist', icon: Icons.person_pin_rounded, label: 'Артист'),
+    _NavItem(path: '/promo', icon: Icons.rocket_launch_rounded, labelKey: 'promo'),
     _NavItem(path: '/releases', icon: Icons.album_rounded, labelKey: 'releases'),
-    _NavItem(path: '/index', icon: Icons.leaderboard_rounded, label: 'Aurix Рейтинг'),
-    _NavItem(path: '/dnk', icon: Icons.fingerprint, label: 'Aurix DNK'),
-  ]),
-  _NavGroup(titleKey: 'navGroupManagement', items: [
-    _NavItem(path: '/team', icon: Icons.groups_rounded, label: 'Продакшн'),
-    _NavItem(path: '/finance', icon: Icons.account_balance_wallet_rounded, labelKey: 'finances'),
-    _NavItem(path: '/subscription', icon: Icons.card_membership_rounded, labelKey: 'subscription'),
-    if (isAdmin) _NavItem(path: '/admin', icon: Icons.admin_panel_settings_rounded, labelKey: 'admin'),
   ]),
   _NavGroup(titleKey: 'navGroupTools', items: [
     _NavItem(path: '/stats', icon: Icons.analytics_rounded, labelKey: 'statistics'),
-    _NavItem(path: '/promo', icon: Icons.rocket_launch_rounded, labelKey: 'promo'),
+    _NavItem(path: '/index', icon: Icons.leaderboard_rounded, label: 'Aurix Рейтинг'),
+    _NavItem(path: '/dnk', icon: Icons.fingerprint, label: 'Aurix DNK'),
     _NavItem(path: '/progress', icon: Icons.calendar_month_rounded, labelKey: 'progress'),
-    _NavItem(path: '/navigator', icon: Icons.explore_rounded, label: 'Навигатор артиста'),
-    _NavItem(path: '/ai', icon: Icons.auto_awesome, labelKey: 'studioAi'),
-    _NavItem(path: '/services', icon: Icons.build_rounded, labelKey: 'services'),
+    _NavItem(path: '/navigator', icon: Icons.explore_rounded, label: 'Навигатор'),
+  ]),
+  _NavGroup(titleKey: 'navGroupManagement', items: [
+    _NavItem(path: '/finance', icon: Icons.account_balance_wallet_rounded, labelKey: 'finances'),
+    _NavItem(path: '/subscription', icon: Icons.card_membership_rounded, labelKey: 'subscription'),
+    _NavItem(path: '/team', icon: Icons.groups_rounded, label: 'Продакшн'),
+    if (isAdmin) _NavItem(path: '/admin', icon: Icons.admin_panel_settings_rounded, labelKey: 'admin'),
   ]),
   _NavGroup(titleKey: 'navGroupMore', items: [
-    _NavItem(path: '/legal', icon: Icons.description_outlined, label: 'Legal & Compliance'),
+    _NavItem(path: '/achievements', icon: Icons.emoji_events_rounded, label: 'Достижения'),
+    _NavItem(path: '/goals', icon: Icons.flag_rounded, label: 'Цели'),
+    _NavItem(path: '/public-profile', icon: Icons.public_rounded, label: 'Публичный профиль'),
     _NavItem(path: '/support', icon: Icons.support_agent_rounded, labelKey: 'support'),
     _NavItem(path: '/settings', icon: Icons.settings_rounded, labelKey: 'settings'),
     _NavItem(path: '/profile', icon: Icons.person_rounded, labelKey: 'profile'),
@@ -247,7 +268,8 @@ class _NavDrawerContent extends StatelessWidget {
       (currentLocation.startsWith('/progress') && i.path == '/progress') ||
       (currentLocation.startsWith('/navigator') && i.path == '/navigator') ||
       (currentLocation.startsWith('/admin') && i.path == '/admin') ||
-      (currentLocation == '/profile' && i.path == '/profile');
+      (currentLocation == '/profile' && i.path == '/profile') ||
+    (currentLocation == '/artist' && i.path == '/artist');
 
   @override
   Widget build(BuildContext context) {
@@ -301,7 +323,8 @@ bool _isSelected(String currentLocation, _NavItem i) =>
     (currentLocation.startsWith('/progress') && i.path == '/progress') ||
     (currentLocation.startsWith('/navigator') && i.path == '/navigator') ||
     (currentLocation.startsWith('/admin') && i.path == '/admin') ||
-    (currentLocation == '/profile' && i.path == '/profile');
+    (currentLocation == '/profile' && i.path == '/profile') ||
+    (currentLocation == '/artist' && i.path == '/artist');
 
 class _Sidebar extends StatelessWidget {
   final String currentLocation;
@@ -552,7 +575,9 @@ class _TopBar extends ConsumerWidget {
             ),
           if (isDesktop) const SizedBox(width: 12),
           const _LocaleToggle(),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
+          const _CreditChip(),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: () => context.go('/profile'),
             child: Container(
@@ -591,11 +616,13 @@ class _TopBar extends ConsumerWidget {
     if (loc == '/releases' || loc.startsWith('/releases/')) return L10n.t(context, 'releases');
     if (loc == '/upload' || loc == '/releases/create') return L10n.t(context, 'uploadRelease');
     if (loc == '/stats') return L10n.t(context, 'statistics');
+    if (loc == '/promo/video') return 'Промо-видео';
     if (loc == '/promo') return L10n.t(context, 'promo');
     if (loc.startsWith('/index')) return 'Aurix Рейтинг';
     if (loc.startsWith('/dnk/artist')) return 'DNK Арстиста';
     if (loc.startsWith('/dnk/tests') || loc == '/dnk') return 'Aurix DNK';
     if (loc.startsWith('/navigator')) return 'Навигатор артиста';
+    if (loc == '/artist') return 'Артист';
     if (loc == '/ai') return L10n.t(context, 'studioAi');
     if (loc == '/finance') return L10n.t(context, 'finances');
     if (loc == '/team' || loc == '/production') return 'Продакшн';
@@ -739,6 +766,51 @@ class _LocaleToggle extends ConsumerWidget {
       ],
       selected: appState.locale,
       onSelected: appState.setLocale,
+    );
+  }
+}
+
+/// Compact credit balance chip — tappable, navigates to /credits.
+class _CreditChip extends ConsumerWidget {
+  const _CreditChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final balanceAsync = ref.watch(creditBalanceProvider);
+
+    return GestureDetector(
+      onTap: () => context.push('/credits'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: AurixTokens.orange.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AurixTokens.orange.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.bolt_rounded, size: 14, color: AurixTokens.orange),
+            const SizedBox(width: 3),
+            balanceAsync.when(
+              data: (b) => Text(
+                b.toString(),
+                style: const TextStyle(
+                  color: AurixTokens.orange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              loading: () => const SizedBox(
+                width: 10, height: 10,
+                child: CircularProgressIndicator(strokeWidth: 1.5, color: AurixTokens.orange),
+              ),
+              error: (_, __) => const Text('—', style: TextStyle(color: AurixTokens.orange, fontSize: 12)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

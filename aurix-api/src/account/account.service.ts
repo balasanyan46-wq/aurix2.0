@@ -33,7 +33,7 @@ export class AccountService {
   async createDeleteRequest(data: Record<string, any>) {
     const { rows } = await this.pool.query(
       'INSERT INTO release_delete_requests (release_id, requester_id, status, reason) VALUES ($1,$2,$3,$4) RETURNING *',
-      [data.release_id, data.requester_id, data.status||'pending', data.reason||null],
+      [data.release_id, data.requester_id, 'pending', data.reason||null],  // SECURITY: always 'pending', ignore user-supplied status
     );
     return rows[0];
   }

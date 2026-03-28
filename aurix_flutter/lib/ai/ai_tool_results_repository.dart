@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/ai/ai_persistence_guard.dart';
 
 class AiToolResultsRepository {
@@ -13,7 +13,7 @@ class AiToolResultsRepository {
         'resource_type': resourceType,
         if (resourceId != null) 'resource_id': resourceId,
       });
-      final rows = (res.data as List?) ?? const [];
+      final rows = asList(res.data);
       if (rows.isEmpty) return null;
       final first = rows.first as Map;
       return (first['result_markdown'] as String?)?.trim();

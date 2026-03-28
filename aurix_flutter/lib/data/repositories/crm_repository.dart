@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/crm_models.dart';
 
 class CrmLeadsFilter {
@@ -31,7 +31,7 @@ class CrmRepository {
     final res = await ApiClient.get('/crm-leads', query: {
       'order': 'created_at.desc',
     });
-    var rows = await _parseLeads(res.data as List);
+    var rows = await _parseLeads(asList(res.data));
 
     if (filter.stage != 'all') {
       rows = rows.where((r) => r.pipelineStage == filter.stage).toList();
@@ -61,7 +61,7 @@ class CrmRepository {
     final res = await ApiClient.get('/crm-leads', query: {
       'order': 'created_at.desc',
     });
-    return _parseLeads(res.data as List);
+    return _parseLeads(asList(res.data));
   }
 
   Future<List<CrmLeadModel>> getLeadsByUser(String userId) async {
@@ -70,7 +70,7 @@ class CrmRepository {
       'user_id': userId,
       'order': 'created_at.desc',
     });
-    return _parseLeads(res.data as List);
+    return _parseLeads(asList(res.data));
   }
 
   Future<void> updateLead({
@@ -112,7 +112,7 @@ class CrmRepository {
       'package_title': lead.title ?? lead.type ?? 'Сделка по лиду',
     };
     final res = await ApiClient.post('/crm-deals', data: payload);
-    final row = res.data as Map<String, dynamic>;
+    final row = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     await addEvent(
       leadId: lead.id,
       dealId: (row['id'] ?? '').toString(),
@@ -126,7 +126,7 @@ class CrmRepository {
     final res = await ApiClient.get('/crm-deals', query: {
       'order': 'created_at.desc',
     });
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmDealModel.fromJson)
         .toList();
@@ -138,7 +138,7 @@ class CrmRepository {
       'user_id': userId,
       'order': 'created_at.desc',
     });
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmDealModel.fromJson)
         .toList();
@@ -160,7 +160,7 @@ class CrmRepository {
     final res = await ApiClient.get('/crm-tasks', query: {
       'order': 'due_at.asc,created_at.desc',
     });
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmTaskModel.fromJson)
         .toList();
@@ -176,12 +176,12 @@ class CrmRepository {
       'user_id': userId,
       'select': 'id',
     });
-    final leadIdValues = (leadIdsRes.data as List)
+    final leadIdValues = asList(leadIdsRes.data)
         .cast<Map<String, dynamic>>()
         .map((x) => (x['id'] ?? '').toString())
         .where((x) => x.isNotEmpty)
         .toList();
-    final dealIdValues = (dealIdsRes.data as List)
+    final dealIdValues = asList(dealIdsRes.data)
         .cast<Map<String, dynamic>>()
         .map((x) => (x['id'] ?? '').toString())
         .where((x) => x.isNotEmpty)
@@ -193,13 +193,13 @@ class CrmRepository {
       final byLead = await ApiClient.get('/crm-tasks', query: {
         'lead_id_in': leadIdValues.join(','),
       });
-      rows.addAll((byLead.data as List).cast<Map<String, dynamic>>());
+      rows.addAll(asList(byLead.data).cast<Map<String, dynamic>>());
     }
     if (dealIdValues.isNotEmpty) {
       final byDeal = await ApiClient.get('/crm-tasks', query: {
         'deal_id_in': dealIdValues.join(','),
       });
-      rows.addAll((byDeal.data as List).cast<Map<String, dynamic>>());
+      rows.addAll(asList(byDeal.data).cast<Map<String, dynamic>>());
     }
     final uniq = <String, Map<String, dynamic>>{};
     for (final row in rows) {
@@ -252,7 +252,7 @@ class CrmRepository {
       query['deal_id'] = dealId ?? '';
     }
     final res = await ApiClient.get('/crm-notes', query: query);
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmNoteModel.fromJson)
         .toList();
@@ -264,7 +264,7 @@ class CrmRepository {
       'user_id': userId,
       'order': 'created_at.desc',
     });
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmNoteModel.fromJson)
         .toList();
@@ -309,7 +309,7 @@ class CrmRepository {
       query['deal_id'] = dealId ?? '';
     }
     final res = await ApiClient.get('/crm-events', query: query);
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmEventModel.fromJson)
         .toList();
@@ -327,13 +327,13 @@ class CrmRepository {
       final byLead = await ApiClient.get('/crm-events', query: {
         'lead_id_in': leadIds.join(','),
       });
-      rows.addAll((byLead.data as List).cast<Map<String, dynamic>>());
+      rows.addAll(asList(byLead.data).cast<Map<String, dynamic>>());
     }
     if (dealIds.isNotEmpty) {
       final byDeal = await ApiClient.get('/crm-events', query: {
         'deal_id_in': dealIds.join(','),
       });
-      rows.addAll((byDeal.data as List).cast<Map<String, dynamic>>());
+      rows.addAll(asList(byDeal.data).cast<Map<String, dynamic>>());
     }
     final uniq = <String, Map<String, dynamic>>{};
     for (final row in rows) {
@@ -367,7 +367,7 @@ class CrmRepository {
       query['deal_id'] = dealId;
     }
     final res = await ApiClient.get('/crm-invoices', query: query);
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmInvoiceModel.fromJson)
         .toList();
@@ -379,7 +379,7 @@ class CrmRepository {
       'user_id': userId,
       'order': 'created_at.desc',
     });
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmInvoiceModel.fromJson)
         .toList();
@@ -410,7 +410,7 @@ class CrmRepository {
       'meta': meta,
     };
     final res = await ApiClient.put('/crm-invoices', data: payload);
-    final body = res.data as Map<String, dynamic>;
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     return CrmInvoiceModel.fromJson(body);
   }
 
@@ -424,7 +424,7 @@ class CrmRepository {
       query['invoice_id'] = invoiceId;
     }
     final res = await ApiClient.get('/crm-transactions', query: query);
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmTransactionModel.fromJson)
         .toList();
@@ -436,7 +436,7 @@ class CrmRepository {
       'user_id': userId,
       'order': 'created_at.desc',
     });
-    return (res.data as List)
+    return asList(res.data)
         .cast<Map<String, dynamic>>()
         .map(CrmTransactionModel.fromJson)
         .toList();
@@ -460,7 +460,7 @@ class CrmRepository {
       'paid_at': paidAt?.toIso8601String(),
       'payload': payload,
     });
-    final body = res.data as Map<String, dynamic>;
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     return CrmTransactionModel.fromJson(body);
   }
 

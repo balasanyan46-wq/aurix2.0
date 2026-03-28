@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:aurix_flutter/core/pointer_capabilities.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:flutter/gestures.dart';
@@ -140,17 +138,12 @@ class _TiltGlowCardState extends State<TiltGlowCard> {
                   ),
                 ),
               ),
-            // Content
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.all(1),
-                child: ClipRRect(
-                  borderRadius: r,
-                  child: Padding(
-                    padding: const EdgeInsets.all(0),
-                    child: widget.child,
-                  ),
-                ),
+            // Content — NOT Positioned so it drives the Stack's intrinsic size
+            Padding(
+              padding: const EdgeInsets.all(1),
+              child: ClipRRect(
+                borderRadius: r,
+                child: widget.child,
               ),
             ),
           ],

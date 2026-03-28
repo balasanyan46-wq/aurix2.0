@@ -1,5 +1,5 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'production_models.dart';
 
 class ProductionService {
@@ -7,7 +7,7 @@ class ProductionService {
     final ordersRes = await ApiClient.get('/production-orders', query: {
       'user_id': userId,
     });
-    final orders = ((ordersRes.data as List?) ?? const [])
+    final orders = (asList(ordersRes.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionOrder.fromJson)
         .toList();
@@ -24,7 +24,7 @@ class ProductionService {
     final itemsRes = await ApiClient.get('/production-order-items', query: {
       'order_ids': orderIds.join(','),
     });
-    final items = ((itemsRes.data as List?) ?? const [])
+    final items = (asList(itemsRes.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionOrderItem.fromJson)
         .toList();
@@ -36,7 +36,7 @@ class ProductionService {
       final releasesRes = await ApiClient.get('/releases', query: {
         'ids': releaseIds.join(','),
       });
-      for (final r in ((releasesRes.data as List?) ?? const []).whereType<Map<String, dynamic>>()) {
+      for (final r in (asList(releasesRes.data)).whereType<Map<String, dynamic>>()) {
         final id = (r['id'] ?? '').toString();
         if (id.isEmpty) continue;
         titles[id] = (r['title'] ?? 'Релиз').toString();
@@ -56,7 +56,7 @@ class ProductionService {
     final res = await ApiClient.get('/service-catalog', query: {
       if (!includeInactive) 'is_active': true,
     });
-    return ((res.data as List?) ?? const [])
+    return (asList(res.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionServiceCatalog.fromJson)
         .toList();
@@ -66,7 +66,7 @@ class ProductionService {
     final res = await ApiClient.get('/production-assignees', query: {
       if (!includeInactive) 'is_active': true,
     });
-    return ((res.data as List?) ?? const [])
+    return (asList(res.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionAssignee.fromJson)
         .toList();
@@ -79,15 +79,15 @@ class ProductionService {
     final filesRes = await ApiClient.get('/production-files', query: {'order_item_id': orderItemId});
     final eventsRes = await ApiClient.get('/production-events', query: {'order_item_id': orderItemId});
 
-    final comments = ((commentsRes.data as List?) ?? const [])
+    final comments = (asList(commentsRes.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionComment.fromJson)
         .toList();
-    final files = ((filesRes.data as List?) ?? const [])
+    final files = (asList(filesRes.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionFile.fromJson)
         .toList();
-    final events = ((eventsRes.data as List?) ?? const [])
+    final events = (asList(eventsRes.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionEvent.fromJson)
         .toList();
@@ -162,7 +162,7 @@ class ProductionService {
     final bytes = file.bytes;
     if (bytes == null) throw StateError('Файл пустой');
     final uploadRes = await ApiClient.uploadFile('/upload/audio', bytes, _safe(file.name));
-    final body = (uploadRes.data as Map).cast<String, dynamic>();
+    final body = uploadRes.data is Map ? (uploadRes.data as Map).cast<String, dynamic>() : <String, dynamic>{};
     final path = (body['path'] ?? '').toString();
 
     await ApiClient.post('/production-files', data: {
@@ -185,7 +185,8 @@ class ProductionService {
 
   Future<String> getSignedDownloadUrl(String path) async {
     final res = await ApiClient.get('/production-files/signed-url', query: {'path': path});
-    return ((res.data as Map<String, dynamic>)['url'] ?? '').toString();
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    return (body['url'] ?? '').toString();
   }
 
   Future<void> createOrder({
@@ -204,7 +205,8 @@ class ProductionService {
       'title': title,
       'status': 'active',
     });
-    final orderId = ((orderRes.data as Map<String, dynamic>)['id'] ?? '').toString();
+    final orderBody = orderRes.data is Map ? Map<String, dynamic>.from(orderRes.data as Map) : <String, dynamic>{};
+    final orderId = (orderBody['id'] ?? '').toString();
     final items = uniqServiceIds
         .map((s) => {
               'order_id': orderId,
@@ -213,7 +215,7 @@ class ProductionService {
             })
         .toList();
     final insertedItemsRes = await ApiClient.post('/production-order-items/batch', data: items);
-    final itemIds = ((insertedItemsRes.data as List?) ?? const [])
+    final itemIds = (asList(insertedItemsRes.data))
         .whereType<Map<String, dynamic>>()
         .map((x) => (x['id'] ?? '').toString())
         .where((x) => x.isNotEmpty)
@@ -259,7 +261,7 @@ class ProductionService {
 
   Future<List<ProductionOrder>> getAllOrders() async {
     final res = await ApiClient.get('/production-orders');
-    return ((res.data as List?) ?? const [])
+    return (asList(res.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionOrder.fromJson)
         .toList();
@@ -270,7 +272,7 @@ class ProductionService {
     final res = await ApiClient.get('/production-order-items', query: {
       'order_ids': orderIds.join(','),
     });
-    return ((res.data as List?) ?? const [])
+    return (asList(res.data))
         .whereType<Map<String, dynamic>>()
         .map(ProductionOrderItem.fromJson)
         .toList();

@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/features/progress/data/models/progress_checkin.dart';
 import 'package:aurix_flutter/features/progress/data/progress_schema_guard.dart';
 
@@ -14,7 +14,7 @@ class ProgressCheckinsRepository {
         'start_day': _fmtDate(start),
         'end_day': _fmtDate(end),
       });
-      final rows = (res.data as List?) ?? const [];
+      final rows = asList(res.data);
       return rows
           .whereType<Map>()
           .map((e) => ProgressCheckin.fromJson(e.cast<String, dynamic>()))
@@ -43,7 +43,7 @@ class ProgressCheckinsRepository {
     if (note != null) payload['note'] = note;
     try {
       final res = await ApiClient.post('/progress-checkins', data: payload);
-      final row = (res.data as Map).cast<String, dynamic>();
+      final row = res.data is Map ? (res.data as Map).cast<String, dynamic>() : <String, dynamic>{};
       return ProgressCheckin.fromJson(row);
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_checkins')) {

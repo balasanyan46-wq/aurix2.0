@@ -151,6 +151,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           .signIn(email: email, password: password);
       ref.read(authStoreProvider).setUser(result.user);
       // AuthGate/router will switch screens when auth state changes.
+      if (mounted) setState(() => _loading = false);
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('Неверный email') || msg.contains('invalid credentials')) {
@@ -207,7 +208,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: AurixTokens.orange,
-              foregroundColor: Colors.black,
+              foregroundColor: AurixTokens.bg0,
             ),
             child: const Text('Отправить'),
           ),
@@ -401,23 +402,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
+                  color: AurixTokens.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.red.withValues(alpha: 0.3),
+                    color: AurixTokens.danger.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
                   children: [
                     Icon(Icons.error_outline,
                         size: 18,
-                        color: Colors.red.shade300),
+                        color: AurixTokens.danger),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         _error!,
                         style: TextStyle(
-                          color: Colors.red.shade200,
+                          color: AurixTokens.danger,
                           fontSize: 13,
                         ),
                       ),
@@ -571,13 +572,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.black,
+                            color: AurixTokens.bg0,
                           ),
                         )
                       : const Text(
                           'Войти',
                           style: TextStyle(
-                            color: Colors.black,
+                            color: AurixTokens.bg0,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
@@ -620,7 +621,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     TextSpan(
                       text: 'AURIX',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
+                        color: AurixTokens.text.withValues(alpha: 0.85),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.4,
@@ -629,7 +630,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     TextSpan(
                       text: ' • by Armen Balasanyan',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
+                        color: AurixTokens.text.withValues(alpha: 0.55),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                         letterSpacing: 0.3,

@@ -82,9 +82,10 @@ class AuthApi {
       'email': email,
       'password': password,
     });
-    final body = res.data as Map<String, dynamic>;
-    final token = body['token'] as String;
-    final refreshToken = body['refreshToken'] as String?;
+    final body = _asMap(res.data);
+    final token = body['token']?.toString() ?? '';
+    if (token.isEmpty) throw Exception('Сервер не вернул токен');
+    final refreshToken = body['refreshToken']?.toString();
 
     await TokenStore.save(token);
     if (refreshToken != null) {
@@ -92,7 +93,7 @@ class AuthApi {
     }
 
     return AuthResult(
-      user: ApiUser.fromJson(body['user'] as Map<String, dynamic>),
+      user: ApiUser.fromJson(_asMap(body['user'])),
       token: token,
     );
   }
@@ -107,9 +108,10 @@ class AuthApi {
       final res = await ApiClient.post('/auth/refresh', data: {
         'refreshToken': refreshToken,
       });
-      final body = res.data as Map<String, dynamic>;
-      final newAccess = body['token'] as String;
-      final newRefresh = body['refreshToken'] as String?;
+      final body = _asMap(res.data);
+      final newAccess = body['token']?.toString() ?? '';
+      if (newAccess.isEmpty) throw Exception('No token in refresh response');
+      final newRefresh = body['refreshToken']?.toString();
 
       await TokenStore.save(newAccess);
       if (newRefresh != null) {
@@ -130,8 +132,10 @@ class AuthApi {
     if (token == null) return null;
     try {
       final res = await ApiClient.get('/users/me');
-      final body = res.data as Map<String, dynamic>;
-      return ApiUser.fromJson(body['user'] as Map<String, dynamic>);
+      final body = _asMap(res.data);
+      final userData = body['user'];
+      if (userData == null) return null;
+      return ApiUser.fromJson(_asMap(userData));
     } catch (e) {
       debugPrint('[AuthApi] me() failed: $e');
       return null;
@@ -157,5 +161,11 @@ class AuthApi {
   static Future<bool> hasToken() async {
     final token = await TokenStore.read();
     return token != null;
+  }
+
+  static Map<String, dynamic> _asMap(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return <String, dynamic>{};
   }
 }

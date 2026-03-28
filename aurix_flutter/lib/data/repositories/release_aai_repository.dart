@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/release_aai_model.dart';
 
 class ReleaseAaiRepository {
@@ -20,7 +20,7 @@ class ReleaseAaiRepository {
       final list = res.data;
       Map<String, dynamic>? indexRes;
       if (list is List && list.isNotEmpty) {
-        indexRes = list.first as Map<String, dynamic>;
+        indexRes = list.first is Map ? Map<String, dynamic>.from(list.first as Map) : null;
       } else if (list is Map<String, dynamic>) {
         indexRes = list;
       }
@@ -50,7 +50,7 @@ class ReleaseAaiRepository {
         'order': 'created_at.desc',
         'limit': '3',
       });
-      final list = res.data as List;
+      final list = asList(res.data);
       return list
           .cast<Map<String, dynamic>>()
           .map(
@@ -75,7 +75,7 @@ class ReleaseAaiRepository {
       'select': 'created_at,is_filtered',
       'order': 'created_at.asc',
     });
-    final clicksRes = res.data as List;
+    final clicksRes = asList(res.data);
     final points = <DateTime, int>{};
     for (final row in clicksRes.cast<Map<String, dynamic>>()) {
       if (row['is_filtered'] == true) continue;
@@ -98,7 +98,7 @@ class ReleaseAaiRepository {
       'created_at_gte': since,
       'select': 'platform,is_filtered',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     final map = <String, int>{};
     for (final row in list.cast<Map<String, dynamic>>()) {
       if (row['is_filtered'] == true) continue;
@@ -119,7 +119,7 @@ class ReleaseAaiRepository {
       'created_at_gte': since,
       'select': 'country,is_filtered',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     final map = <String, int>{};
     for (final row in list.cast<Map<String, dynamic>>()) {
       if (row['is_filtered'] == true) continue;

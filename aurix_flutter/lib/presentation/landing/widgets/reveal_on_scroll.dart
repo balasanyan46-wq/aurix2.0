@@ -45,6 +45,13 @@ class _RevealOnScrollState extends State<RevealOnScroll> with SingleTickerProvid
     );
     widget.scrollListenable?.addListener(_check);
     WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+    // Safety fallback: if reveal never triggers within 3s, force visible.
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && !_shown) {
+        _shown = true;
+        try { _c.forward(); } catch (_) { _c.value = 1.0; }
+      }
+    });
   }
 
   @override
@@ -72,10 +79,12 @@ class _RevealOnScrollState extends State<RevealOnScroll> with SingleTickerProvid
     _shown = true;
     widget.scrollListenable?.removeListener(_check);
     if (widget.delay == Duration.zero) {
-      _c.forward();
+      try { _c.forward(); } catch (_) { _c.value = 1.0; }
     } else {
       Future.delayed(widget.delay, () {
-        if (mounted) _c.forward();
+        if (mounted) {
+          try { _c.forward(); } catch (_) { _c.value = 1.0; }
+        }
       });
     }
   }

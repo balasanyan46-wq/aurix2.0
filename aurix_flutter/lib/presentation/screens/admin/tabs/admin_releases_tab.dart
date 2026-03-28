@@ -1,9 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
@@ -13,6 +10,7 @@ import 'package:aurix_flutter/data/models/profile_model.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
 class AdminReleasesTab extends ConsumerStatefulWidget {
@@ -41,10 +39,10 @@ class _AdminReleasesTabState extends ConsumerState<AdminReleasesTab> {
       };
 
   Color _statusColor(String status) => switch (status) {
-        'submitted' => Colors.amber,
+        'submitted' => AurixTokens.warning,
         'in_review' => Colors.blue,
         'approved' || 'live' => AurixTokens.positive,
-        'rejected' => Colors.redAccent,
+        'rejected' => AurixTokens.danger,
         'draft' => AurixTokens.muted,
         _ => AurixTokens.muted,
       };
@@ -322,7 +320,7 @@ class _ReleaseCard extends StatelessWidget {
                 color: AurixTokens.bg2,
                 borderRadius: BorderRadius.circular(8),
                 image: release.coverUrl != null
-                    ? DecorationImage(image: NetworkImage(release.coverUrl!), fit: BoxFit.cover)
+                    ? DecorationImage(image: NetworkImage(ApiClient.fixUrl(release.coverUrl)), fit: BoxFit.cover)
                     : null,
               ),
               child: release.coverUrl == null
@@ -511,7 +509,12 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
     }
     setState(() => _loading = true);
     try {
-      await ref.read(releaseRepositoryProvider).updateRelease(
+      // Read all providers BEFORE any async work that might dispose widget
+      final releaseRepo = ref.read(releaseRepositoryProvider);
+      final adminId = ref.read(currentUserProvider)?.id;
+      final logRepo = ref.read(adminLogRepositoryProvider);
+
+      await releaseRepo.updateRelease(
         widget.release.id,
         status: _status,
         title: _titleCtrl.text.trim().isNotEmpty ? _titleCtrl.text.trim() : null,
@@ -520,16 +523,15 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
         language: _languageCtrl.text.trim().isNotEmpty ? _languageCtrl.text.trim() : null,
       );
 
-      final adminId = ref.read(currentUserProvider)?.id;
       if (_noteCtrl.text.trim().isNotEmpty && adminId != null) {
-        await ref.read(releaseRepositoryProvider).addAdminNote(
+        await releaseRepo.addAdminNote(
           releaseId: widget.release.id,
           adminId: adminId,
           note: _noteCtrl.text.trim(),
         );
       }
       if (adminId != null) {
-        await ref.read(adminLogRepositoryProvider).log(
+        await logRepo.log(
           adminId: adminId,
           action: 'release_status_changed',
           targetType: 'release',
@@ -589,7 +591,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: FilledButton.styleFrom(backgroundColor: AurixTokens.danger),
             child: const Text('Удалить', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -599,11 +601,14 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
 
     setState(() => _loading = true);
     try {
-      await ref.read(releaseRepositoryProvider).deleteReleaseFully(widget.release.id);
-
+      final releaseRepo = ref.read(releaseRepositoryProvider);
       final adminId = ref.read(currentUserProvider)?.id;
+      final logRepo = ref.read(adminLogRepositoryProvider);
+
+      await releaseRepo.deleteReleaseFully(widget.release.id);
+
       if (adminId != null) {
-        await ref.read(adminLogRepositoryProvider).log(
+        await logRepo.log(
           adminId: adminId,
           action: 'release_deleted',
           targetType: 'release',
@@ -613,7 +618,6 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
       }
 
       widget.onUpdated();
-      ref.invalidate(releasesProvider);
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -621,52 +625,27 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e'), backgroundColor: AurixTokens.danger));
     }
     if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _downloadFile(String url, String defaultName) async {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Скачивание $defaultName...'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
-
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Ошибка скачивания: ${response.statusCode}'), backgroundColor: Colors.red),
+            SnackBar(content: Text('Не удалось открыть $defaultName'), backgroundColor: AurixTokens.danger),
           );
         }
-        return;
-      }
-
-      final savePath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Сохранить $defaultName',
-        fileName: defaultName,
-      );
-
-      if (savePath == null) return;
-
-      final file = File(savePath);
-      await file.writeAsBytes(response.bodyBytes);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$defaultName сохранён'),
-            backgroundColor: AurixTokens.positive,
-          ),
-        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Ошибка: $e'), backgroundColor: AurixTokens.danger),
         );
       }
     }
@@ -744,7 +723,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
                 child: _QuickAction(
                   icon: Icons.cancel_rounded,
                   label: 'Отклонить',
-                  color: Colors.redAccent,
+                  color: AurixTokens.danger,
                   onTap: () async {
                     final confirm = await showDialog<bool>(
                       context: context,
@@ -756,7 +735,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
                           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
                           FilledButton(
                             onPressed: () => Navigator.pop(ctx, true),
-                            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+                            style: FilledButton.styleFrom(backgroundColor: AurixTokens.danger),
                             child: const Text('Отклонить', style: TextStyle(color: Colors.white)),
                           ),
                         ],
@@ -796,7 +775,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(r.coverUrl!, width: 200, height: 200, fit: BoxFit.cover,
+                  child: Image.network(ApiClient.fixUrl(r.coverUrl), width: 200, height: 200, fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
                       width: 200, height: 200,
                       color: AurixTokens.bg2,
@@ -810,7 +789,7 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
                     final ext = r.coverUrl!.split('.').last.split('?').first;
                     final artist = _artistCtrl.text.trim().isNotEmpty ? _artistCtrl.text.trim() : (r.artist ?? 'Unknown');
                     final safeName = '${artist} - ${r.title} (cover).$ext'.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
-                    _downloadFile(r.coverUrl!, safeName);
+                    _downloadFile(ApiClient.fixUrl(r.coverUrl), safeName);
                   },
                   icon: const Icon(Icons.download_rounded, size: 16),
                   label: const Text('Скачать обложку'),
@@ -1043,8 +1022,8 @@ class _ReleaseDetailSheetState extends ConsumerState<_ReleaseDetailSheet> {
           icon: const Icon(Icons.delete_forever_rounded, size: 18),
           label: const Text('Удалить релиз полностью'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.redAccent,
-            side: const BorderSide(color: Colors.redAccent),
+            foregroundColor: AurixTokens.danger,
+            side: const BorderSide(color: AurixTokens.danger),
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),

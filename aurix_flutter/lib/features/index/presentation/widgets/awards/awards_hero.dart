@@ -194,7 +194,7 @@ class AwardsHero extends StatelessWidget {
                             if (score != null && score.trendDelta != 0)
                               Text(
                                 '${score.trendDelta > 0 ? '+' : ''}${score.trendDelta}',
-                                style: TextStyle(color: score.trendDelta > 0 ? Colors.green : AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w600),
+                                style: TextStyle(color: score.trendDelta > 0 ? AurixTokens.positive : AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w600),
                               ),
                           ],
                         ),
@@ -207,7 +207,7 @@ class AwardsHero extends StatelessWidget {
                             label: const Text('Посмотреть профиль'),
                             style: FilledButton.styleFrom(
                               backgroundColor: AurixTokens.orange,
-                              foregroundColor: Colors.black,
+                              foregroundColor: AurixTokens.bg0,
                               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
                             ),
                           ),
@@ -255,7 +255,7 @@ class AwardsHero extends StatelessWidget {
                               const SizedBox(width: 12),
                               Text(
                                 '${score.trendDelta > 0 ? '+' : ''}${score.trendDelta}',
-                                style: TextStyle(color: score.trendDelta > 0 ? Colors.green : AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w600),
+                                style: TextStyle(color: score.trendDelta > 0 ? AurixTokens.positive : AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w600),
                               ),
                             ],
                           ],
@@ -269,7 +269,7 @@ class AwardsHero extends StatelessWidget {
                     label: const Text('Посмотреть профиль'),
                     style: FilledButton.styleFrom(
                       backgroundColor: AurixTokens.orange,
-                      foregroundColor: Colors.black,
+                      foregroundColor: AurixTokens.bg0,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
                   ),

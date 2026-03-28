@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/release_delete_request_model.dart';
 
 class ReleaseDeleteRequestRepository {
@@ -8,7 +8,7 @@ class ReleaseDeleteRequestRepository {
       'requester_id': requesterId,
       'order': 'created_at.desc',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .map((e) => ReleaseDeleteRequestModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -18,7 +18,7 @@ class ReleaseDeleteRequestRepository {
     final res = await ApiClient.get('/release-delete-requests', query: {
       'order': 'created_at.desc',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .map((e) => ReleaseDeleteRequestModel.fromJson(e as Map<String, dynamic>))
         .toList();

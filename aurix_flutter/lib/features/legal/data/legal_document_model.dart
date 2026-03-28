@@ -1,4 +1,4 @@
-/// Запись из public.legal_documents (Supabase).
+/// Запись из public.legal_documents.
 class LegalDocumentModel {
   const LegalDocumentModel({
     required this.id,

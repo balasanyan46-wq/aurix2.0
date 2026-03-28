@@ -15,6 +15,7 @@ import { UsersService } from './users.service';
 import { AuthService } from '../auth/auth.service';
 import { MailService } from '../mail/mail.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UserEventsService } from '../user-events/user-events.service';
 
 // ═══════════════════════════════════════════════════════
 //  UsersController — /users/*
@@ -26,12 +27,14 @@ export class UsersController {
     private readonly usersService: UsersService,
     private readonly authService: AuthService,
     private readonly mailService: MailService,
+    private readonly events: UserEventsService,
   ) {}
 
   // ───── POST /users/register ─────
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('register')
   async register(
+    @Req() req: any,
     @Body() body: { email: string; password: string; name?: string; phone?: string },
   ) {
     const { email, password, name, phone } = body;
@@ -39,6 +42,26 @@ export class UsersController {
     if (!email || !password) {
       throw new HttpException(
         'email and password are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email) || email.length > 254) {
+      throw new HttpException('invalid email format', HttpStatus.BAD_REQUEST);
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      throw new HttpException(
+        'Пароль должен быть не менее 8 символов',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (password.length > 128) {
+      throw new HttpException(
+        'Пароль слишком длинный',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -55,6 +78,9 @@ export class UsersController {
       user.email,
       user.verification_token,
     );
+
+    // Log registration event
+    this.events.log({ user_id: user.id, event: 'register', ip: req?.ip, user_agent: req?.headers?.['user-agent'] }).catch(() => {});
 
     return {
       success: true,
@@ -94,6 +120,9 @@ export class UsersController {
       req?.headers?.['user-agent'],
     );
 
+    // Log login event
+    this.events.log({ user_id: user.id, event: 'login', ip: req?.ip, user_agent: req?.headers?.['user-agent'] }).catch(() => {});
+
     return {
       success: true,
       user: {
@@ -110,11 +139,12 @@ export class UsersController {
   // ───── GET /users/me ─────
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getMe(@Req() req: any) {
-    return {
-      success: true,
-      user: req.user,
-    };
+  async getMe(@Req() req: any) {
+    const user = await this.usersService.findById(req.user.id);
+    if (!user) {
+      throw new HttpException('user not found', HttpStatus.NOT_FOUND);
+    }
+    return { success: true, user };
   }
 }
 

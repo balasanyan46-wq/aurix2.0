@@ -35,8 +35,18 @@ class DnkTestOption {
 
   factory DnkTestOption.fromJson(Map<String, dynamic> j) => DnkTestOption(
         key: (j['key'] ?? '').toString(),
-        text: (j['text'] ?? '').toString(),
+        text: (j['text'] ?? j['label'] ?? '').toString(),
       );
+}
+
+List<String>? _parseScaleLabels(dynamic raw) {
+  if (raw is List) return raw.map((e) => e.toString()).toList();
+  if (raw is Map) {
+    final min = (raw['min'] ?? '1').toString();
+    final max = (raw['max'] ?? '5').toString();
+    return [min, '', '', '', max];
+  }
+  return null;
 }
 
 class DnkTestQuestion {
@@ -64,9 +74,7 @@ class DnkTestQuestion {
         text: (j['text'] ?? '').toString(),
         testSlug: (j['test_slug'] ?? '').toString(),
         isFollowup: j['is_followup'] == true,
-        scaleLabels: (j['scale_labels'] is List)
-            ? (j['scale_labels'] as List).map((e) => e.toString()).toList()
-            : null,
+        scaleLabels: _parseScaleLabels(j['scale_labels']),
         options: (j['options'] is List)
             ? (j['options'] as List)
                 .whereType<Map<String, dynamic>>()

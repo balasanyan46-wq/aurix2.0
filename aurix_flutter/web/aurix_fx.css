@@ -25,6 +25,22 @@ body::before{
   opacity:.9;
 }
 
+/* Neural grid pattern — subtle, static, adds depth */
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image:
+    linear-gradient(rgba(123,92,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(123,92,255,.03) 1px, transparent 1px);
+  background-size:80px 80px;
+  mask-image:radial-gradient(ellipse 70% 60% at 50% 30%, black 20%, transparent 70%);
+  -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 30%, black 20%, transparent 70%);
+  opacity:.6;
+}
+
 /* Cursor glow (JS updates vars) — desktop only, lightweight */
 #aurixCursorGlow{
   position:fixed;
@@ -38,12 +54,10 @@ body::before{
 }
 
 /* Ensure Flutter content is above FX */
-body > *:not(#aurixCursorGlow){
-  position:relative;
-  z-index:5;
-}
 #aurixCursorGlow{ z-index:1; }
 
+/* Flutter rendering elements — do NOT override position on flutter-view */
+flutter-view,
 flt-glass-pane,
 flt-scene-host,
 flt-semantics-host{
@@ -57,4 +71,5 @@ flt-semantics-host{
 /* Pause on reduced motion */
 @media (prefers-reduced-motion: reduce){
   #aurixCursorGlow{display:none}
+  body::after{display:none}
 }

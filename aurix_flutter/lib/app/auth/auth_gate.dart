@@ -1,16 +1,18 @@
 import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/presentation/landing/landing_page.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Prevents rendering any user-specific UI until the Supabase session is restored.
+/// Prevents rendering any user-specific UI until the auth session is restored.
 class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authStoreProvider);
+    debugPrint('[DIAG] AuthGate.build ready=${auth.ready} authed=${auth.isAuthed}');
 
     if (!auth.ready) {
       return const Scaffold(

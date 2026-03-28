@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './all-exceptions.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -40,13 +41,25 @@ async function bootstrap() {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(null, true); // TODO: set to false after domain is configured
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
+  // ── Global exception filter (always JSON, never HTML) ──
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  // ── Global validation pipe ─────────────────────────────
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,        // Strip unknown properties
+      forbidNonWhitelisted: false, // Don't throw on extra props (backwards compat)
+      transform: true,        // Auto-transform payloads to DTO instances
+    }),
+  );
 
   const port = Number(process.env.PORT) || 3000;
   await app.listen(port, '0.0.0.0');

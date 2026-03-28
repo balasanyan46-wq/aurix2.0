@@ -25,7 +25,7 @@ export class ProgressService {
     return rows[0];
   }
 
-  async updateHabit(id: number, data: Record<string, any>) {
+  async updateHabit(id: number, userId: number, data: Record<string, any>) {
     const sets: string[] = []; const vals: any[] = []; let i = 1;
     for (const [k,v] of Object.entries(data)) {
       if (['title','category','target_type','target_count','is_active','sort_order'].includes(k)) {
@@ -33,13 +33,15 @@ export class ProgressService {
       }
     }
     if (!sets.length) return null;
-    vals.push(id);
-    const { rows } = await this.pool.query(`UPDATE progress_habits SET ${sets.join(',')} WHERE id=$${i} RETURNING *`, vals);
+    vals.push(id, userId);
+    // SECURITY: ownership check — AND user_id=$N
+    const { rows } = await this.pool.query(`UPDATE progress_habits SET ${sets.join(',')} WHERE id=$${i} AND user_id=$${i + 1} RETURNING *`, vals);
     return rows[0];
   }
 
-  async deleteHabit(id: number) {
-    await this.pool.query('DELETE FROM progress_habits WHERE id=$1', [id]);
+  async deleteHabit(id: number, userId: number) {
+    // SECURITY: ownership check
+    await this.pool.query('DELETE FROM progress_habits WHERE id=$1 AND user_id=$2', [id, userId]);
   }
 
   // Checkins
@@ -62,8 +64,9 @@ export class ProgressService {
     return rows[0];
   }
 
-  async deleteCheckin(habitId: number, day: string) {
-    await this.pool.query('DELETE FROM progress_checkins WHERE habit_id=$1 AND day=$2', [habitId, day]);
+  async deleteCheckin(habitId: number, day: string, userId: number) {
+    // SECURITY: ownership check
+    await this.pool.query('DELETE FROM progress_checkins WHERE habit_id=$1 AND day=$2 AND user_id=$3', [habitId, day, userId]);
   }
 
   // Daily Notes

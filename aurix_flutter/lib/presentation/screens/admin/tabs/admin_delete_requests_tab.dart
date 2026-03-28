@@ -123,7 +123,7 @@ class _AdminDeleteRequestsTabState extends ConsumerState<AdminDeleteRequestsTab>
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Отмена')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: FilledButton.styleFrom(backgroundColor: AurixTokens.danger),
             child: const Text('Удалить', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -280,10 +280,10 @@ class _RequestCard extends StatelessWidget {
                 request.statusLabel,
                 style: TextStyle(
                   color: request.status == 'pending'
-                      ? Colors.amber
+                      ? AurixTokens.warning
                       : request.status == 'approved'
                           ? AurixTokens.positive
-                          : Colors.redAccent,
+                          : AurixTokens.danger,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -315,7 +315,7 @@ class _RequestCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   OutlinedButton(
                     onPressed: onReject,
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
+                    style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.danger),
                     child: const Text('Отклонить'),
                   ),
                 ],

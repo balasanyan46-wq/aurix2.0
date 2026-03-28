@@ -1,98 +1,84 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:aurix_flutter/config/app_config.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'dnk_models.dart';
 
 class DnkService {
-  static String get _workerBase => AppConfig.cfBaseUrl;
+  /// Collected answers during the interview (stored locally, no session needed).
+  final List<DnkAnswerPayload> _answers = [];
 
-  static const Duration _startTimeout = Duration(seconds: 15);
-  static const Duration _answerTimeout = Duration(seconds: 10);
-  static const Duration _finishTimeout = Duration(seconds: 120);
-
-  /// POST /dnk/start
-  Future<String> startSession(String userId) async {
-    final body = await _post('/dnk/start', {'user_id': userId}, timeout: _startTimeout);
-    final sessionId = body['session_id'] as String?;
-    if (sessionId == null) throw Exception('Не удалось создать сессию DNK');
-    return sessionId;
-  }
-
-  /// POST /dnk/answer
-  Future<DnkFollowup?> submitAnswer({
-    required String sessionId,
+  /// Add an answer to the local collection.
+  void addAnswer({
     required String questionId,
     required String answerType,
     required Map<String, dynamic> answerJson,
-  }) async {
-    final body = await _post('/dnk/answer', {
-      'session_id': sessionId,
-      'question_id': questionId,
-      'answer_type': answerType,
-      'answer_json': answerJson,
-    }, timeout: _answerTimeout);
-
-    final followup = body['followup'];
-    if (followup != null && followup is Map<String, dynamic>) {
-      return DnkFollowup.fromJson(followup);
+  }) {
+    // Replace if already answered (e.g. going back)
+    _answers.removeWhere((a) => a.questionId == questionId);
+    _answers.add(DnkAnswerPayload(
+      questionId: questionId,
+      answerType: answerType,
+      answerJson: answerJson,
+    ));
+    if (kDebugMode) {
+      debugPrint('[DNK] answer added: $questionId (${_answers.length} total)');
     }
-    return null;
   }
 
-  /// POST /dnk/finish — synchronous: Worker generates and returns full result.
-  /// Takes 20-60 seconds. Client waits with 120s timeout.
-  Future<DnkResult> finishAndWait(String sessionId, {String styleLevel = 'normal'}) async {
-    final body = await _post('/dnk/finish', {
-      'session_id': sessionId,
+  int get answerCount => _answers.length;
+
+  /// Send all collected answers to NestJS backend and get the full DNK result.
+  /// POST /api/ai/dnk
+  Future<DnkResult> finish({String styleLevel = 'normal'}) async {
+    if (_answers.length < 10) {
+      throw Exception('DNK: слишком мало ответов (${_answers.length})');
+    }
+
+    if (kDebugMode) {
+      debugPrint('[DNK] finishing with ${_answers.length} answers, style=$styleLevel');
+    }
+
+    final answersList = _answers.map((a) => <String, dynamic>{
+      'question_id': a.questionId,
+      'answer_type': a.answerType,
+      'answer_json': a.answerJson,
+    }).toList();
+
+    final payload = <String, dynamic>{
+      'answers': answersList,
       'style_level': styleLevel,
-    }, timeout: _finishTimeout);
+    };
+
+    final res = await ApiClient.post('/api/ai/dnk', data: payload);
+
+    if (res.statusCode != null && res.statusCode! >= 400) {
+      final msg = res.data is Map ? (res.data['message'] ?? 'Ошибка сервера') : 'Ошибка сервера';
+      throw Exception('DNK: $msg');
+    }
+
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
 
     if (body['status'] == 'ready') {
       return DnkResult.fromJson(body);
     }
 
-    throw Exception(body['error']?.toString() ?? 'Генерация не удалась');
+    throw Exception(body['error']?.toString() ?? 'DNK: генерация не удалась');
   }
 
-  Future<Map<String, dynamic>> _post(
-    String path,
-    Map<String, dynamic> payload, {
-    Duration? timeout,
-  }) async {
-    final uri = Uri.parse('$_workerBase$path');
-    final effectiveTimeout = timeout ?? const Duration(seconds: 30);
-    if (kDebugMode) debugPrint('[DNK] POST $path');
-
-    http.Response res;
-    try {
-      res = await http
-          .post(
-            uri,
-            headers: const {'Content-Type': 'application/json'},
-            body: jsonEncode(payload),
-          )
-          .timeout(effectiveTimeout);
-    } on TimeoutException {
-      throw Exception('DNK: сервер не ответил вовремя');
-    } catch (_) {
-      throw Exception('DNK: ошибка сети');
-    }
-
-    if (res.statusCode != 200) {
-      String msg = 'DNK: ошибка сервера (${res.statusCode})';
-      try {
-        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-        if (decoded['error'] != null) msg = decoded['error'].toString();
-      } catch (_) {}
-      throw Exception(msg);
-    }
-
-    try {
-      return jsonDecode(res.body) as Map<String, dynamic>;
-    } catch (_) {
-      throw Exception('DNK: некорректный ответ сервера');
-    }
+  /// Clear collected answers (for starting over).
+  void reset() {
+    _answers.clear();
   }
+}
+
+class DnkAnswerPayload {
+  final String questionId;
+  final String answerType;
+  final Map<String, dynamic> answerJson;
+
+  const DnkAnswerPayload({
+    required this.questionId,
+    required this.answerType,
+    required this.answerJson,
+  });
 }

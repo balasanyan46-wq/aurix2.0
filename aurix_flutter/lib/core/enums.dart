@@ -95,7 +95,7 @@ extension ReleaseStatusX on ReleaseStatus {
   }
 }
 
-/// Maps Supabase release status string to ReleaseStatus
+/// Maps release status string to ReleaseStatus
 ReleaseStatus releaseStatusFromString(String s) {
   switch (s) {
     case 'draft':

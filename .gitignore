@@ -22,10 +22,13 @@ Thumbs.db
 .pub/
 build/
 
-# Node / Cloudflare Worker
+# Node
 node_modules/
 dist/
-.wrangler/
+
+# Build artifacts
+main.dart.js
+.gh-pages-worktree/
 
 # Supabase
 supabase/.temp/

@@ -39,15 +39,16 @@ export class LegalService {
     return rows[0];
   }
 
-  async updateDocument(id: number, data: Record<string, any>) {
+  async updateDocument(id: number, userId: number, data: Record<string, any>) {
     const sets: string[] = []; const vals: any[] = []; let i = 1;
     for (const [k,v] of Object.entries(data)) {
       if (['file_pdf_path','status'].includes(k)) { sets.push(`${k}=$${i++}`); vals.push(v); }
     }
     if (!sets.length) return null;
     sets.push('updated_at=NOW()');
-    vals.push(id);
-    const { rows } = await this.pool.query(`UPDATE legal_documents SET ${sets.join(',')} WHERE id=$${i} RETURNING *`, vals);
+    vals.push(id, userId);
+    // SECURITY: ownership check — AND user_id
+    const { rows } = await this.pool.query(`UPDATE legal_documents SET ${sets.join(',')} WHERE id=$${i} AND user_id=$${i + 1} RETURNING *`, vals);
     return rows[0];
   }
 

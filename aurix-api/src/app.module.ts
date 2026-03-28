@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -25,6 +26,18 @@ import { CrmModule } from './crm/crm.module';
 import { NavigatorModule } from './navigator/navigator.module';
 import { AccountModule } from './account/account.module';
 import { AaiModule } from './aai/aai.module';
+import { AiModule } from './ai/ai.module';
+import { UserEventsModule } from './user-events/user-events.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AutoActionsModule } from './auto-actions/auto-actions.module';
+import { SessionsModule } from './sessions/sessions.module';
+import { WsModule } from './ws/ws.module';
+import { BillingModule } from './billing/billing.module';
+import { GrowthModule } from './growth/growth.module';
+import { SmartLinkModule } from './smart-link/smart-link.module';
+import { StudioToolsModule } from './studio-tools/studio-tools.module';
+import { SystemModule } from './system/system.module';
+import { InsightsModule } from './insights/insights.module';
 
 @Module({
   imports: [
@@ -32,6 +45,7 @@ import { AaiModule } from './aai/aai.module';
       ttl: 60000,   // 1 minute window
       limit: 60,    // 60 requests per minute globally
     }]),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     MailModule,
     AuthModule,
@@ -55,6 +69,18 @@ import { AaiModule } from './aai/aai.module';
     NavigatorModule,
     AccountModule,
     AaiModule,
+    AiModule,
+    UserEventsModule,
+    NotificationsModule,
+    AutoActionsModule,
+    SessionsModule,
+    WsModule,
+    BillingModule,
+    GrowthModule,
+    SmartLinkModule,
+    StudioToolsModule,
+    SystemModule,
+    InsightsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

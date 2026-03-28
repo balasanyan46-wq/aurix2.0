@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Body, Param, Query, Req, Inject, UseGuards } from '@nestjs/common';
+// @ts-ignore — Req imported for auth user extraction
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -39,37 +40,36 @@ export class NavigatorController {
   }
 
   @Get('artist-navigator-user-materials')
-  async getUserMaterials(@Query('user_id') userId: string, @Query('is_saved') isSaved?: string, @Query('is_completed') isCompleted?: string) {
-    return this.svc.getUserMaterials(+userId, isSaved, isCompleted);
+  async getUserMaterials(@Req() req: any, @Query('is_saved') isSaved?: string, @Query('is_completed') isCompleted?: string) {
+    // SECURITY: always use authenticated user's ID, not query param
+    return this.svc.getUserMaterials(req.user.id, isSaved, isCompleted);
   }
 
   @Get('artist-navigator-user-materials/item')
-  async getUserMaterialItem(@Query('user_id') userId: string, @Query('material_id') materialId: string) {
-    return this.svc.getUserMaterialItem(+userId, +materialId);
+  async getUserMaterialItem(@Req() req: any, @Query('material_id') materialId: string) {
+    return this.svc.getUserMaterialItem(req.user.id, +materialId);
   }
 
   @Post('artist-navigator-user-materials')
-  async createUserMaterial(@Body() body: Record<string, any>) { return this.svc.createUserMaterial(body); }
+  async createUserMaterial(@Req() req: any, @Body() body: Record<string, any>) {
+    return this.svc.createUserMaterial({ ...body, user_id: req.user.id });
+  }
 
   @Put('artist-navigator-user-materials/:id')
-  async updateUserMaterial(@Param('id') id: string, @Body() body: Record<string, any>) {
-    return this.svc.updateUserMaterial(+id, body);
+  async updateUserMaterial(@Req() req: any, @Param('id') id: string, @Body() body: Record<string, any>) {
+    return this.svc.updateUserMaterial(+id, body, req.user.id);
   }
 
   @Post('artist-navigator-profiles')
-  async saveProfile(@Body() body: Record<string, any>) {
-    return this.svc.saveProfile(body.user_id, body.onboarding_answers);
+  async saveProfile(@Req() req: any, @Body() body: Record<string, any>) {
+    return this.svc.saveProfile(req.user.id, body.onboarding_answers);
   }
+
+  @Get('artist-navigator-profiles/me')
+  async getMyProfile(@Req() req: any) { return this.svc.getProfile(req.user.id); }
 
   @Get('artist-navigator-profiles/:userId')
+  @UseGuards(AdminGuard)
   async getProfile(@Param('userId') userId: string) { return this.svc.getProfile(+userId); }
 
-  @Get('dnk-results/latest')
-  async getLatestDnkResult(@Req() req: any) {
-    const { rows } = await this.pool.query(
-      'SELECT * FROM dnk_results WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1',
-      [req.user.id],
-    );
-    return rows[0] || null;
-  }
 }

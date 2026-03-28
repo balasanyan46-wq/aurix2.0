@@ -35,10 +35,11 @@ export class ReleasesService {
   }
 
   async update(id: number, fields: Record<string, any>) {
+    // SECURITY: 'status' removed — use submit/approve/live/reject endpoints for state transitions
     const allowed = [
       'title', 'artist', 'release_type', 'cover_url', 'cover_path',
       'release_date', 'genre', 'language', 'explicit', 'upc',
-      'label', 'copyright_year', 'status',
+      'label', 'copyright_year',
     ];
     const sets: string[] = [];
     const vals: any[] = [];
@@ -137,6 +138,17 @@ export class ReleasesService {
        WHERE id = $1 AND status = 'review'
        RETURNING *`,
       [id, reason || null],
+    );
+    return rows[0] || null;
+  }
+
+  /** Admin-only: force a status value (used by bulk-status). */
+  async updateStatus(id: number, status: string) {
+    const allowed = ['draft', 'review', 'approved', 'live', 'rejected', 'takedown'];
+    if (!allowed.includes(status)) return null;
+    const { rows } = await this.pool.query(
+      `UPDATE releases SET status = $2 WHERE id = $1 RETURNING *`,
+      [id, status],
     );
     return rows[0] || null;
   }

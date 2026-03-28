@@ -26,13 +26,17 @@ export class LegalController {
   }
 
   @Put('legal-documents/:id')
-  async updateDoc(@Param('id') id: string, @Body() body: Record<string, any>) {
-    return this.svc.updateDocument(+id, body);
+  async updateDoc(@Req() req: any, @Param('id') id: string, @Body() body: Record<string, any>) {
+    // SECURITY: ownership check
+    return this.svc.updateDocument(+id, req.user.id, body);
   }
 
   @Get('legal-documents/signed-url')
   async signedUrl(@Query('path') path: string) {
-    // For now, return direct storage URL
+    // SECURITY: validate path to prevent traversal
+    if (!path || path.includes('..') || /[^a-zA-Z0-9\-_./]/.test(path)) {
+      throw new HttpException('invalid path', HttpStatus.BAD_REQUEST);
+    }
     const base = process.env.APP_URL || 'http://localhost:3000';
     return { url: `${base}/storage/${path}` };
   }

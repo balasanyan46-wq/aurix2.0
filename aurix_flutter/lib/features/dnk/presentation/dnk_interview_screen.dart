@@ -7,9 +7,7 @@ import '../data/dnk_service.dart';
 import '../data/questions_bank.dart';
 
 class DnkInterviewScreen extends StatefulWidget {
-  final String sessionId;
-
-  const DnkInterviewScreen({super.key, required this.sessionId});
+  const DnkInterviewScreen({super.key});
 
   @override
   State<DnkInterviewScreen> createState() => _DnkInterviewScreenState();
@@ -17,15 +15,11 @@ class DnkInterviewScreen extends StatefulWidget {
 
 class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
   final _service = DnkService();
-  final List<_QuestionItem> _queue = [];
+  final List<DnkQuestion> _queue = [];
   int _currentIndex = 0;
   bool _submitting = false;
   bool _finishing = false;
   String _finishStatus = '';
-
-  // Background retry queue
-  final List<_PendingAnswer> _pendingAnswers = [];
-  int _pendingRetries = 0;
 
   // Per-question state
   int _scaleValue = 3;
@@ -38,7 +32,7 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
     _queue.addAll(
       dnkCoreQuestions
           .where((q) => dnkMandatoryCoreQuestionIds.contains(q.id))
-          .map((q) => _QuestionItem(question: q)),
+          .toList(),
     );
   }
 
@@ -49,8 +43,7 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
     super.dispose();
   }
 
-  _QuestionItem get _current => _queue[_currentIndex];
-  DnkQuestion get _q => _current.question;
+  DnkQuestion get _q => _queue[_currentIndex];
   int get _total => _queue.length;
   double get _progress => (_currentIndex + 1) / _total;
 
@@ -71,53 +64,19 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
       answerJson = {'text': text};
     }
 
-    setState(() => _submitting = true);
-
-    final qId = _q.id;
-    if (kDebugMode) {
-      debugPrint(
-          '[DNK] submit: q=$qId, type=$answerType, session=${widget.sessionId}');
-    }
-
-    DnkFollowup? followup;
-    try {
-      followup = await _service.submitAnswer(
-        sessionId: widget.sessionId,
-        questionId: qId,
-        answerType: answerType,
-        answerJson: answerJson,
-      );
-    } catch (e) {
-      if (kDebugMode) debugPrint('[DNK] Submit failed, queuing retry: $e');
-      _queueRetry(qId, answerType, answerJson);
-    }
-
-    if (followup != null) {
-      if (kDebugMode) {
-        debugPrint('[DNK] followup: id=${followup.id}, type=${followup.type}');
-      }
-      _queue.insert(
-          _currentIndex + 1,
-          _QuestionItem(
-            question: DnkQuestion(
-              id: followup.id,
-              type: followup.type,
-              text: followup.text,
-              options: followup.options,
-              scaleLabels: followup.scaleLabels,
-              isFollowup: true,
-            ),
-          ));
-    }
+    // Store answer locally
+    _service.addAnswer(
+      questionId: _q.id,
+      answerType: answerType,
+      answerJson: answerJson,
+    );
 
     if (_currentIndex + 1 < _queue.length) {
       setState(() {
         _currentIndex++;
         _resetInputs();
-        _submitting = false;
       });
     } else {
-      setState(() => _submitting = false);
       await _finishInterview();
     }
   }
@@ -128,78 +87,24 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
     _textController.clear();
   }
 
-  // ── Background retry queue ─────────────────────────────────
-
-  void _queueRetry(
-      String questionId, String answerType, Map<String, dynamic> answerJson) {
-    final pending = _PendingAnswer(
-      questionId: questionId,
-      answerType: answerType,
-      answerJson: answerJson,
-    );
-    _pendingAnswers.add(pending);
-    _updatePendingCount();
-    _retryInBackground(pending);
-  }
-
-  void _updatePendingCount() {
-    if (!mounted) return;
-    setState(
-        () => _pendingRetries = _pendingAnswers.where((p) => !p.sent).length);
-  }
-
-  Future<void> _retryInBackground(_PendingAnswer p) async {
-    const delays = [
-      Duration(milliseconds: 500),
-      Duration(seconds: 1),
-      Duration(seconds: 2),
-    ];
-    for (int i = 0; i < 3; i++) {
-      await Future.delayed(delays[i]);
-      if (!mounted) return;
-      try {
-        await _service.submitAnswer(
-          sessionId: widget.sessionId,
-          questionId: p.questionId,
-          answerType: p.answerType,
-          answerJson: p.answerJson,
-        );
-        p.sent = true;
-        _updatePendingCount();
-        return;
-      } catch (_) {
-        // retry
-      }
-    }
-    if (kDebugMode) debugPrint('[DNK] Retry exhausted for ${p.questionId}');
-  }
-
-  // ── Finish flow (synchronous call with progress UI) ────────
-
+  // ── Finish flow ────────────────────────────────────────────
   Future<void> _finishInterview() async {
     setState(() {
       _finishing = true;
       _finishStatus = 'Отправляем ответы…';
     });
 
-    final deadline = DateTime.now().add(const Duration(seconds: 10));
-    while (_pendingAnswers.any((p) => !p.sent) &&
-        DateTime.now().isBefore(deadline)) {
-      await Future.delayed(const Duration(milliseconds: 400));
-    }
-
-    if (mounted) setState(() => _finishStatus = 'AI анализирует ваши ответы…');
-
     _startProgressTimer();
 
     DnkResult? result;
     for (int attempt = 0; attempt < 2; attempt++) {
       try {
-        result = await _service.finishAndWait(widget.sessionId);
+        result = await _service.finish();
         break;
       } catch (e) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[DNK] finish attempt ${attempt + 1} failed: $e');
+        }
         if (attempt == 0 && mounted) {
           setState(() => _finishStatus = 'AI занят, пробуем ещё раз…');
           await Future.delayed(const Duration(seconds: 3));
@@ -216,7 +121,7 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content:
-                Text('Генерация не удалась. Попробуйте перегенерировать.')),
+                Text('Генерация не удалась. Попробуйте ещё раз.')),
       );
       setState(() => _finishing = false);
     }
@@ -235,15 +140,18 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
       _progressStep++;
       switch (_progressStep) {
         case 1:
-          setState(() => _finishStatus = 'Извлекаем паттерны…');
+          setState(() => _finishStatus = 'AI анализирует ваши ответы…');
           break;
         case 2:
-          setState(() => _finishStatus = 'Строим профиль…');
+          setState(() => _finishStatus = 'Извлекаем паттерны…');
           break;
         case 3:
-          setState(() => _finishStatus = 'Формируем рекомендации…');
+          setState(() => _finishStatus = 'Строим профиль…');
           break;
         case 4:
+          setState(() => _finishStatus = 'Формируем рекомендации…');
+          break;
+        case 5:
           setState(() => _finishStatus = 'Почти готово…');
           break;
         default:
@@ -255,8 +163,9 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
 
   bool get _canSubmit {
     if (_submitting || _finishing) return false;
-    if (_q.type == 'forced_choice' || _q.type == 'sjt')
+    if (_q.type == 'forced_choice' || _q.type == 'sjt') {
       return _choiceKey != null;
+    }
     if (_q.type == 'open') return _textController.text.trim().isNotEmpty;
     return true;
   }
@@ -304,41 +213,6 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
               fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
-        actions: [
-          if (_pendingRetries > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Center(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: Colors.orange.shade300,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Сеть…',
-                        style: TextStyle(
-                            color: Colors.orange.shade300, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(4),
           child: LinearProgressIndicator(
@@ -358,23 +232,6 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_q.isFollowup)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AurixTokens.accent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Уточняющий вопрос',
-                          style: TextStyle(
-                              color: AurixTokens.accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
                     Text(
                       _q.text,
                       style: const TextStyle(
@@ -664,22 +521,4 @@ class _DnkInterviewScreenState extends State<DnkInterviewScreen> {
       ),
     );
   }
-}
-
-class _QuestionItem {
-  final DnkQuestion question;
-  _QuestionItem({required this.question});
-}
-
-class _PendingAnswer {
-  final String questionId;
-  final String answerType;
-  final Map<String, dynamic> answerJson;
-  bool sent = false;
-
-  _PendingAnswer({
-    required this.questionId,
-    required this.answerType,
-    required this.answerJson,
-  });
 }

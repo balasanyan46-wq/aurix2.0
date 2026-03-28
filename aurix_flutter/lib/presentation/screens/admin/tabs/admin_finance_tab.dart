@@ -58,7 +58,7 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
           rowsAsync.when(
             data: (rows) => _buildSummary(rows),
             loading: () => const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2))),
-            error: (e, _) => Text('$e', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+            error: (e, _) => Text('$e', style: const TextStyle(color: AurixTokens.danger, fontSize: 12)),
           ),
 
           const SizedBox(height: 28),
@@ -72,7 +72,7 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
               return _buildImportCard(profiles, releases);
             },
             loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2)),
-            error: (e, _) => Text('$e', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+            error: (e, _) => Text('$e', style: const TextStyle(color: AurixTokens.danger, fontSize: 12)),
           ),
 
           const SizedBox(height: 28),
@@ -103,15 +103,15 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
               return _buildReportsTable(list, profiles, releases, _reportsQuery);
             },
             loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2)),
-            error: (e, _) => Text('$e', style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+            error: (e, _) => Text('$e', style: const TextStyle(color: AurixTokens.danger, fontSize: 12)),
           ),
 
           const SizedBox(height: 28),
 
           rowsAsync.when(
             data: (rows) => _buildBreakdowns(rows),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            loading: () => const Center(child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2)),
+            error: (e, _) => Text('Ошибка разбивки: $e', style: const TextStyle(color: AurixTokens.danger, fontSize: 12)),
           ),
         ],
       ),
@@ -285,10 +285,10 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
+                  color: AurixTokens.danger.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(_error!, style: TextStyle(color: Colors.red[300], fontSize: 12)),
+                child: Text(_error!, style: TextStyle(color: AurixTokens.danger, fontSize: 12)),
               ),
             ],
             if (_success != null) ...[
@@ -367,12 +367,12 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
     String userName(String? uid) {
       if (uid == null) return '—';
       final p = profiles.where((p) => p.userId == uid);
-      return p.isNotEmpty ? p.first.displayNameOrName : uid.substring(0, 8);
+      return p.isNotEmpty ? p.first.displayNameOrName : (uid.length > 8 ? '${uid.substring(0, 8)}...' : uid);
     }
     String releaseName(String? rid) {
       if (rid == null) return '—';
       final r = releases.where((r) => r.id == rid);
-      return r.isNotEmpty ? r.first.title : rid.substring(0, 8);
+      return r.isNotEmpty ? r.first.title : (rid.length > 8 ? '${rid.substring(0, 8)}...' : rid);
     }
 
     final filtered = reports.where((r) {
@@ -484,7 +484,7 @@ class _AdminFinanceTabState extends ConsumerState<AdminFinanceTab> {
                 }
               }
             },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: AurixTokens.danger),
             child: const Text('Удалить'),
           ),
         ],

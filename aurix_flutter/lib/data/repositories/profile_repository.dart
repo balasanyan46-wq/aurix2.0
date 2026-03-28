@@ -7,9 +7,9 @@ class ProfileRepository {
   Future<ProfileModel?> getMyProfile() async {
     try {
       final res = await ApiClient.get('/profiles/me');
-      final body = res.data as Map<String, dynamic>;
+      final body = _asMap(res.data);
       if (body['success'] == true && body['profile'] != null) {
-        return ProfileModel.fromJson(body['profile'] as Map<String, dynamic>);
+        return ProfileModel.fromJson(_asMap(body['profile']));
       }
       return null;
     } catch (e) {
@@ -37,16 +37,16 @@ class ProfileRepository {
     if (profile.avatarUrl != null) data['avatar_url'] = profile.avatarUrl;
 
     final res = await ApiClient.put('/profiles/me', data: data);
-    final body = res.data as Map<String, dynamic>;
-    return ProfileModel.fromJson(body['profile'] as Map<String, dynamic>);
+    final body = _asMap(res.data);
+    return ProfileModel.fromJson(_asMap(body['profile'] ?? body));
   }
 
   Future<ProfileModel?> getProfile(String id) async {
     try {
       final res = await ApiClient.get('/profiles/$id');
-      final body = res.data as Map<String, dynamic>;
+      final body = _asMap(res.data);
       if (body['success'] == true && body['profile'] != null) {
-        return ProfileModel.fromJson(body['profile'] as Map<String, dynamic>);
+        return ProfileModel.fromJson(_asMap(body['profile']));
       }
       return null;
     } catch (e) {
@@ -102,13 +102,10 @@ class ProfileRepository {
       profile?.hasStudioAccess ?? false;
 
   Future<List<ProfileModel>> getAllProfiles() async {
-    final res = await ApiClient.get('/profiles');
-    final body = res.data as Map<String, dynamic>;
-    final list = (body['profiles'] as List)
-        .map((e) => ProfileModel.fromJson(e as Map<String, dynamic>))
-        .toList();
-    debugPrint('[ProfileRepository] getAllProfiles: ${list.length} profiles loaded');
-    return list;
+    final res = await ApiClient.get('/profiles/');
+    final body = _asMap(res.data);
+    final list = (body['profiles'] as List?) ?? [];
+    return list.map((e) => ProfileModel.fromJson(_asMap(e))).toList();
   }
 
   Future<void> updateRole(String userId, String role) async {
@@ -132,11 +129,17 @@ class ProfileRepository {
         'status': status,
         if (reason != null) 'reason': reason,
       });
-      final body = res.data as Map<String, dynamic>;
+      final body = _asMap(res.data);
       return body['count'] as int? ?? ids.length;
     } catch (e) {
       debugPrint('[ProfileRepository] bulkUpdateAccountStatus failed: $e');
       return 0;
     }
+  }
+
+  static Map<String, dynamic> _asMap(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return <String, dynamic>{};
   }
 }

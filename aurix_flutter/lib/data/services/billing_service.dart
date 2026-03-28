@@ -1,8 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:aurix_flutter/core/api/token_store.dart';
-import 'package:aurix_flutter/config/app_config.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 
 class BillingService {
   Future<({bool ok, String? url, String? error})> createCheckoutSession({
@@ -10,20 +7,12 @@ class BillingService {
     required String billingPeriod,
   }) async {
     try {
-      final token = TokenStore.cachedToken ?? await TokenStore.read();
-      if (token == null) return (ok: false, url: null, error: 'Not authenticated');
+      final res = await ApiClient.post('/tools/billing-create-checkout-session', data: {
+        'plan': plan,
+        'billingPeriod': billingPeriod,
+      });
 
-      final url = Uri.parse('${AppConfig.apiBaseUrl}/tools/billing-create-checkout-session');
-      final res = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'plan': plan, 'billingPeriod': billingPeriod}),
-      );
-
-      final body = jsonDecode(res.body) as Map<String, dynamic>? ?? {};
+      final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
       if (res.statusCode == 200 && body['ok'] == true) {
         return (ok: true, url: body['url'] as String?, error: null);
       }
@@ -40,20 +29,13 @@ class BillingService {
     String billingPeriod = 'monthly',
   }) async {
     try {
-      final token = TokenStore.cachedToken ?? await TokenStore.read();
-      if (token == null) return (ok: false, error: 'Not authenticated');
+      final res = await ApiClient.post('/tools/admin-subscriptions-assign', data: {
+        'userId': userId,
+        'plan': plan,
+        'billingPeriod': billingPeriod,
+      });
 
-      final url = Uri.parse('${AppConfig.apiBaseUrl}/tools/admin-subscriptions-assign');
-      final res = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'userId': userId, 'plan': plan, 'billingPeriod': billingPeriod}),
-      );
-
-      final body = jsonDecode(res.body) as Map<String, dynamic>? ?? {};
+      final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
       if (res.statusCode == 200 && body['ok'] == true) {
         return (ok: true, error: null);
       }
@@ -64,4 +46,3 @@ class BillingService {
     }
   }
 }
-

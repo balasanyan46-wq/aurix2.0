@@ -12,6 +12,7 @@ import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 
 class ReleasesListScreen extends ConsumerStatefulWidget {
   const ReleasesListScreen({super.key});
@@ -415,10 +416,11 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                       decoration: BoxDecoration(
                         color: AurixTokens.bg2,
                         borderRadius: BorderRadius.circular(10),
-                        image: r.coverUrl != null
+                        image: r.coverUrl != null && r.coverUrl!.isNotEmpty
                             ? DecorationImage(
-                                image: NetworkImage(r.coverUrl!),
-                                fit: BoxFit.cover)
+                                image: NetworkImage(ApiClient.fixUrl(r.coverUrl)),
+                                fit: BoxFit.cover,
+                                onError: (_, __) {})
                             : null,
                       ),
                       child: r.coverUrl == null
@@ -491,15 +493,15 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.12),
+                          color: AurixTokens.warning.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color: Colors.amber.withValues(alpha: 0.32)),
+                              color: AurixTokens.warning.withValues(alpha: 0.32)),
                         ),
                         child: const Text(
                           'Запрос отправлен',
                           style: TextStyle(
-                              color: Colors.amber,
+                              color: AurixTokens.warning,
                               fontSize: 11,
                               fontWeight: FontWeight.w700),
                         ),
@@ -532,7 +534,7 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                           PopupMenuItem<String>(
                             value: 'request_delete',
                             child: Text('Запросить удаление',
-                                style: TextStyle(color: Colors.redAccent)),
+                                style: TextStyle(color: AurixTokens.danger)),
                           ),
                         ],
                         child: Icon(
@@ -556,10 +558,10 @@ class _ReleaseCardState extends State<_ReleaseCard> {
   }
 
   static Color _statusColor(String s) => switch (s) {
-        'submitted' => Colors.amber,
+        'submitted' => AurixTokens.warning,
         'approved' => AurixTokens.positive,
         'live' => AurixTokens.positive,
-        'rejected' => Colors.redAccent,
+        'rejected' => AurixTokens.danger,
         _ => AurixTokens.muted,
       };
 

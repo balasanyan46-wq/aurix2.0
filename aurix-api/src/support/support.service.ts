@@ -6,6 +6,11 @@ import { PG_POOL } from '../database/database.module';
 export class SupportService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
+  async getTicketById(id: number) {
+    const { rows } = await this.pool.query('SELECT * FROM support_tickets WHERE id = $1', [id]);
+    return rows[0] || null;
+  }
+
   async getTickets(userId?: string, status?: string) {
     let q = 'SELECT * FROM support_tickets WHERE 1=1';
     const p: any[] = [];

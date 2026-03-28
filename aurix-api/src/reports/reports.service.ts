@@ -55,16 +55,26 @@ export class ReportsService {
 
   async batchInsertRows(rows: any[]) {
     if (!rows.length) return [];
-    const results: any[] = [];
-    for (const r of rows) {
-      const { rows: inserted } = await this.pool.query(
-        `INSERT INTO report_rows (report_id, report_date, track_title, isrc, platform, country, streams, revenue, currency, raw_row_json, user_id, release_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-        [r.report_id, r.report_date||null, r.track_title||null, r.isrc||null, r.platform||null, r.country||null, r.streams||0, r.revenue||0, r.currency||'USD', r.raw_row_json?JSON.stringify(r.raw_row_json):null, r.user_id||null, r.release_id||null],
-      );
-      results.push(inserted[0]);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const results: any[] = [];
+      for (const r of rows) {
+        const { rows: inserted } = await client.query(
+          `INSERT INTO report_rows (report_id, report_date, track_title, isrc, platform, country, streams, revenue, currency, raw_row_json, user_id, release_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+          [r.report_id, r.report_date||null, r.track_title||null, r.isrc||null, r.platform||null, r.country||null, r.streams||0, r.revenue||0, r.currency||'USD', r.raw_row_json?JSON.stringify(r.raw_row_json):null, r.user_id||null, r.release_id||null],
+        );
+        results.push(inserted[0]);
+      }
+      await client.query('COMMIT');
+      return results;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
-    return results;
   }
 
   async updateRow(id: number, data: Record<string, any>) {

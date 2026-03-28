@@ -7,7 +7,7 @@ import 'api_client_native.dart' if (dart.library.html) 'api_client_web.dart' as 
 class ApiClient {
   ApiClient._();
 
-  static const String _defaultBaseUrl = 'https://194.67.99.229';
+  static const String _defaultBaseUrl = 'https://aurixmusic.ru';
 
   static final String baseUrl = const String.fromEnvironment(
     'API_BASE_URL',
@@ -29,7 +29,7 @@ class ApiClient {
       headers: {'Content-Type': 'application/json'},
     ));
 
-    // JWT interceptor — attach access token
+    // JWT interceptor — attach access token & detect HTML responses
     d.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
         final token = TokenStore.cachedToken;
@@ -40,6 +40,23 @@ class ApiClient {
           debugPrint('[API] ${options.method} ${options.path}');
         }
         handler.next(options);
+      },
+      onResponse: (response, handler) {
+        // Detect HTML responses (nginx fallback serving index.html)
+        final data = response.data;
+        if (data is String && data.trimLeft().startsWith('<!DOCTYPE')) {
+          handler.reject(
+            DioException(
+              requestOptions: response.requestOptions,
+              response: response,
+              type: DioExceptionType.badResponse,
+              message: 'Server returned HTML instead of JSON — '
+                  'endpoint ${response.requestOptions.path} may not exist',
+            ),
+          );
+          return;
+        }
+        handler.next(response);
       },
       onError: (error, handler) {
         if (kDebugMode) {
@@ -54,11 +71,17 @@ class ApiClient {
     // Auto-refresh interceptor — retry on 401
     d.interceptors.add(_RefreshInterceptor(d));
 
-    // Accept self-signed certificate on native platforms
-    // TODO: remove when real SSL cert is configured
     platform.configureDio(d);
 
     return d;
+  }
+
+  /// Fix URLs that use IP instead of domain (SSL cert mismatch).
+  static String fixUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    return url
+        .replaceFirst('https://194.67.99.229', baseUrl)
+        .replaceFirst('http://194.67.99.229', baseUrl);
   }
 
   // ── Convenience methods ──────────────────────────────────
@@ -66,8 +89,8 @@ class ApiClient {
   static Future<Response> get(String path, {Map<String, dynamic>? query}) =>
       _dio.get(path, queryParameters: query);
 
-  static Future<Response> post(String path, {dynamic data}) =>
-      _dio.post(path, data: data);
+  static Future<Response> post(String path, {dynamic data, Duration? receiveTimeout}) =>
+      _dio.post(path, data: data, options: receiveTimeout != null ? Options(receiveTimeout: receiveTimeout) : null);
 
   static Future<Response> put(String path, {dynamic data}) =>
       _dio.put(path, data: data);
@@ -99,7 +122,7 @@ class _RefreshInterceptor extends Interceptor {
   final List<_QueuedRequest> _queue = [];
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
     // Only handle 401 Unauthorized
     if (err.response?.statusCode != 401) {
       return handler.next(err);
@@ -142,9 +165,10 @@ class _RefreshInterceptor extends Interceptor {
         'refreshToken': refreshToken,
       });
 
-      final body = res.data as Map<String, dynamic>;
-      final newAccess = body['token'] as String;
-      final newRefresh = body['refreshToken'] as String?;
+      final body = _asMap(res.data);
+      final newAccess = body['token']?.toString() ?? '';
+      if (newAccess.isEmpty) throw Exception('No token in refresh response');
+      final newRefresh = body['refreshToken']?.toString();
 
       await TokenStore.save(newAccess);
       if (newRefresh != null) {
@@ -198,4 +222,18 @@ class _QueuedRequest {
   final RequestOptions options;
   final ErrorInterceptorHandler handler;
   _QueuedRequest(this.options, this.handler);
+}
+
+/// Safely cast dynamic to Map<String, dynamic>.
+Map<String, dynamic> _asMap(dynamic data) {
+  if (data is Map<String, dynamic>) return data;
+  if (data is Map) return Map<String, dynamic>.from(data);
+  return <String, dynamic>{};
+}
+
+/// Safely cast response data to List.
+/// Returns empty list when the server returns HTML or a non-list type.
+List asList(dynamic data) {
+  if (data is List) return data;
+  return const [];
 }

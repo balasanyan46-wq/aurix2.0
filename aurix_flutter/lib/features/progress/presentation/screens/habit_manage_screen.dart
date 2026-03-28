@@ -203,7 +203,7 @@ class _HabitManageScreenState extends ConsumerState<HabitManageScreen> {
           TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(L10n.t(context, 'back'))),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(backgroundColor: AurixTokens.danger, foregroundColor: AurixTokens.text),
             child: Text(L10n.t(context, 'progressDelete')),
           ),
         ],
@@ -443,7 +443,7 @@ class _HabitTile extends StatelessWidget {
             IconButton(
               onPressed: onDelete,
               icon: const Icon(Icons.delete_outline_rounded),
-              color: Colors.redAccent,
+              color: AurixTokens.danger,
               tooltip: L10n.t(context, 'progressDelete'),
               visualDensity: VisualDensity.compact,
             ),
@@ -669,7 +669,7 @@ class _HabitEditSheetState extends State<_HabitEditSheet> {
                       },
                 icon: const Icon(Icons.save_rounded, size: 18),
                 label: Text(_saving ? L10n.t(context, 'progressSaving') : L10n.t(context, 'progressSave')),
-                style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: Colors.black),
+                style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: AurixTokens.bg0),
               ),
             ),
           ],

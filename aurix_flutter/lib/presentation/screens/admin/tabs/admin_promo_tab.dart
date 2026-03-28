@@ -200,7 +200,7 @@ class _AdminPromoTabState extends ConsumerState<AdminPromoTab> {
               loading: () => const Center(
                   child: CircularProgressIndicator(color: AurixTokens.orange)),
               error: (e, _) => Text('Ошибка: $e',
-                  style: const TextStyle(color: Colors.redAccent)),
+                  style: const TextStyle(color: AurixTokens.danger)),
             ),
         ],
       ),
@@ -331,7 +331,7 @@ class _AdminPromoTabState extends ConsumerState<AdminPromoTab> {
                             color: AurixTokens.orange, strokeWidth: 2),
                       ),
                       error: (_, __) => const Text('Ошибка загрузки событий',
-                          style: TextStyle(color: Colors.redAccent)),
+                          style: TextStyle(color: AurixTokens.danger)),
                     ),
                     const SizedBox(height: 14),
                     Container(
@@ -414,7 +414,7 @@ class _AdminPromoTabState extends ConsumerState<AdminPromoTab> {
     required void Function(String) onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      value: value,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: AurixTokens.muted),

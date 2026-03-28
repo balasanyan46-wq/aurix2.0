@@ -35,10 +35,11 @@ class FileRepository {
       safeName,
       fieldName: 'file',
     );
-    final body = res.data as Map<String, dynamic>;
-    final path = body['path'] as String? ?? '';
-    final publicUrl = body['url'] as String? ?? '';
-    return (coverPath: path, publicUrl: publicUrl);
+    final body = _asMap(res.data);
+    // Backend may return {url} or {path, url}
+    final url = (body['url'] ?? body['publicUrl'] ?? '').toString();
+    final path = (body['path'] ?? body['coverPath'] ?? url).toString();
+    return (coverPath: path, publicUrl: url);
   }
 
   Future<({String path, String publicUrl})> uploadTrackBytes(
@@ -65,10 +66,10 @@ class FileRepository {
       fileName,
       fieldName: 'file',
     );
-    final body = res.data as Map<String, dynamic>;
-    final path = body['path'] as String? ?? '';
-    final publicUrl = body['url'] as String? ?? '';
-    return (path: path, publicUrl: publicUrl);
+    final body = _asMap(res.data);
+    final url = (body['url'] ?? body['publicUrl'] ?? '').toString();
+    final path = (body['path'] ?? url).toString();
+    return (path: path, publicUrl: url);
   }
 
   Future<void> removeFromStorage(String bucket, String path) async {
@@ -78,5 +79,11 @@ class FileRepository {
     } catch (e) {
       debugPrint('[FileRepository] removeFromStorage failed: $e');
     }
+  }
+
+  static Map<String, dynamic> _asMap(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return <String, dynamic>{};
   }
 }

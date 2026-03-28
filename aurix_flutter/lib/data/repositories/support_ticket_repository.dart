@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/support_ticket_model.dart';
 import 'package:aurix_flutter/data/models/support_message_model.dart';
 
@@ -14,7 +14,7 @@ class SupportTicketRepository {
     }
 
     final res = await ApiClient.get('/support-tickets', query: query);
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .map((e) => SupportTicketModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -25,7 +25,7 @@ class SupportTicketRepository {
       'user_id': userId,
       'order': 'updated_at.desc',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .map((e) => SupportTicketModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -43,7 +43,7 @@ class SupportTicketRepository {
       'message': message,
       'priority': priority,
     });
-    final body = res.data as Map<String, dynamic>;
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     return SupportTicketModel.fromJson(body);
   }
 
@@ -84,7 +84,7 @@ class SupportTicketRepository {
       'ticket_id': ticketId,
       'order': 'created_at.asc',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .map((e) => SupportMessageModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -102,7 +102,7 @@ class SupportTicketRepository {
       'sender_role': senderRole,
       'body': body,
     });
-    final msgBody = res.data as Map<String, dynamic>;
+    final msgBody = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
 
     // Bump ticket updated_at so it floats to top
     await ApiClient.put('/support-tickets/$ticketId', data: {

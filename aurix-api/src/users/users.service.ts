@@ -43,7 +43,7 @@ export class UsersService {
   ): Promise<(UserRow & { password: string }) | null> {
     const { rows } = await this.pool.query(
       `SELECT id, email, password, name, role, verified, created_at
-       FROM users WHERE email = $1`,
+       FROM users WHERE LOWER(email) = LOWER($1)`,
       [email],
     );
     return rows[0] || null;
@@ -100,7 +100,7 @@ export class UsersService {
   }
 
   async resetPassword(userId: number, newPassword: string): Promise<void> {
-    const hash = await bcrypt.hash(newPassword, 10);
+    const hash = await bcrypt.hash(newPassword, 12);
     await this.pool.query(
       `UPDATE users SET password = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2`,
       [hash, userId],

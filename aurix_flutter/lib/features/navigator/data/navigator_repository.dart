@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'navigator_models.dart';
 import 'navigator_seed.dart';
 
@@ -9,8 +9,8 @@ class NavigatorRepository {
       final res = await ApiClient.get('/artist-navigator-materials', query: {
         'is_published': true,
       });
-      final rows = (res.data as List?) ?? const [];
-      final list = (rows as List)
+      final rows = asList(res.data);
+      final list = rows
           .whereType<Map>()
           .map((e) => NavigatorMaterial.fromJson(e.cast<String, dynamic>()))
           .map((db) => _enrichFromSeed(db, seedBySlug[db.slug]))
@@ -27,7 +27,7 @@ class NavigatorRepository {
     try {
       final seedBySlug = _seedBySlug();
       final res = await ApiClient.get('/artist-navigator-materials/by-slug/$slug');
-      final row = res.data as Map<String, dynamic>?;
+      final row = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : null;
       if (row == null) {
         final seed = NavigatorSeed.materials();
         for (final m in seed) {
@@ -55,8 +55,8 @@ class NavigatorRepository {
         'user_id': userId,
         'is_saved': true,
       });
-      final rows = (res.data as List?) ?? const [];
-      return (rows as List)
+      final rows = asList(res.data);
+      return rows
           .whereType<Map>()
           .map((e) => (e['material_id'] ?? '').toString())
           .where((e) => e.isNotEmpty)
@@ -73,8 +73,8 @@ class NavigatorRepository {
         'user_id': userId,
         'is_completed': true,
       });
-      final rows = (res.data as List?) ?? const [];
-      return (rows as List)
+      final rows = asList(res.data);
+      return rows
           .whereType<Map>()
           .map((e) => (e['material_id'] ?? '').toString())
           .where((e) => e.isNotEmpty)
@@ -138,7 +138,7 @@ class NavigatorRepository {
   Future<NavigatorOnboardingAnswers?> getOnboardingAnswers(String userId) async {
     try {
       final res = await ApiClient.get('/artist-navigator-profiles/$userId');
-      final row = res.data as Map<String, dynamic>?;
+      final row = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : null;
       final raw = row?['onboarding_answers'];
       if (raw is Map<String, dynamic>) {
         return NavigatorOnboardingAnswers.fromJson(raw);
@@ -159,7 +159,7 @@ class NavigatorRepository {
       'user_id': userId,
       'material_id': materialId,
     });
-    final existing = existingRes.data as Map<String, dynamic>?;
+    final existing = existingRes.data is Map ? Map<String, dynamic>.from(existingRes.data as Map) : null;
     if (existing == null) {
       await ApiClient.post('/artist-navigator-user-materials', data: {
         'user_id': userId,

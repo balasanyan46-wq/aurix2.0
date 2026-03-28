@@ -34,7 +34,8 @@ class ProgressDailyNotesRepository {
     };
     try {
       final res = await ApiClient.post('/progress-daily-notes', data: payload);
-      return ProgressDailyNote.fromJson((res.data as Map).cast<String, dynamic>());
+      final row = res.data is Map ? (res.data as Map).cast<String, dynamic>() : <String, dynamic>{};
+      return ProgressDailyNote.fromJson(row);
     } catch (e) {
       if (isMissingTableError(e, table: 'progress_daily_notes')) {
         throw const ProgressSchemaMissingException('progress_daily_notes');

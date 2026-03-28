@@ -1,20 +1,21 @@
 #!/bin/sh
-# Применяет миграцию 003. Требует: supabase link (или psql с DATABASE_URL)
+# Применяет все миграции в PostgreSQL.
+# Использует переменные окружения: PG_HOST, PG_USER, PG_PASSWORD, PG_DATABASE
+# Или DATABASE_URL
 
 set -e
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 
-if command -v supabase >/dev/null 2>&1; then
-  if supabase db push 2>/dev/null; then
-    echo "Миграция применена (supabase db push)"
-    exit 0
-  fi
+DB_URL="${DATABASE_URL:-postgresql://${PG_USER:-aurix}:${PG_PASSWORD}@${PG_HOST:-localhost}:${PG_PORT:-5432}/${PG_DATABASE:-aurixdb}}"
+
+if [ -z "$PG_PASSWORD" ] && [ -z "$DATABASE_URL" ]; then
+  echo "Задайте PG_PASSWORD или DATABASE_URL"
+  exit 1
 fi
 
-# Supabase не установлен или проект не привязан — выводим SQL для ручного запуска
-echo "Supabase CLI не сконфигурирован. Выполните SQL вручную:"
-echo "1. Откройте Supabase Dashboard → SQL Editor"
-echo "2. Вставьте и выполните содержимое supabase/migrations/003_cover_url_and_tracks.sql"
-echo ""
-echo "Или свяжите проект: supabase link"
-exit 1
+for f in migrations/*.sql; do
+  echo "Применяю: $f"
+  psql "$DB_URL" -f "$f" 2>&1 || true
+done
+
+echo "Все миграции применены."

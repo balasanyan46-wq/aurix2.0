@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
 import { ProfilesService } from './profiles.service';
 import { UsersService } from '../users/users.service';
+import { CreditsService } from '../billing/credits.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('profiles')
@@ -21,6 +22,7 @@ export class ProfilesController {
   constructor(
     private readonly profilesService: ProfilesService,
     private readonly usersService: UsersService,
+    private readonly creditsService: CreditsService,
   ) {}
 
   @Get('me')
@@ -38,7 +40,9 @@ export class ProfilesController {
       });
     }
 
-    return { success: true, profile };
+    // Attach credit balance
+    const balance = await this.creditsService.getBalance(req.user.id);
+    return { success: true, profile, credits: balance };
   }
 
   @Put('me')
@@ -56,6 +60,20 @@ export class ProfilesController {
     }
 
     return { success: true, profile };
+  }
+
+  @Get(':id')
+  @UseGuards(AdminGuard)
+  async getById(@Param('id') id: string) {
+    let profile = await this.profilesService.findByUserId(id);
+    if (!profile) {
+      // id might be an artist_id — resolve via artists table
+      const artist = await this.profilesService.findArtistById(+id);
+      if (artist?.user_id) {
+        profile = await this.profilesService.findByUserId(String(artist.user_id));
+      }
+    }
+    return { success: true, profile: profile || null };
   }
 
   @Get()
@@ -97,7 +115,7 @@ export class ProfilesController {
       );
     }
 
-    const profile = await this.profilesService.update(userId, {
+    const profile = await this.profilesService.updateSubscription(userId, {
       plan: plan_id,
       plan_id,
       subscription_status,
@@ -107,7 +125,14 @@ export class ProfilesController {
       throw new HttpException('profile not found', HttpStatus.NOT_FOUND);
     }
 
-    return { success: true, profile };
+    // Auto-grant credits when plan is activated
+    let creditsGranted = 0;
+    if (subscription_status === 'active') {
+      const grant = await this.creditsService.grantPlanCredits(+userId, plan_id);
+      creditsGranted = grant.granted;
+    }
+
+    return { success: true, profile, credits_granted: creditsGranted };
   }
 
   @Put(':userId/status')

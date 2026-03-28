@@ -18,9 +18,9 @@ final currentProfileProvider = FutureProvider<ProfileModel?>((ref) async {
 
   try {
     final res = await ApiClient.get('/profiles/me');
-    final body = res.data as Map<String, dynamic>;
+    final body = _asMap(res.data);
     if (body['success'] == true && body['profile'] != null) {
-      return ProfileModel.fromJson(body['profile'] as Map<String, dynamic>);
+      return ProfileModel.fromJson(_asMap(body['profile']));
     }
     return null;
   } catch (_) {
@@ -36,3 +36,9 @@ final isAdminProvider = FutureProvider<bool>((ref) async {
 final hasStudioAccessProvider = FutureProvider<bool>((ref) async {
   return ref.watch(hasPlanAccessProvider('breakthrough'));
 });
+
+Map<String, dynamic> _asMap(dynamic data) {
+  if (data is Map<String, dynamic>) return data;
+  if (data is Map) return Map<String, dynamic>.from(data);
+  return <String, dynamic>{};
+}

@@ -1,4 +1,4 @@
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/data/models/report_model.dart';
 import 'package:aurix_flutter/data/models/report_row_model.dart';
 
@@ -12,14 +12,14 @@ class ReportRepository {
 
   Future<List<ReportModel>> getReports() async {
     final res = await ApiClient.get('/reports', query: {'order': 'created_at.desc'});
-    final list = res.data as List;
+    final list = asList(res.data);
     return list.map((e) => ReportModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<ReportModel?> getReport(String id) async {
     try {
       final res = await ApiClient.get('/reports/$id');
-      final body = res.data as Map<String, dynamic>;
+      final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
       return ReportModel.fromJson(body);
     } catch (_) {
       return null;
@@ -51,7 +51,7 @@ class ReportRepository {
     if (importHash != null && importHash.isNotEmpty) payload['import_hash'] = importHash;
     try {
       final res = await ApiClient.post('/reports', data: payload);
-      final body = res.data as Map<String, dynamic>;
+      final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
       return ReportModel.fromJson(body);
     } catch (e) {
       final txt = e.toString();
@@ -60,7 +60,7 @@ class ReportRepository {
           ..remove('user_id')
           ..remove('release_id');
         final fbRes = await ApiClient.post('/reports', data: fallback);
-        final fbBody = fbRes.data as Map<String, dynamic>;
+        final fbBody = fbRes.data is Map ? Map<String, dynamic>.from(fbRes.data as Map) : <String, dynamic>{};
         return ReportModel.fromJson(fbBody);
       }
       if (importHash != null &&
@@ -68,8 +68,8 @@ class ReportRepository {
           (txt.contains('23505') || txt.toLowerCase().contains('import_hash'))) {
         try {
           final existing = await ApiClient.get('/reports', query: {'import_hash': importHash});
-          final list = existing.data as List;
-          if (list.isNotEmpty) return ReportModel.fromJson(list.first as Map<String, dynamic>);
+          final list = asList(existing.data);
+          if (list.isNotEmpty && list.first is Map) return ReportModel.fromJson(Map<String, dynamic>.from(list.first as Map));
         } catch (_) {}
       }
       rethrow;
@@ -121,29 +121,21 @@ class ReportRepository {
 
   Future<List<ReportRowModel>> getReportRows(String reportId) async {
     final res = await ApiClient.get('/report-rows', query: {'report_id': reportId, 'order': 'created_at.asc'});
-    final list = res.data as List;
+    final list = asList(res.data);
     return list.map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  /// Returns report rows for tracks owned by the given user.
+  /// Returns report rows for tracks owned by the current user.
   Future<List<ReportRowModel>> getRowsByUser(String userId) async {
     try {
-      final res = await ApiClient.get('/report-rows', query: {
-        'user_id': userId,
+      final res = await ApiClient.get('/report-rows/my', query: {
         'order': 'created_at.desc',
         'limit': '5000',
       });
-      final list = res.data as List;
+      final list = asList(res.data);
       return list.map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
-      if (_isMissingScopeColumn(e)) {
-        final fallback = await ApiClient.get('/report-rows', query: {
-          'order': 'created_at.desc',
-          'limit': '5000',
-        });
-        final list = fallback.data as List;
-        return list.map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();
-      }
+      if (_isMissingScopeColumn(e)) return [];
       rethrow;
     }
   }
@@ -153,18 +145,15 @@ class ReportRepository {
     required String releaseId,
   }) async {
     try {
-      final res = await ApiClient.get('/report-rows', query: {
-        'user_id': userId,
+      final res = await ApiClient.get('/report-rows/my', query: {
         'release_id': releaseId,
         'order': 'created_at.desc',
         'limit': '5000',
       });
-      final list = res.data as List;
+      final list = asList(res.data);
       return list.map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
-      if (_isMissingScopeColumn(e)) {
-        return [];
-      }
+      if (_isMissingScopeColumn(e)) return [];
       rethrow;
     }
   }
@@ -178,7 +167,7 @@ class ReportRepository {
       'order': 'created_at.desc',
       'limit': '5000',
     });
-    final list = res.data as List;
+    final list = asList(res.data);
     return list
         .map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -192,9 +181,10 @@ class ReportRepository {
       final isrcNorm = row.isrc!.trim().toUpperCase();
       try {
         final trackRes = await ApiClient.get('/tracks', query: {'isrc': isrcNorm, 'select': 'id'});
-        final trackList = trackRes.data as List;
+        final trackList = asList(trackRes.data);
         if (trackList.isNotEmpty) {
-          final trackId = (trackList.first as Map<String, dynamic>)['id'] as String?;
+          final first = trackList.first;
+          final trackId = first is Map ? (first as Map)['id']?.toString() : null;
           if (trackId != null) {
             await linkReportRowToTrack(row.id, trackId);
             matched++;

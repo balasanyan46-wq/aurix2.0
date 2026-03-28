@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient, asList;
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/premium_ui.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import '../data/dnk_models.dart';
-import '../data/dnk_service.dart';
 import 'dnk_interview_screen.dart';
 import 'dnk_result_screen.dart';
 
@@ -20,12 +19,15 @@ final _latestDnkResultProvider =
   final user = ref.watch(currentUserProvider);
   if (user == null) return null;
 
-  final res = await ApiClient.get('/dnk-results/latest', query: {
-    'user_id': user.id,
-    'status': 'finished',
-  });
-  final rows = (res.data as List?) ?? const [];
+  final res = await ApiClient.get('/api/ai/dnk-results/latest');
+  final data = res.data;
 
+  // Backend returns a single object or null
+  if (data == null || data == '' || (data is String && data.isEmpty)) return null;
+  if (data is Map<String, dynamic>) return data;
+
+  // Fallback: if it's a list (backward compat)
+  final rows = asList(data);
   if (rows.isEmpty) return null;
   return rows.first;
 });
@@ -47,13 +49,11 @@ class _AurixDnkScreenState extends ConsumerState<AurixDnkScreen> {
 
     setState(() => _starting = true);
     try {
-      final service = DnkService();
-      final sessionId = await service.startSession(user.id);
       if (!mounted) return;
 
       final result = await Navigator.of(context).push<DnkResult>(
         MaterialPageRoute(
-          builder: (_) => DnkInterviewScreen(sessionId: sessionId),
+          builder: (_) => const DnkInterviewScreen(),
         ),
       );
 
@@ -289,8 +289,33 @@ class _AurixDnkScreenState extends ConsumerState<AurixDnkScreen> {
   Future<void> _regenerate(String sessionId, String styleLevel) async {
     setState(() => _starting = true);
     try {
-      final service = DnkService();
-      await service.finishAndWait(sessionId, styleLevel: styleLevel);
+      // Re-fetch answers from the session and regenerate via NestJS
+      final answersRes = await ApiClient.get('/api/ai/dnk-answers', query: {
+        'session_id': sessionId,
+      });
+      final rows = asList(answersRes.data);
+      if (rows.isEmpty) {
+        throw Exception('Нет ответов для перегенерации. Пройдите интервью заново.');
+      }
+
+      final answers = rows.map<Map<String, dynamic>>((r) {
+        final m = r as Map<String, dynamic>;
+        // Map DB answer_type back to service type
+        String answerType = (m['answer_type'] ?? 'open_text').toString();
+        if (answerType == 'choice') answerType = 'forced_choice';
+        if (answerType == 'open_text') answerType = 'open';
+        return {
+          'question_id': m['question_id'],
+          'answer_type': answerType,
+          'answer_json': m['answer_json'] is Map ? m['answer_json'] : {},
+        };
+      }).toList();
+
+      await ApiClient.post('/api/ai/dnk', data: {
+        'answers': answers,
+        'style_level': styleLevel,
+      });
+
       ref.invalidate(_latestDnkResultProvider);
     } catch (e) {
       if (mounted) {
