@@ -9,7 +9,7 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // ── Validate critical env vars ──────────────────────────
-  const required = ['JWT_SECRET', 'PG_PASSWORD', 'SMTP_USER', 'SMTP_PASS'];
+  const required = ['JWT_SECRET', 'PG_PASSWORD', 'SMTP_USER', 'SMTP_PASS', 'EDEN_AI_API_KEY'];
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     logger.error(`Missing required env vars: ${missing.join(', ')}`);

@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
 import { AdminLogsService } from './admin-logs.service';
 import { SystemService } from '../system/system.service';
+import { EdenAiService } from '../ai/eden-ai.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller()
@@ -13,6 +14,7 @@ export class AdminLogsController {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly svc: AdminLogsService,
     private readonly systemService: SystemService,
+    private readonly ai: EdenAiService,
   ) {}
 
   @Get('admin-logs')
@@ -137,7 +139,7 @@ export class AdminLogsController {
     };
   }
 
-  /** AI-powered platform analysis using DeepSeek. */
+  /** AI-powered platform analysis using Eden AI. */
   @Get('admin/ai-insights')
   @UseGuards(AdminGuard)
   async aiInsights() {
@@ -174,30 +176,12 @@ export class AdminLogsController {
       `DAU (7 дней): ${dau.rows.map((r: any) => `${r.day}=${r.dau}`).join(', ')}`,
     ].join('\n');
 
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      return { insights: 'AI insights unavailable — DEEPSEEK_API_KEY not set', stats: statsText };
-    }
-
     try {
-      const axios = (await import('axios')).default;
-      const res = await axios.post('https://api.deepseek.com/v1/chat/completions', {
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: `Ты — аналитик платформы для музыкантов AURIX. Дай краткий анализ (3-5 пунктов) по метрикам. Что идёт хорошо, что нужно улучшить, какие тренды видишь. Пиши по-русски, коротко и по делу. Не используй markdown.`,
-          },
-          { role: 'user', content: statsText },
-        ],
-        max_tokens: 600,
-        temperature: 0.7,
-      }, {
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        timeout: 30000,
-      });
-
-      const content = res.data?.choices?.[0]?.message?.content || 'Нет ответа от AI';
+      const content = await this.ai.simpleChat(
+        'Ты — аналитик платформы для музыкантов AURIX. Дай краткий анализ (3-5 пунктов) по метрикам. Что идёт хорошо, что нужно улучшить, какие тренды видишь. Пиши по-русски, коротко и по делу. Не используй markdown.',
+        statsText,
+        { maxTokens: 600, temperature: 0.7, timeout: 30_000 },
+      );
 
       // Append system health issues
       const diagnostics = await this.systemService.getDiagnostics();
@@ -264,19 +248,8 @@ export class AdminLogsController {
       `Автодействия (7 дн): ${notifications.rows.map((r: any) => `${r.name}=${r.fires}`).join(', ') || 'нет'}`,
     ].join('\n');
 
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      return { actions: [], context };
-    }
-
     try {
-      const axios = (await import('axios')).default;
-      const res = await axios.post('https://api.deepseek.com/v1/chat/completions', {
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: `Ты — AI-оператор платформы AURIX для музыкантов. Проанализируй данные и предложи 3-5 конкретных действий.
+      const systemPrompt = `Ты — AI-оператор платформы AURIX для музыкантов. Проанализируй данные и предложи 3-5 конкретных действий.
 
 Каждое действие — строго JSON объект:
 {
@@ -291,19 +264,12 @@ export class AdminLogsController {
   }
 }
 
-Верни массив JSON. Без текста, без markdown. Только JSON массив.`,
-          },
-          { role: 'user', content: context },
-        ],
-        max_tokens: 1000,
-        temperature: 0.5,
-      }, {
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        timeout: 30000,
+Верни массив JSON. Без текста, без markdown. Только JSON массив.`;
+
+      const content = await this.ai.simpleChat(systemPrompt, context, {
+        maxTokens: 1000, temperature: 0.5, timeout: 30_000,
       });
 
-      const content = res.data?.choices?.[0]?.message?.content || '[]';
-      // Try to parse JSON array
       let actions: any[] = [];
       try {
         const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();

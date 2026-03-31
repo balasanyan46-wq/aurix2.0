@@ -18,20 +18,23 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreditGuard, CreditAction } from '../billing/credit.guard';
-import { DeepSeekService } from './deepseek.service';
+import { CreditsService } from '../billing/credits.service';
+import { EdenAiService } from './eden-ai.service';
 import { DnkService } from './dnk.service';
 import { DnkTestsService } from './dnk-tests.service';
 import { AiContextService, ContextMode } from './ai-context.service';
 import { AiProfileService } from './ai-profile.service';
 import { CoverService } from './cover.service';
 import { AudioAnalysisService } from './audio-analysis.service';
-import type { AiMode } from './ai-provider.interface';
+import type { AiMode, AiGenerationType } from './ai-provider.interface';
+import { GENERATION_CREDIT_ACTIONS } from './ai-provider.interface';
 
 const VALID_MODES = new Set<AiMode>([
   'chat', 'lyrics', 'ideas', 'reels', 'dnk', 'dnk_full', 'analyze',
 ]);
 
 const VALID_CONTEXT_MODES = new Set<ContextMode>(['full', 'no_dnk', 'clean']);
+const VALID_GEN_TYPES = new Set<AiGenerationType>(['text', 'image', 'video', 'audio']);
 
 const MAX_HISTORY_LENGTH = 20;
 const MAX_MESSAGE_LENGTH = 4000;
@@ -51,7 +54,8 @@ interface ChatBody {
 export class AiController {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly ai: DeepSeekService,
+    private readonly ai: EdenAiService,
+    private readonly credits: CreditsService,
     private readonly dnkSvc: DnkService,
     private readonly dnkTestsSvc: DnkTestsService,
     private readonly ctx: AiContextService,
@@ -59,6 +63,8 @@ export class AiController {
     private readonly coverSvc: CoverService,
     private readonly audioAnalysis: AudioAnalysisService,
   ) {}
+
+  // ── Text chat ──────────────────────────────────────────────
 
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('chat')
@@ -72,7 +78,6 @@ export class AiController {
     if (!message) {
       throw new HttpException('message is required', HttpStatus.BAD_REQUEST);
     }
-
     if (message.length > MAX_MESSAGE_LENGTH) {
       throw new HttpException(
         `message too long (max ${MAX_MESSAGE_LENGTH} chars)`,
@@ -90,7 +95,6 @@ export class AiController {
       ? (body.context_mode as ContextMode)
       : 'full';
 
-    // Sanitize history: only allow user/assistant roles, limit length
     const history = (body.history || [])
       .filter((m) => m.role === 'user' || m.role === 'assistant')
       .slice(-MAX_HISTORY_LENGTH)
@@ -99,38 +103,91 @@ export class AiController {
         content: String(m.content || '').slice(0, MAX_MESSAGE_LENGTH),
       }));
 
-    // Build user context from database
     const userId = req.user?.id;
     let contextPrompt = '';
-
     if (userId && contextMode !== 'clean') {
-      const userContext = await this.ctx.buildContext(
-        userId,
-        contextMode,
-        body.track_id,
-      );
+      const userContext = await this.ctx.buildContext(userId, contextMode, body.track_id);
       contextPrompt = this.ctx.contextToPrompt(userContext);
     }
 
-    const reply = await this.ai.chat({
-      message,
-      mode,
-      history,
-      contextPrompt,
-    });
-
+    const reply = await this.ai.chat({ message, mode, history, contextPrompt });
     return { reply, credits: req.creditSpend };
   }
 
-  /** DNK Artist — full artist DNA profiling via AI */
+  // ── Unified generate (image / video / audio / text) ────────
+
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Post('generate')
+  async generate(
+    @Req() req: any,
+    @Body() body: {
+      type?: string;
+      prompt?: string;
+      resolution?: string;
+      language?: string;
+      voice?: string;
+    },
+  ) {
+    const prompt = body.prompt?.trim();
+    if (!prompt) {
+      throw new HttpException('prompt is required', HttpStatus.BAD_REQUEST);
+    }
+    if (prompt.length > MAX_MESSAGE_LENGTH) {
+      throw new HttpException(`prompt too long (max ${MAX_MESSAGE_LENGTH} chars)`, HttpStatus.BAD_REQUEST);
+    }
+
+    const type: AiGenerationType = VALID_GEN_TYPES.has(body.type as AiGenerationType)
+      ? (body.type as AiGenerationType)
+      : 'text';
+
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
+    }
+
+    // Per-type credit deduction
+    const actionKey = GENERATION_CREDIT_ACTIONS[type];
+    const spendResult = await this.credits.spend(userId, actionKey);
+    if (!spendResult.ok) {
+      throw new HttpException(
+        {
+          code: 'NO_CREDITS',
+          message: 'Недостаточно кредитов',
+          balance: spendResult.balance,
+          cost: spendResult.cost,
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
+    const result = await this.ai.generate({
+      type,
+      prompt,
+      userId,
+      resolution: body.resolution,
+      language: body.language,
+      voice: body.voice,
+    });
+
+    return {
+      ...result,
+      credits: {
+        cost: spendResult.cost,
+        balance: spendResult.balance,
+        transactionId: spendResult.transactionId,
+      },
+    };
+  }
+
+  // ── DNK Artist ─────────────────────────────────────────────
+
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('dnk')
   @CreditAction('ai_chat')
   @UseGuards(CreditGuard)
   async dnk(
     @Req() req: any,
-    @Body()
-    body: {
+    @Body() body: {
       answers: Array<{
         question_id: string;
         answer_type: string;
@@ -143,26 +200,16 @@ export class AiController {
     if (!userId) {
       throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
     }
-
     if (!body.answers || !Array.isArray(body.answers) || body.answers.length < 10) {
-      throw new HttpException(
-        'at least 10 answers are required',
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('at least 10 answers are required', HttpStatus.BAD_REQUEST);
     }
 
-    const result = await this.dnkSvc.generateDnk(
-      userId,
-      body.answers,
-      body.style_level || 'normal',
-    );
-
+    const result = await this.dnkSvc.generateDnk(userId, body.answers, body.style_level || 'normal');
     return { ...result, credits: req.creditSpend };
   }
 
-  /** GET /api/ai/dnk-results/latest — latest finished DNK result for current user */
   @Get('dnk-results/latest')
-  async getLatestDnkResult(@Req() req: any, @Query() query: Record<string, string>) {
+  async getLatestDnkResult(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
       throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
@@ -172,14 +219,12 @@ export class AiController {
        FROM dnk_results dr
        JOIN dnk_sessions ds ON ds.id = dr.session_id
        WHERE ds.user_id = $1 AND ds.status = 'finished'
-       ORDER BY dr.created_at DESC
-       LIMIT 1`,
+       ORDER BY dr.created_at DESC LIMIT 1`,
       [userId],
     );
     return rows[0] || null;
   }
 
-  /** GET /api/ai/dnk-answers?session_id=... — answers for a session (for regeneration) */
   @Get('dnk-answers')
   async getDnkAnswers(@Req() req: any, @Query('session_id') sessionId: string) {
     const userId = req.user?.id;
@@ -189,7 +234,6 @@ export class AiController {
     if (!sessionId) {
       throw new HttpException('session_id is required', HttpStatus.BAD_REQUEST);
     }
-    // Verify ownership
     const { rows: sessions } = await this.pool.query(
       `SELECT id FROM dnk_sessions WHERE id = $1 AND user_id = $2`,
       [sessionId, userId],
@@ -204,7 +248,7 @@ export class AiController {
     return rows;
   }
 
-  // ── DNK Tests (6 standalone professional tests) ──────────
+  // ── DNK Tests ──────────────────────────────────────────────
 
   @Get('dnk-tests/catalog')
   async dnkTestsCatalog() {
@@ -212,10 +256,7 @@ export class AiController {
   }
 
   @Post('dnk-tests/start')
-  async dnkTestsStart(
-    @Req() req: any,
-    @Body() body: { test_slug: string },
-  ) {
+  async dnkTestsStart(@Req() req: any, @Body() body: { test_slug: string }) {
     const userId = req.user?.id;
     if (!userId) throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
     if (!body.test_slug) throw new HttpException('test_slug is required', HttpStatus.BAD_REQUEST);
@@ -229,19 +270,14 @@ export class AiController {
   ) {
     const userId = req.user?.id;
     if (!userId) throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
-    return this.dnkTestsSvc.submitAnswer(
-      userId, body.session_id, body.question_id, body.answer_type, body.answer_json,
-    );
+    return this.dnkTestsSvc.submitAnswer(userId, body.session_id, body.question_id, body.answer_type, body.answer_json);
   }
 
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('dnk-tests/finish')
   @CreditAction('ai_chat')
   @UseGuards(CreditGuard)
-  async dnkTestsFinish(
-    @Req() req: any,
-    @Body() body: { session_id: string },
-  ) {
+  async dnkTestsFinish(@Req() req: any, @Body() body: { session_id: string }) {
     const userId = req.user?.id;
     if (!userId) throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
     if (!body.session_id) throw new HttpException('session_id is required', HttpStatus.BAD_REQUEST);
@@ -267,15 +303,13 @@ export class AiController {
     return this.dnkTestsSvc.getProgress(userId);
   }
 
-  /** Main cover endpoint — used by CoverGeneratorSheet in Flutter */
+  // ── Cover ──────────────────────────────────────────────────
+
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('cover')
   @CreditAction('ai_cover')
   @UseGuards(CreditGuard)
-  async cover(
-    @Req() req: any,
-    @Body() body: Record<string, any>,
-  ) {
+  async cover(@Req() req: any, @Body() body: Record<string, any>) {
     const userId = req.user?.id;
     if (!userId) {
       throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
@@ -289,7 +323,6 @@ export class AiController {
       throw new HttpException('prompt too long', HttpStatus.BAD_REQUEST);
     }
 
-    // Verify release ownership if releaseId provided
     if (body.releaseId) {
       const { rows } = await this.pool.query(
         `SELECT r.id FROM releases r
@@ -320,7 +353,6 @@ export class AiController {
     });
   }
 
-  /** Simple endpoint — idea → DeepSeek prompt → image URL */
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('generate-cover')
   @CreditAction('ai_cover')
@@ -335,18 +367,18 @@ export class AiController {
     if (idea.length > 2000) {
       throw new HttpException('idea too long (max 2000 chars)', HttpStatus.BAD_REQUEST);
     }
-
     return this.coverSvc.generateFromIdea(idea);
   }
 
-  /** Real audio analysis: file → Python librosa → DeepSeek AI → result */
+  // ── Track analysis ─────────────────────────────────────────
+
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('analyze-track')
   @CreditAction('ai_hit_predictor')
   @UseGuards(CreditGuard)
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+      limits: { fileSize: 100 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.startsWith('audio/')) {
           return cb(
@@ -366,34 +398,25 @@ export class AiController {
     if (!file) {
       throw new HttpException('audio file is required', HttpStatus.BAD_REQUEST);
     }
-
-    const result = await this.audioAnalysis.analyzeTrack(
-      file,
-      body.lyrics?.trim() || undefined,
-    );
-
+    const result = await this.audioAnalysis.analyzeTrack(file, body.lyrics?.trim() || undefined);
     return { ...result, credits: req.creditSpend };
   }
 
-  // ── AI Profile (optional artist identity) ──────────────────
+  // ── AI Profile ─────────────────────────────────────────────
 
-  /** GET /api/ai/profile — get current user's AI profile */
   @Get('profile')
   async getProfile(@Req() req: any) {
     const userId = req.user?.id;
     if (!userId) {
       throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
     }
-    const profile = await this.profileSvc.get(userId);
-    return profile || {};
+    return (await this.profileSvc.get(userId)) || {};
   }
 
-  /** POST /api/ai/profile — create or update AI profile */
   @Post('profile')
   async upsertProfile(
     @Req() req: any,
-    @Body()
-    body: {
+    @Body() body: {
       name?: string;
       genre?: string;
       mood?: string;

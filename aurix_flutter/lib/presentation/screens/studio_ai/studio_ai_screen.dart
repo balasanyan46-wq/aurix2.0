@@ -10,41 +10,59 @@ import 'package:aurix_flutter/ai/ai_persistence_guard.dart';
 import 'package:aurix_flutter/core/app_state.dart';
 import 'package:aurix_flutter/core/l10n.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/design/widgets/aurix_backdrop.dart';
+import 'package:aurix_flutter/design/widgets/aurix_button.dart';
+import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
+import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
+import 'package:aurix_flutter/design/components/liquid_glass.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/core/api/api_error.dart';
+import 'package:aurix_flutter/core/services/event_tracker.dart';
 
 import 'widgets/ai_list.dart';
-import 'widgets/ai_magic_background.dart';
-import 'widgets/ai_glow_card.dart';
 import 'widgets/ai_action_chips.dart';
 import 'widgets/ai_typing_indicator.dart';
 import 'generate_cover_screen.dart';
 
-// ── Modes ────────────────────────────────────────────────────
+// ── Mode definition ─────────────────────────────────────────────
 
-class _AiMode {
-  final String id, label;
+enum AiMode {
+  chat(id: 'chat', label: 'Chat', icon: Icons.chat_rounded),
+  image(id: 'image', label: 'Image', icon: Icons.image_rounded),
+  video(id: 'video', label: 'Video', icon: Icons.movie_rounded),
+  audio(id: 'audio', label: 'Audio', icon: Icons.audiotrack_rounded),
+  dnk(id: 'dnk', label: 'DNK', icon: Icons.fingerprint_rounded),
+  reels(id: 'reels', label: 'Reels', icon: Icons.videocam_rounded),
+  lyrics(id: 'lyrics', label: 'Lyrics', icon: Icons.edit_note_rounded),
+  ideas(id: 'ideas', label: 'Ideas', icon: Icons.lightbulb_rounded);
+
+  final String id;
+  final String label;
   final IconData icon;
-  const _AiMode(this.id, this.label, this.icon);
+  const AiMode({required this.id, required this.label, required this.icon});
+
+  bool get isGenerative => this == image || this == video || this == audio;
+
+  String get placeholder => switch (this) {
+        AiMode.chat => 'Опиши идею, трек или задачу...',
+        AiMode.image => 'Опиши обложку или визуал...',
+        AiMode.video => 'Опиши видео для генерации...',
+        AiMode.audio => 'Опиши голос или аудио...',
+        AiMode.dnk => 'Опиши себя как артиста...',
+        AiMode.reels => 'Опиши тему для Reels...',
+        AiMode.lyrics => 'Опиши идею для текста...',
+        AiMode.ideas => 'Опиши направление для идей...',
+      };
 }
 
-const _modes = [
-  _AiMode('chat', 'Chat', Icons.chat_rounded),
-  _AiMode('dnk', 'DNK', Icons.fingerprint_rounded),
-  _AiMode('reels', 'Reels', Icons.videocam_rounded),
-  _AiMode('lyrics', 'Lyrics', Icons.edit_note_rounded),
-  _AiMode('ideas', 'Ideas', Icons.lightbulb_rounded),
-];
-
-// ── Welcome prompts ──────────────────────────────────────────
+// ── Welcome prompts ─────────────────────────────────────────────
 
 class _WelcomePrompt {
-  final String title;
-  final String subtitle;
+  final String title, subtitle, prompt;
   final IconData icon;
-  final String prompt;
-  final String? mode;
-  const _WelcomePrompt(this.title, this.subtitle, this.icon, this.prompt, [this.mode]);
+  final AiMode? mode;
+  const _WelcomePrompt(this.title, this.subtitle, this.icon, this.prompt,
+      [this.mode]);
 }
 
 const _welcomePrompts = [
@@ -53,38 +71,39 @@ const _welcomePrompts = [
     'Создай цепляющий хук',
     Icons.music_note_rounded,
     'Напиши хук для трека про ночной город — чтобы зацепил с первых секунд',
-    'lyrics',
+    AiMode.lyrics,
   ),
   _WelcomePrompt(
     'Reels стратегия',
     '10 вирусных идей',
     Icons.videocam_rounded,
     '10 идей для Reels под мой новый трек — нужен вирусный контент',
-    'reels',
+    AiMode.reels,
   ),
   _WelcomePrompt(
     'Разбор аудитории',
     'Кто будет слушать',
     Icons.fingerprint_rounded,
     'Проанализируй аудиторию для начинающего рэп-артиста из СНГ',
-    'dnk',
+    AiMode.dnk,
   ),
   _WelcomePrompt(
     'Идеи для трека',
     '10 концепций',
     Icons.lightbulb_rounded,
     'Придумай 10 идей для трека в жанре поп-рэп, тема — амбиции и рост',
-    'ideas',
+    AiMode.ideas,
   ),
 ];
 
-// ── Chat Entry ───────────────────────────────────────────────
+// ── Chat Entry ──────────────────────────────────────────────────
 
 class _ChatEntry {
   final String role;
   final String content;
-  final String mode;
+  final AiMode mode;
   final AiFollowUp? followUp;
+  final String? generativeType;
   final DateTime ts;
 
   _ChatEntry({
@@ -92,12 +111,13 @@ class _ChatEntry {
     required this.content,
     required this.mode,
     this.followUp,
+    this.generativeType,
   }) : ts = DateTime.now();
 }
 
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 // Main Screen
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 
 class StudioAiScreen extends ConsumerStatefulWidget {
   const StudioAiScreen({super.key});
@@ -106,21 +126,15 @@ class StudioAiScreen extends ConsumerStatefulWidget {
   ConsumerState<StudioAiScreen> createState() => _StudioAiScreenState();
 }
 
-class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
-    with TickerProviderStateMixin {
+class _StudioAiScreenState extends ConsumerState<StudioAiScreen> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   final FocusNode _focusNode = FocusNode();
   final List<_ChatEntry> _entries = [];
 
-  String _selectedMode = 'chat';
+  AiMode _selectedMode = AiMode.chat;
   bool _loading = false;
   bool _loaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   void dispose() {
@@ -138,7 +152,7 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
     unawaited(_loadHistory());
   }
 
-  // ── Data ─────────────────────────────────────────────────
+  // ── Data ──────────────────────────────────────────────────────
 
   Future<void> _loadHistory() async {
     final repo = ref.read(aiStudioHistoryRepositoryProvider);
@@ -151,7 +165,7 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
           ..addAll(rows.map((m) => _ChatEntry(
                 role: m.role,
                 content: m.content,
-                mode: 'chat',
+                mode: AiMode.chat,
               )));
       });
     } on AiSchemaMissingException {
@@ -161,32 +175,21 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
     }
   }
 
-  Future<void> _send(String message, {String? overrideMode}) async {
+  // ── Send / Generate ───────────────────────────────────────────
+
+  Future<void> _send(String message, {AiMode? overrideMode}) async {
     final msg = message.trim();
     if (msg.isEmpty || _loading) return;
 
     _input.clear();
     final mode = overrideMode ?? _selectedMode;
-    if (overrideMode != null) {
-      setState(() => _selectedMode = overrideMode);
-    }
+    if (overrideMode != null) setState(() => _selectedMode = overrideMode);
 
     setState(() {
       _entries.insert(0, _ChatEntry(role: 'user', content: msg, mode: mode));
       _loading = true;
     });
     _scrollToBottom();
-
-    final historyForApi = _entries
-        .skip(1)
-        .take(10)
-        .map((e) => AiMessage(
-              role: e.role,
-              content: AiFollowUp.stripFollowUp(e.content),
-            ))
-        .toList()
-        .reversed
-        .toList();
 
     try {
       try {
@@ -195,24 +198,44 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
             .append(role: 'user', content: msg);
       } catch (_) {}
 
-      final locale =
-          ref.read(appStateProvider).locale == AppLocale.ru ? 'ru' : 'en';
+      await Future.delayed(const Duration(milliseconds: 300));
 
-      // Slight delay for "alive" feel
-      await Future.delayed(const Duration(milliseconds: 400));
+      String reply;
+      String? genType;
 
-      final reply = await AiService.send(
-        message: msg,
-        history: historyForApi,
-        mode: mode,
-        page: 'studio',
-        locale: locale,
-      );
+      if (mode.isGenerative) {
+        final result = await AiService.generate(type: mode.id, prompt: msg);
+        reply = result.content;
+        genType = mode.id;
+      } else {
+        final historyForApi = _entries
+            .skip(1)
+            .where((e) => !e.mode.isGenerative)
+            .take(10)
+            .map((e) => AiMessage(
+                  role: e.role,
+                  content: AiFollowUp.stripFollowUp(e.content),
+                ))
+            .toList()
+            .reversed
+            .toList();
+
+        final locale =
+            ref.read(appStateProvider).locale == AppLocale.ru ? 'ru' : 'en';
+
+        reply = await AiService.send(
+          message: msg,
+          history: historyForApi,
+          mode: mode.id,
+          page: 'studio',
+          locale: locale,
+        );
+      }
 
       if (!mounted) return;
 
-      // Parse follow-up
-      final followUp = AiFollowUp.parse(reply);
+      EventTracker.track('ai_studio_sent', meta: {'mode': mode.id});
+      final followUp = genType == null ? AiFollowUp.parse(reply) : null;
 
       setState(() {
         _entries.insert(
@@ -222,6 +245,7 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
             content: reply,
             mode: mode,
             followUp: followUp,
+            generativeType: genType,
           ),
         );
         while (_entries.length > 50) _entries.removeLast();
@@ -245,7 +269,7 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
     if (!mounted) return;
     setState(() {
       _entries.insert(
-          0, _ChatEntry(role: 'assistant', content: text, mode: 'chat'));
+          0, _ChatEntry(role: 'assistant', content: text, mode: AiMode.chat));
       while (_entries.length > 50) _entries.removeLast();
       _loading = false;
     });
@@ -290,14 +314,17 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
   }
 
   void _onActionChip(String prompt, String? mode) {
-    _send(prompt, overrideMode: mode);
+    final aiMode = mode != null
+        ? AiMode.values.where((m) => m.id == mode).firstOrNull
+        : null;
+    _send(prompt, overrideMode: aiMode);
   }
 
-  // ── Build ────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return AiMagicBackground(
+    return AurixBackdrop(
       child: Column(
         children: [
           Expanded(
@@ -312,80 +339,206 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
     );
   }
 
-  // ── Welcome Screen ─────────────────────────────────────────
+  // ── Welcome Screen ────────────────────────────────────────────
 
   Widget _buildWelcome() {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // AI Avatar with glow
-            _AiAvatar(),
-            const SizedBox(height: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Avatar
+              FadeInSlide(
+                delayMs: 0,
+                child: const _AiAvatar(),
+              ),
+              const SizedBox(height: 20),
 
-            // Title
-            ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [AurixTokens.text, AurixTokens.accent],
-              ).createShader(bounds),
-              child: const Text(
-                'Aurix Studio AI',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                  color: Colors.white,
+              // Status badge
+              FadeInSlide(
+                delayMs: 80,
+                child: LiquidGlass(
+                  level: GlassLevel.light,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  radius: 8,
+                  hoverScale: false,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: AurixTokens.positive,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  AurixTokens.positive.withValues(alpha: 0.5),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        'AI STUDIO ONLINE',
+                        style: TextStyle(
+                          fontFamily: AurixTokens.fontMono,
+                          color: AurixTokens.accent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Твой продюсер. Опиши идею — я сделаю остальное.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AurixTokens.muted,
-                fontSize: 14,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 32),
+              const SizedBox(height: 16),
 
-            // Cover generation card
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _WelcomeCard(
-                prompt: const _WelcomePrompt(
-                  'Обложка',
-                  'Сгенерировать обложку',
-                  Icons.palette_rounded,
-                  '',
-                ),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const GenerateCoverScreen()),
+              // Title
+              FadeInSlide(
+                delayMs: 160,
+                child: ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [AurixTokens.text, AurixTokens.accent],
+                  ).createShader(bounds),
+                  child: Text(
+                    'Aurix Studio',
+                    style: TextStyle(
+                      fontFamily: AurixTokens.fontHeading,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
-            ),
-
-            // Welcome cards
-            ...List.generate(_welcomePrompts.length, (i) {
-              final p = _welcomePrompts[i];
-              return Padding(
-                padding: EdgeInsets.only(bottom: i < _welcomePrompts.length - 1 ? 10 : 0),
-                child: _WelcomeCard(
-                  prompt: p,
-                  onTap: () => _send(p.prompt, overrideMode: p.mode),
+              const SizedBox(height: 8),
+              FadeInSlide(
+                delayMs: 200,
+                child: Text(
+                  'Твой продюсер. Опиши идею — я сделаю остальное.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontBody,
+                    color: AurixTokens.muted,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
                 ),
-              );
-            }),
-          ],
+              ),
+              const SizedBox(height: 28),
+
+              // Tool cards
+              if (isDesktop) ...[
+                FadeInSlide(
+                  delayMs: 280,
+                  child: Row(children: [
+                    Expanded(
+                      child: _WelcomeCard(
+                        prompt: const _WelcomePrompt('Обложка',
+                            'Сгенерировать обложку', Icons.palette_rounded, ''),
+                        accentColor: AurixTokens.aiAccent,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const GenerateCoverScreen()),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _WelcomeCard(
+                        prompt: _welcomePrompts[0],
+                        accentColor: AurixTokens.accent,
+                        onTap: () => _send(_welcomePrompts[0].prompt,
+                            overrideMode: _welcomePrompts[0].mode),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+                FadeInSlide(
+                  delayMs: 360,
+                  child: Row(children: [
+                    Expanded(
+                      child: _WelcomeCard(
+                        prompt: _welcomePrompts[1],
+                        accentColor: AurixTokens.warning,
+                        onTap: () => _send(_welcomePrompts[1].prompt,
+                            overrideMode: _welcomePrompts[1].mode),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _WelcomeCard(
+                        prompt: _welcomePrompts[2],
+                        accentColor: AurixTokens.positive,
+                        onTap: () => _send(_welcomePrompts[2].prompt,
+                            overrideMode: _welcomePrompts[2].mode),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+                FadeInSlide(
+                  delayMs: 440,
+                  child: _WelcomeCard(
+                    prompt: _welcomePrompts[3],
+                    accentColor: AurixTokens.accent,
+                    onTap: () => _send(_welcomePrompts[3].prompt,
+                        overrideMode: _welcomePrompts[3].mode),
+                  ),
+                ),
+              ] else ...[
+                FadeInSlide(
+                  delayMs: 280,
+                  child: _WelcomeCard(
+                    prompt: const _WelcomePrompt('Обложка',
+                        'Сгенерировать обложку', Icons.palette_rounded, ''),
+                    accentColor: AurixTokens.aiAccent,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const GenerateCoverScreen()),
+                    ),
+                  ),
+                ),
+                ...List.generate(_welcomePrompts.length, (i) {
+                  final p = _welcomePrompts[i];
+                  final colors = [
+                    AurixTokens.accent,
+                    AurixTokens.warning,
+                    AurixTokens.positive,
+                    AurixTokens.accent,
+                  ];
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: FadeInSlide(
+                      delayMs: 360 + i * 80,
+                      child: _WelcomeCard(
+                        prompt: p,
+                        accentColor: colors[i],
+                        onTap: () => _send(p.prompt, overrideMode: p.mode),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ── Chat List ──────────────────────────────────────────────
+  // ── Chat List ─────────────────────────────────────────────────
 
   Widget _buildChatList() {
     return Stack(
@@ -398,8 +551,9 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
           itemBuilder: (ctx, i) {
             if (_loading && i == 0) return _buildLoadingBubble();
             final entry = _entries[_loading ? i - 1 : i];
-            return _AnimatedEntry(
+            return FadeInSlide(
               key: ValueKey('${entry.hashCode}_$i'),
+              startDy: 8,
               child: _ChatBubble(
                 entry: entry,
                 onCopy: _copy,
@@ -411,8 +565,6 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
             );
           },
         ),
-
-        // Clear button
         if (_entries.isNotEmpty)
           Positioned(
             top: 8,
@@ -435,8 +587,8 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.85,
           ),
-          child: AiGlowCard(
-            glowColor: AurixTokens.accent,
+          child: AurixGlassCard(
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
@@ -451,50 +603,46 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
     );
   }
 
-  // ── Mode Bar ───────────────────────────────────────────────
+  // ── Mode Bar ──────────────────────────────────────────────────
 
   Widget _buildModeBar() {
     return Container(
       height: 52,
       decoration: BoxDecoration(
-        color: AurixTokens.bg0.withValues(alpha: 0.6),
+        color: AurixTokens.bg0.withValues(alpha: 0.7),
         border: Border(top: BorderSide(color: AurixTokens.stroke(0.08))),
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: _modes.length,
+        itemCount: AiMode.values.length,
         separatorBuilder: (_, __) => const SizedBox(width: 6),
         itemBuilder: (_, i) {
-          final m = _modes[i];
-          final sel = m.id == _selectedMode;
+          final m = AiMode.values[i];
+          final sel = m == _selectedMode;
           return GestureDetector(
-            onTap: _loading
-                ? null
-                : () => setState(() => _selectedMode = m.id),
+            onTap:
+                _loading ? null : () => setState(() => _selectedMode = m),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
+              duration: AurixTokens.dMedium,
+              curve: AurixTokens.cEase,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                gradient: sel
-                    ? LinearGradient(colors: [
-                        AurixTokens.accent.withValues(alpha: 0.22),
-                        AurixTokens.accentWarm.withValues(alpha: 0.1),
-                      ])
-                    : null,
-                color: sel ? null : AurixTokens.glass(0.04),
+                color: sel
+                    ? AurixTokens.accent.withValues(alpha: 0.14)
+                    : AurixTokens.glass(0.04),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: sel
-                      ? AurixTokens.accent.withValues(alpha: 0.4)
+                      ? AurixTokens.accent.withValues(alpha: 0.35)
                       : AurixTokens.stroke(0.08),
                 ),
                 boxShadow: sel
                     ? [
                         BoxShadow(
-                          color: AurixTokens.accentGlow.withValues(alpha: 0.12),
-                          blurRadius: 16,
+                          color:
+                              AurixTokens.accentGlow.withValues(alpha: 0.1),
+                          blurRadius: 14,
                           spreadRadius: -6,
                         ),
                       ]
@@ -510,10 +658,11 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
                   Text(
                     m.label,
                     style: TextStyle(
+                      fontFamily: AurixTokens.fontBody,
                       color:
                           sel ? AurixTokens.text : AurixTokens.textSecondary,
                       fontSize: 13,
-                      fontWeight: sel ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
                 ],
@@ -525,22 +674,14 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
     );
   }
 
-  // ── Input Bar ──────────────────────────────────────────────
+  // ── Input Bar ─────────────────────────────────────────────────
 
   Widget _buildInputBar() {
-    return Container(
+    return LiquidGlass(
+      level: GlassLevel.light,
+      radius: 0,
+      hoverScale: false,
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AurixTokens.bg0.withValues(alpha: 0.85),
-            AurixTokens.bg0.withValues(alpha: 0.95),
-          ],
-        ),
-        border: Border(top: BorderSide(color: AurixTokens.stroke(0.1))),
-      ),
       child: SafeArea(
         top: false,
         child: Row(
@@ -555,21 +696,24 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
                 minLines: 1,
                 style: const TextStyle(color: AurixTokens.text, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Опиши идею, трек или задачу...',
+                  hintText: _selectedMode.placeholder,
                   hintStyle: TextStyle(
                       color: AurixTokens.muted.withValues(alpha: 0.45)),
                   filled: true,
                   fillColor: AurixTokens.glass(0.05),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius:
+                        BorderRadius.circular(AurixTokens.radiusField),
                     borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius:
+                        BorderRadius.circular(AurixTokens.radiusField),
                     borderSide: BorderSide(color: AurixTokens.stroke(0.1)),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius:
+                        BorderRadius.circular(AurixTokens.radiusField),
                     borderSide: BorderSide(
                         color: AurixTokens.accent.withValues(alpha: 0.35)),
                   ),
@@ -580,7 +724,15 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
               ),
             ),
             const SizedBox(width: 10),
-            _SendButton(loading: _loading, onTap: () => _send(_input.text)),
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: AurixButton(
+                text: '',
+                icon: Icons.send_rounded,
+                onPressed: _loading ? null : () => _send(_input.text),
+              ),
+            ),
           ],
         ),
       ),
@@ -588,9 +740,9 @@ class _StudioAiScreenState extends ConsumerState<StudioAiScreen>
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// Chat Bubble — renders user message or AI result + actions
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// Chat Bubble
+// ══════════════════════════════════════════════════════════════════
 
 class _ChatBubble extends StatelessWidget {
   final _ChatEntry entry;
@@ -620,13 +772,10 @@ class _ChatBubble extends StatelessWidget {
             crossAxisAlignment:
                 isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              // Bubble
-              isUser ? _buildUserBubble() : _buildAiBubble(context),
+              isUser ? _buildUserBubble() : _buildAiBubble(),
 
-              // AI bottom actions
               if (!isUser) ...[
                 const SizedBox(height: 8),
-                // Copy + regenerate
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -645,9 +794,7 @@ class _ChatBubble extends StatelessWidget {
                     ],
                   ],
                 ),
-
-                // Action chips
-                if (onAction != null) ...[
+                if (onAction != null && entry.generativeType == null) ...[
                   const SizedBox(height: 8),
                   AiActionChips(
                     followUp: entry.followUp,
@@ -663,37 +810,15 @@ class _ChatBubble extends StatelessWidget {
   }
 
   Widget _buildUserBubble() {
-    return Container(
+    return LiquidGlass(
+      level: GlassLevel.medium,
+      hoverScale: false,
+      showOrangeBorderOnHover: false,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AurixTokens.accent.withValues(alpha: 0.18),
-            AurixTokens.accentWarm.withValues(alpha: 0.08),
-          ],
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(6),
-        ),
-        border: Border.all(
-          color: AurixTokens.accent.withValues(alpha: 0.25),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AurixTokens.accentGlow.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      radius: 18,
       child: Text(
         entry.content,
-        style: TextStyle(
+        style: const TextStyle(
           color: AurixTokens.text,
           fontSize: 14,
           height: 1.45,
@@ -702,14 +827,13 @@ class _ChatBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildAiBubble(BuildContext context) {
-    return AiGlowCard(
-      glowColor: AurixTokens.aiAccent,
+  Widget _buildAiBubble() {
+    return AurixGlassCard(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // AI badge
+          // AI badge + type label
           Row(
             children: [
               Container(
@@ -737,11 +861,30 @@ class _ChatBubble extends StatelessWidget {
                   letterSpacing: 0.3,
                 ),
               ),
+              if (entry.generativeType != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AurixTokens.aiAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    entry.generativeType!.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: AurixTokens.fontMono,
+                      color: AurixTokens.aiAccent,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
-
-          // Content
           _buildAiContent(),
         ],
       ),
@@ -749,118 +892,96 @@ class _ChatBubble extends StatelessWidget {
   }
 
   Widget _buildAiContent() {
-    final parsed = parseAiResponse(entry.content, entry.mode);
+    final parsed = parseAiResponse(
+      entry.content,
+      entry.mode.id,
+      generativeType: entry.generativeType,
+    );
     return AiResultRenderer(result: parsed, onCopy: onCopy);
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// Welcome Card
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// Welcome Card — uses LiquidGlass
+// ══════════════════════════════════════════════════════════════════
 
-class _WelcomeCard extends StatefulWidget {
+class _WelcomeCard extends StatelessWidget {
   final _WelcomePrompt prompt;
   final VoidCallback onTap;
+  final Color? accentColor;
 
-  const _WelcomeCard({required this.prompt, required this.onTap});
-
-  @override
-  State<_WelcomeCard> createState() => _WelcomeCardState();
-}
-
-class _WelcomeCardState extends State<_WelcomeCard> {
-  bool _pressed = false;
+  const _WelcomeCard(
+      {required this.prompt, required this.onTap, this.accentColor});
 
   @override
   Widget build(BuildContext context) {
+    final color = accentColor ?? AurixTokens.accent;
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AurixTokens.glass(0.06),
-                AurixTokens.bg2.withValues(alpha: 0.3),
-              ],
+      onTap: onTap,
+      child: LiquidGlass(
+        level: GlassLevel.light,
+        padding: const EdgeInsets.all(16),
+        radius: AurixTokens.radiusSm,
+        hoverScale: true,
+        showOrangeBorderOnHover: color == AurixTokens.accent,
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: color.withValues(alpha: 0.1),
+                border:
+                    Border.all(color: color.withValues(alpha: 0.15)),
+              ),
+              child: Icon(prompt.icon, size: 18, color: color),
             ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AurixTokens.stroke(0.1)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AurixTokens.accent.withValues(alpha: 0.15),
-                      AurixTokens.accent.withValues(alpha: 0.04),
-                    ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    prompt.title,
+                    style: TextStyle(
+                      fontFamily: AurixTokens.fontBody,
+                      color: AurixTokens.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                child: Icon(widget.prompt.icon,
-                    size: 18, color: AurixTokens.accent),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.prompt.title,
-                      style: TextStyle(
-                        color: AurixTokens.text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  const SizedBox(height: 2),
+                  Text(
+                    prompt.subtitle,
+                    style: TextStyle(
+                      fontFamily: AurixTokens.fontBody,
+                      color: AurixTokens.micro,
+                      fontSize: 12,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.prompt.subtitle,
-                      style: TextStyle(
-                        color: AurixTokens.muted,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              Icon(Icons.arrow_forward_ios_rounded,
-                  size: 14, color: AurixTokens.muted),
-            ],
-          ),
+            ),
+            Icon(
+              Icons.arrow_forward_rounded,
+              size: 14,
+              color: AurixTokens.micro,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// AI Avatar (welcome screen)
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
+// AI Avatar
+// ══════════════════════════════════════════════════════════════════
 
 class _AiAvatar extends StatefulWidget {
+  const _AiAvatar();
+
   @override
   State<_AiAvatar> createState() => _AiAvatarState();
 }
@@ -906,7 +1027,8 @@ class _AiAvatarState extends State<_AiAvatar>
             ),
             boxShadow: [
               BoxShadow(
-                color: AurixTokens.accentGlow.withValues(alpha: 0.12 + pulse * 0.08),
+                color: AurixTokens.accentGlow
+                    .withValues(alpha: 0.12 + pulse * 0.08),
                 blurRadius: 40,
                 spreadRadius: -10,
               ),
@@ -940,60 +1062,9 @@ class _AiAvatarState extends State<_AiAvatar>
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// Animated Entry — fade + slide
-// ══════════════════════════════════════════════════════════════
-
-class _AnimatedEntry extends StatefulWidget {
-  final Widget child;
-  const _AnimatedEntry({super.key, required this.child});
-
-  @override
-  State<_AnimatedEntry> createState() => _AnimatedEntryState();
-}
-
-class _AnimatedEntryState extends State<_AnimatedEntry>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _fade;
-  late Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(
-        position: _slide,
-        child: widget.child,
-      ),
-    );
-  }
-}
-
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 // Small UI Components
-// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════
 
 class _SmallAction extends StatelessWidget {
   final IconData icon;
@@ -1006,75 +1077,20 @@ class _SmallAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: LiquidGlass(
+        level: GlassLevel.light,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: AurixTokens.glass(0.04),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AurixTokens.stroke(0.08)),
-        ),
+        radius: 8,
+        hoverScale: false,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 13, color: AurixTokens.muted),
             const SizedBox(width: 5),
             Text(label,
-                style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                style:
+                    const TextStyle(color: AurixTokens.muted, fontSize: 12)),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SendButton extends StatelessWidget {
-  final bool loading;
-  final VoidCallback onTap;
-  const _SendButton({required this.loading, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: loading ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: loading
-                ? [
-                    AurixTokens.bg2.withValues(alpha: 0.3),
-                    AurixTokens.bg2.withValues(alpha: 0.2),
-                  ]
-                : [
-                    AurixTokens.accent.withValues(alpha: 0.3),
-                    AurixTokens.accentWarm.withValues(alpha: 0.18),
-                  ],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: loading
-                ? AurixTokens.stroke(0.12)
-                : AurixTokens.accent.withValues(alpha: 0.4),
-          ),
-          boxShadow: loading
-              ? null
-              : [
-                  BoxShadow(
-                    color: AurixTokens.accentGlow.withValues(alpha: 0.15),
-                    blurRadius: 20,
-                    spreadRadius: -8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-        ),
-        child: Icon(
-          Icons.send_rounded,
-          color: loading ? AurixTokens.muted : AurixTokens.accent,
-          size: 20,
         ),
       ),
     );
@@ -1090,21 +1106,11 @@ class _GlassIconBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: AurixTokens.bg2.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AurixTokens.stroke(0.12)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+      child: LiquidGlass(
+        level: GlassLevel.medium,
+        padding: const EdgeInsets.all(8),
+        radius: 10,
+        hoverScale: false,
         child: Icon(icon, size: 16, color: AurixTokens.muted),
       ),
     );

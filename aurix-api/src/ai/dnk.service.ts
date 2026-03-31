@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
-import { DeepSeekService } from './deepseek.service';
+import { EdenAiService } from './eden-ai.service';
 
 interface DnkAnswer {
   question_id: string;
@@ -134,7 +134,7 @@ export class DnkService {
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly ai: DeepSeekService,
+    private readonly ai: EdenAiService,
   ) {}
 
   async generateDnk(
@@ -178,7 +178,7 @@ export class DnkService {
       })
       .join('\n');
 
-    // 4. Call DeepSeek
+    // 4. Call Eden AI
     let systemPrompt = DNK_SYSTEM_PROMPT;
     if (styleLevel === 'hard') {
       systemPrompt += HARD_STYLE_ADDON;
@@ -194,7 +194,7 @@ export class DnkService {
         contextPrompt: systemPrompt,
       });
     } catch (e) {
-      this.logger.error('DeepSeek DNK call failed', e);
+      this.logger.error('Eden AI DNK call failed', e);
       // Mark session as abandoned
       await this.pool.query(
         `UPDATE dnk_sessions SET status = 'abandoned' WHERE id = $1`,

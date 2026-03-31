@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
-import { DeepSeekService } from './deepseek.service';
+import { EdenAiService } from './eden-ai.service';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -218,7 +218,7 @@ export class DnkTestsService {
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly ai: DeepSeekService,
+    private readonly ai: EdenAiService,
   ) {}
 
   // ── 1. Catalog ──────────────────────────────────────────────
@@ -362,7 +362,7 @@ export class DnkTestsService {
 
     const userMessage = `Вот ответы артиста на тест "${testSlug}":\n\n${answersText}\n\nПроанализируй и верни результат в JSON.`;
 
-    // Call DeepSeek
+    // Call Eden AI
     let rawResult: string;
     try {
       rawResult = await this.ai.chat({
@@ -371,7 +371,7 @@ export class DnkTestsService {
         contextPrompt: systemPrompt,
       });
     } catch (e) {
-      this.logger.error(`DeepSeek DNK test call failed for ${testSlug}`, e);
+      this.logger.error(`Eden AI DNK test call failed for ${testSlug}`, e);
       await this.pool.query(
         `UPDATE dnk_test_sessions SET status = 'abandoned' WHERE id = $1`,
         [sessionId],

@@ -13,11 +13,24 @@ class GenerateCoverScreen extends StatefulWidget {
 class _GenerateCoverScreenState extends State<GenerateCoverScreen> {
   final _ctrl = TextEditingController();
   bool _loading = false;
+  bool _hasText = false;
   String? _imageUrl;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final has = _ctrl.text.trim().isNotEmpty;
+    if (has != _hasText) setState(() => _hasText = has);
+  }
+
+  @override
   void dispose() {
+    _ctrl.removeListener(_onTextChanged);
     _ctrl.dispose();
     super.dispose();
   }
@@ -191,17 +204,15 @@ class _GenerateCoverScreenState extends State<GenerateCoverScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: _ctrl.text.trim().isEmpty ? null : _generate,
+              onPressed: _generate,
               icon: const Icon(Icons.palette_rounded, size: 20),
               label: const Text(
-                'Сгенерировать',
+                '\u0421\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: AurixTokens.accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AurixTokens.glass(0.1),
-                disabledForegroundColor: AurixTokens.muted.withValues(alpha: 0.4),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),

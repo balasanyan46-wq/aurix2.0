@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiController } from './ai.controller';
-import { DeepSeekService } from './deepseek.service';
+import { EdenAiService } from './eden-ai.service';
 import { DnkService } from './dnk.service';
 import { DnkTestsService } from './dnk-tests.service';
 import { AiContextService } from './ai-context.service';
@@ -10,7 +10,7 @@ import { AudioAnalysisService } from './audio-analysis.service';
 
 @Module({
   controllers: [AiController],
-  providers: [DeepSeekService, DnkService, DnkTestsService, AiContextService, AiProfileService, CoverService, AudioAnalysisService],
-  exports: [DeepSeekService, DnkService, DnkTestsService, AiContextService, AiProfileService, CoverService, AudioAnalysisService],
+  providers: [EdenAiService, DnkService, DnkTestsService, AiContextService, AiProfileService, CoverService, AudioAnalysisService],
+  exports: [EdenAiService, DnkService, DnkTestsService, AiContextService, AiProfileService, CoverService, AudioAnalysisService],
 })
 export class AiModule {}

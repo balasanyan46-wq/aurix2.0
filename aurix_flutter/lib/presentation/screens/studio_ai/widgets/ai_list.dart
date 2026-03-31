@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart' as launcher;
 import 'package:aurix_flutter/design/aurix_theme.dart';
 
-/// Parsed AI result — either structured data or plain text.
+/// Parsed AI result — either structured data, plain text, or media.
 sealed class AiParsedResult {}
 
 class AiListResult extends AiParsedResult {
@@ -22,9 +23,36 @@ class AiTextResult extends AiParsedResult {
   AiTextResult(this.text, {this.isLyrics = false});
 }
 
+class AiImageResult extends AiParsedResult {
+  final String content; // URL or data: URI
+  final String provider;
+  AiImageResult(this.content, {this.provider = ''});
+}
+
+class AiVideoResult extends AiParsedResult {
+  final String content; // URL
+  final String provider;
+  AiVideoResult(this.content, {this.provider = ''});
+}
+
+class AiAudioResult extends AiParsedResult {
+  final String content; // URL or data: URI
+  final String provider;
+  AiAudioResult(this.content, {this.provider = ''});
+}
+
 /// Try to parse AI response into structured result.
 /// Strips ---follow_up--- block before parsing.
-AiParsedResult parseAiResponse(String content, String mode) {
+///
+/// If [generativeType] is provided (image/video/audio), the content
+/// is treated as a media URL or data URI and returned as the appropriate
+/// media result type.
+AiParsedResult parseAiResponse(String content, String mode, {String? generativeType}) {
+  // Media results from /generate endpoint
+  if (generativeType == 'image') return AiImageResult(content);
+  if (generativeType == 'video') return AiVideoResult(content);
+  if (generativeType == 'audio') return AiAudioResult(content);
+
   // Strip follow_up block before any parsing
   final fuIdx = content.indexOf('---follow_up---');
   final cleaned = fuIdx != -1 ? content.substring(0, fuIdx).trim() : content;
@@ -110,6 +138,9 @@ class AiResultRenderer extends StatelessWidget {
       AiListResult r => _buildList(context, r),
       AiDnkResult r => AiDnkBlock(data: r.data),
       AiTextResult r => r.isLyrics ? _buildLyrics(r.text) : _buildPlainText(r.text),
+      AiImageResult r => _AiImagePreview(content: r.content),
+      AiVideoResult r => _AiVideoPreview(content: r.content),
+      AiAudioResult r => _AiAudioPreview(content: r.content),
     };
   }
 
@@ -350,5 +381,251 @@ class AiDnkBlock extends StatelessWidget {
           Text(entry.value.toString(), style: const TextStyle(color: AurixTokens.text, fontSize: 13, height: 1.5)),
       ],
     ]);
+  }
+}
+
+// ── Media preview widgets ─────────────────────────────────────────
+
+/// Renders an AI-generated image (URL or data URI).
+class _AiImagePreview extends StatelessWidget {
+  final String content;
+  const _AiImagePreview({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDataUri = content.startsWith('data:');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: isDataUri
+              ? Image.memory(
+                  base64Decode(content.split(',').last),
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  errorBuilder: (_, __, ___) => _mediaError('Не удалось показать изображение'),
+                )
+              : Image.network(
+                  content,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  loadingBuilder: (_, child, progress) {
+                    if (progress == null) return child;
+                    return _mediaLoading('Загрузка изображения…');
+                  },
+                  errorBuilder: (_, __, ___) => _mediaError('Не удалось загрузить изображение'),
+                ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.image_rounded, size: 14, color: AurixTokens.positive),
+            const SizedBox(width: 6),
+            Text(
+              'Изображение сгенерировано',
+              style: TextStyle(color: AurixTokens.positive, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Renders an AI-generated video (URL only — plays via network).
+class _AiVideoPreview extends StatelessWidget {
+  final String content;
+  const _AiVideoPreview({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUrl = content.startsWith('http://') || content.startsWith('https://');
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AurixTokens.glass(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: AurixTokens.accent.withValues(alpha: 0.12),
+                ),
+                child: Icon(Icons.movie_rounded, size: 20, color: AurixTokens.accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Видео сгенерировано',
+                      style: TextStyle(color: AurixTokens.text, fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isUrl ? 'Нажмите для просмотра' : 'Видео готово',
+                      style: TextStyle(color: AurixTokens.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isUrl) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () => _launchUrl(content),
+                icon: Icon(Icons.play_circle_rounded, color: AurixTokens.accent),
+                label: Text('Открыть видео', style: TextStyle(color: AurixTokens.accent)),
+                style: TextButton.styleFrom(
+                  backgroundColor: AurixTokens.accent.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Renders an AI-generated audio (URL or data URI).
+class _AiAudioPreview extends StatelessWidget {
+  final String content;
+  const _AiAudioPreview({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUrl = content.startsWith('http://') || content.startsWith('https://');
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AurixTokens.glass(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AurixTokens.accentWarm.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: AurixTokens.accentWarm.withValues(alpha: 0.12),
+                ),
+                child: Icon(Icons.audiotrack_rounded, size: 20, color: AurixTokens.accentWarm),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Аудио сгенерировано',
+                      style: TextStyle(color: AurixTokens.text, fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isUrl ? 'Нажмите для прослушивания' : 'Аудио готово',
+                      style: TextStyle(color: AurixTokens.muted, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isUrl) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () => _launchUrl(content),
+                icon: Icon(Icons.play_circle_rounded, color: AurixTokens.accentWarm),
+                label: Text('Воспроизвести', style: TextStyle(color: AurixTokens.accentWarm)),
+                style: TextButton.styleFrom(
+                  backgroundColor: AurixTokens.accentWarm.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+Widget _mediaLoading(String label) {
+  return Container(
+    height: 200,
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: AurixTokens.glass(0.06),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AurixTokens.accent,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(label, style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _mediaError(String label) {
+  return Container(
+    height: 120,
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: AurixTokens.glass(0.04),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AurixTokens.negative.withValues(alpha: 0.2)),
+    ),
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image_rounded, size: 28, color: AurixTokens.negative.withValues(alpha: 0.5)),
+          const SizedBox(height: 8),
+          Text(label, style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<void> _launchUrl(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri != null) {
+    await launcher.launchUrl(uri, mode: launcher.LaunchMode.externalApplication);
   }
 }

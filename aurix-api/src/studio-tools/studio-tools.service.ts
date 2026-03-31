@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
-import axios from 'axios';
+import { EdenAiService } from '../ai/eden-ai.service';
 
 // ── System prompts ────────
 
@@ -112,6 +112,8 @@ function cacheCleanup() {
 export class StudioToolsService {
   private readonly logger = new Logger(StudioToolsService.name);
 
+  constructor(private readonly ai: EdenAiService) {}
+
   private buildUserPrompt(inputs: Record<string, any>): string {
     const parts: string[] = [];
 
@@ -200,37 +202,16 @@ export class StudioToolsService {
     const userPrompt = this.buildUserPrompt(inputs);
 
     try {
-      const apiKey = (process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY ?? '').trim();
-      if (!apiKey) {
-        return { ok: false, error: 'AI API key not configured' };
-      }
-      const baseUrl = (process.env.AI_BASE_URL ?? 'https://api.openai.com').replace(/\/+$/, '');
+      const raw = await this.ai.simpleChat(systemPrompt, userPrompt, {
+        maxTokens: 3800,
+        temperature: 0.85,
+        timeout: 60_000,
+      });
 
-      const res = await axios.post(
-        `${baseUrl}/v1/chat/completions`,
-        {
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          max_tokens: 3800,
-          temperature: 0.85,
-          response_format: { type: 'json_object' },
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          timeout: 60_000,
-        },
-      );
-
-      const raw = res.data?.choices?.[0]?.message?.content?.trim() ?? '{}';
       let parsed: any;
       try {
-        parsed = JSON.parse(raw);
+        const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+        parsed = JSON.parse(fenceMatch ? fenceMatch[1].trim() : raw.trim());
       } catch {
         parsed = { _raw_text: raw };
       }

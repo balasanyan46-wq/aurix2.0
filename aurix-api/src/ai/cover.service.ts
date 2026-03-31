@@ -1,7 +1,6 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
-import Replicate from 'replicate';
-import { DeepSeekService } from './deepseek.service';
 import axios from 'axios';
+import { EdenAiService } from './eden-ai.service';
 
 const COVER_PROMPT_INSTRUCTION = `Ты — арт-директор музыкального лейбла.
 
@@ -43,56 +42,45 @@ export interface CoverResult {
 @Injectable()
 export class CoverService {
   private readonly logger = new Logger(CoverService.name);
-  private replicate: Replicate;
 
-  constructor(private readonly deepseek: DeepSeekService) {
-    const token = process.env.REPLICATE_API_TOKEN;
-    if (!token) {
-      this.logger.warn('REPLICATE_API_TOKEN is not set — cover generation will fail');
-    }
-    this.replicate = new Replicate({ auth: token || '' });
-  }
+  constructor(private readonly ai: EdenAiService) {}
 
-  /** Full pipeline: prompt → Replicate → base64 PNG */
+  /** Full pipeline: prompt → Eden AI image → base64 PNG */
   async generate(params: CoverParams): Promise<CoverResult> {
     const { prompt, size = '1024x1024', quality = 'high' } = params;
 
     this.logger.log(`[cover] generating (${prompt.length} chars, size=${size}, quality=${quality})`);
 
     try {
-      const output = await this.replicate.run('black-forest-labs/flux-1.1-pro', {
-        input: {
-          prompt,
-          aspect_ratio: '1:1',
-          output_format: 'png',
-          safety_tolerance: 2,
-        },
+      const result = await this.ai.generate({
+        type: 'image',
+        prompt,
+        resolution: size,
       });
 
-      // flux-1.1-pro returns a URL (string or FileOutput)
-      const imageUrl = typeof output === 'string' ? output : String(output);
+      // result.content is either a URL or a data: URI with base64
+      let b64: string;
 
-      if (!imageUrl || imageUrl === 'undefined') {
-        throw new Error('Replicate returned empty output');
+      if (result.content.startsWith('data:')) {
+        // Extract base64 from data URI
+        b64 = result.content.split(',')[1] || '';
+      } else {
+        // It's a URL — download and convert to base64
+        this.logger.log(`[cover] downloading from ${result.provider}…`);
+        const imgResponse = await axios.get(result.content, {
+          responseType: 'arraybuffer',
+          timeout: 60_000,
+        });
+        b64 = Buffer.from(imgResponse.data).toString('base64');
       }
 
-      this.logger.log(`[cover] image generated, downloading from Replicate…`);
-
-      // Download and convert to base64
-      const imgResponse = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
-        timeout: 60_000,
-      });
-
-      const b64 = Buffer.from(imgResponse.data).toString('base64');
-
-      this.logger.log(`[cover] done (${Math.round(b64.length / 1024)}KB base64)`);
+      this.logger.log(`[cover] done (${Math.round(b64.length / 1024)}KB base64, provider=${result.provider})`);
 
       return {
         ok: true,
         b64_png: b64,
         meta: {
-          model: 'flux-1.1-pro',
+          provider: result.provider,
           size,
           quality,
           style_preset: params.style_preset ?? null,
@@ -101,21 +89,16 @@ export class CoverService {
       };
     } catch (error) {
       if (error instanceof HttpException) throw error;
-
       this.logger.error('[cover] error:', error?.toString());
-
-      throw new HttpException(
-        'Ошибка генерации обложки',
-        HttpStatus.BAD_GATEWAY,
-      );
+      throw new HttpException('Ошибка генерации обложки', HttpStatus.BAD_GATEWAY);
     }
   }
 
-  /** Simple pipeline: idea → DeepSeek prompt → Replicate → URL */
+  /** Simple pipeline: idea → AI prompt → Eden AI image → content URL */
   async generateFromIdea(idea: string): Promise<{ image: string; prompt: string }> {
     this.logger.log('[cover] generating prompt from idea…');
 
-    const prompt = await this.deepseek.chat({
+    const prompt = await this.ai.chat({
       message: idea,
       mode: 'chat',
       history: [],
@@ -124,22 +107,17 @@ export class CoverService {
 
     this.logger.log(`[cover] prompt ready (${prompt.length} chars)`);
 
-    const output = await this.replicate.run('black-forest-labs/flux-1.1-pro', {
-      input: {
-        prompt,
-        aspect_ratio: '1:1',
-        output_format: 'png',
-        safety_tolerance: 2,
-      },
+    const result = await this.ai.generate({
+      type: 'image',
+      prompt,
+      resolution: '1024x1024',
     });
 
-    const image = typeof output === 'string' ? output : String(output);
-
-    if (!image || image === 'undefined') {
-      throw new HttpException('Replicate returned empty output', HttpStatus.BAD_GATEWAY);
+    if (!result.content) {
+      throw new HttpException('Image generation returned empty output', HttpStatus.BAD_GATEWAY);
     }
 
-    this.logger.log(`[cover] image ready → ${image.slice(0, 80)}…`);
-    return { image, prompt };
+    this.logger.log(`[cover] image ready (provider=${result.provider})`);
+    return { image: result.content, prompt };
   }
 }

@@ -1,7 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
 import FormData = require('form-data');
-import { DeepSeekService } from './deepseek.service';
+import { EdenAiService } from './eden-ai.service';
 
 export interface StructurePoint {
   time: number;
@@ -21,6 +21,8 @@ export interface AudioMetrics {
   onset_density: number;
   dynamic_range: number;
   estimated_key: string;
+  genre: string;
+  lyrics: string | null;
   energy_curve: number[];
   sections: Array<{
     start: number;
@@ -46,6 +48,8 @@ export interface TrackAnalysisResult {
   score: number;
   hitScore: number;
   viralProbability: number;
+  genre: string;
+  lyrics: string | null;
 }
 
 @Injectable()
@@ -54,7 +58,7 @@ export class AudioAnalysisService {
   private readonly pythonUrl =
     process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8001';
 
-  constructor(private readonly ai: DeepSeekService) {}
+  constructor(private readonly ai: EdenAiService) {}
 
   async analyzeTrack(
     file: Express.Multer.File,
@@ -65,12 +69,21 @@ export class AudioAnalysisService {
     const score = this.extractScore(aiAnalysis);
     const viralProbability = this.extractViralProbability(aiAnalysis, audioMetrics.hit_score);
 
+    // Use AI-refined genre if available, fall back to auto-detected
+    let genre = audioMetrics.genre || 'Unknown';
+    try {
+      const parsed = JSON.parse(aiAnalysis);
+      if (parsed.genre) genre = parsed.genre;
+    } catch { /* keep auto-detected */ }
+
     return {
       audioMetrics,
       aiAnalysis,
       score,
       hitScore: audioMetrics.hit_score,
       viralProbability,
+      genre,
+      lyrics: audioMetrics.lyrics || null,
     };
   }
 
@@ -133,13 +146,17 @@ export class AudioAnalysisService {
         ? 'ЕСТЬ ПОТЕНЦИАЛ'
         : 'ТРЕК НЕ ЗАЙДЁТ';
 
+    // Use transcribed lyrics if available, otherwise user-provided
+    const effectiveLyrics = metrics.lyrics || lyrics || null;
+
     const prompt = `Ты — топовый музыкальный продюсер и аналитик. Говоришь как есть, без воды.
 
-Вот данные РЕАЛЬНОГО аудио-анализа трека (librosa + наш алгоритм):
+Вот данные РЕАЛЬНОГО аудио-анализа трека (librosa + Whisper + наш алгоритм):
 
 ═══ ОСНОВНЫЕ МЕТРИКИ ═══
 BPM: ${metrics.bpm}
 Тональность: ${metrics.estimated_key}
+Жанр (авто-определение): ${metrics.genre || 'не определён'}
 Длительность: ${metrics.duration} сек
 Общая энергия (0-1): ${metrics.energy}
 Яркость (0-1): ${metrics.brightness}
@@ -148,13 +165,13 @@ BPM: ${metrics.bpm}
 Динамический диапазон: ${metrics.dynamic_range} dB
 
 ═══ HIT PREDICTOR ═══
-🔥 Hit Score: ${metrics.hit_score}/100 → ${hitLabel}
-📊 Energy Variation (динамика): ${metrics.energy_variation} ${metrics.energy_variation > 0.5 ? '(высокая — хорошо)' : metrics.energy_variation > 0.3 ? '(средняя)' : '(низкая — трек монотонный)'}
-⚡ Peak Energy: ${metrics.peak_energy}
-📉 Early Energy (первые 10 сек): ${metrics.early_energy} ${metrics.early_energy < 0.5 ? '⚠️ КРИТИЧЕСКИ НИЗКАЯ — слушатель уходит' : metrics.early_energy < 0.7 ? '⚠️ ниже нормы' : '✅ ок'}
-🎯 Hook: ${metrics.hook_time}s ${metrics.hook_time < 15 ? '✅ раннее — хорошо' : metrics.hook_time < 30 ? '⚠️ нормально' : '❌ поздно — слушатель уйдёт'}
-💥 Drop: ${metrics.drop_time > 0 ? `${metrics.drop_time}s` : 'нет'}
-⚠️ Intro слабое: ${metrics.intro_weak ? 'ДА' : 'НЕТ'}
+Hit Score: ${metrics.hit_score}/100 → ${hitLabel}
+Energy Variation (динамика): ${metrics.energy_variation} ${metrics.energy_variation > 0.5 ? '(высокая — хорошо)' : metrics.energy_variation > 0.3 ? '(средняя)' : '(низкая — трек монотонный)'}
+Peak Energy: ${metrics.peak_energy}
+Early Energy (первые 10 сек): ${metrics.early_energy} ${metrics.early_energy < 0.5 ? 'КРИТИЧЕСКИ НИЗКАЯ — слушатель уходит' : metrics.early_energy < 0.7 ? 'ниже нормы' : 'ок'}
+Hook: ${metrics.hook_time}s ${metrics.hook_time < 15 ? 'раннее — хорошо' : metrics.hook_time < 30 ? 'нормально' : 'поздно — слушатель уйдёт'}
+Drop: ${metrics.drop_time > 0 ? `${metrics.drop_time}s` : 'нет'}
+Intro слабое: ${metrics.intro_weak ? 'ДА' : 'НЕТ'}
 
 ═══ СТРУКТУРА ═══
 Секции:
@@ -163,22 +180,24 @@ ${sectionsSummary}
 Энергия по времени:
 ${structureSummary}
 
-${lyrics ? `═══ ТЕКСТ ═══\n${lyrics}\n` : ''}
+${effectiveLyrics ? `═══ ТЕКСТ (распознан Whisper) ═══\n${effectiveLyrics}\n` : '═══ ТЕКСТ ═══\nИнструментал или текст не распознан\n'}
 
 ═══ ЗАДАЧА ═══
-1. Скажи честно: трек зайдёт или нет
-2. Объясни ПОЧЕМУ (конкретно, с цифрами)
-3. Где главный провал (с секундой)
-4. Что убивает вирусность
-5. Дай 3-5 конкретных правок с таймингами
-6. Скажи, можно ли сделать хит из этого
+1. Подтверди или уточни жанр (авто-определение: ${metrics.genre || 'N/A'}). Будь точен — укажи поджанр если можешь
+2. Скажи честно: трек зайдёт или нет
+3. Объясни ПОЧЕМУ (конкретно, с цифрами)
+4. Где главный провал (с секундой)
+5. Что убивает вирусность
+6. Дай 3-5 конкретных правок с таймингами
+7. Скажи, можно ли сделать хит из этого
+${effectiveLyrics ? '8. Оцени текст: подача, рифмы, смысл, запоминаемость' : ''}
 
 Ответ СТРОГО в JSON:
 
 {
   "score": число от 0 до 10,
   "verdict": "Одно резкое предложение — главный вывод",
-  "genre_guess": "Предполагаемый жанр",
+  "genre": "Точный жанр/поджанр трека",
   "viral_probability": число от 0 до 100 (процент вирусности),
   "main_problem": "Главная проблема трека с конкретной секундой",
   "killer_issue": "Что именно убивает вирусность — одно предложение",
@@ -203,7 +222,8 @@ ${lyrics ? `═══ ТЕКСТ ═══\n${lyrics}\n` : ''}
   "drop_analysis": "${metrics.drop_time > 0 ? `разбор дропа на ${metrics.drop_time}s` : 'нет дропа'}",
   "intro_analysis": "разбор intro",
   "listener_dropout": "где и почему слушатель уходит (с секундой)",
-  "retention_killer": "что конкретно убивает retention в первые 10 секунд",
+  "retention_killer": "что конкретно убивает retention в первые 10 секунд",${effectiveLyrics ? `
+  "lyrics_analysis": "разбор текста: подача, рифмы, смысл, запоминаемость припева",` : ''}
   "fix_timestamps": [
     {"time": секунда, "issue": "проблема", "fix": "решение"}
   ],
@@ -211,6 +231,7 @@ ${lyrics ? `═══ ТЕКСТ ═══\n${lyrics}\n` : ''}
 }
 
 Требования:
+— genre — будь точен, укажи поджанр (не просто "рэп", а "мелодик рэп" или "drill" и т.д.)
 — viral_probability основывай на hit_score (${metrics.hit_score}) + своей оценке
 — если hit_score < 40 — будь жёсток, скажи правду
 — если hit_score > 70 — объясни что именно делает трек сильным
@@ -290,6 +311,8 @@ ${lyrics ? `═══ ТЕКСТ ═══\n${lyrics}\n` : ''}
       onset_density: 3,
       dynamic_range: 15,
       estimated_key: 'C',
+      genre: 'Unknown',
+      lyrics: null,
       energy_curve: Array(50).fill(0.08),
       sections: [
         { start: 0, end: estimatedDuration, type: 'full', energy: 0.5 },

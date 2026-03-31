@@ -1,12 +1,16 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
+import { EdenAiService } from '../ai/eden-ai.service';
 
 @Injectable()
 export class InsightsService {
   private readonly log = new Logger('Insights');
 
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly ai: EdenAiService,
+  ) {}
 
   // ── Analytics Dashboard ──────────────────────────────────
 
@@ -294,19 +298,8 @@ export class InsightsService {
       ],
     };
 
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-    if (!apiKey) {
-      return { plan: this.fallbackPlan(days, releaseDate), source: 'template', release_date: releaseDate, goal };
-    }
-
     try {
-      const axios = (await import('axios')).default;
-      const res = await axios.post('https://api.deepseek.com/v1/chat/completions', {
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: `Ты — дерзкий музыкальный маркетолог-стратег. Ты не боишься говорить прямо. Создай план продвижения релиза на ${days} дней.
+      const systemPrompt = `Ты — дерзкий музыкальный маркетолог-стратег. Ты не боишься говорить прямо. Создай план продвижения релиза на ${days} дней.
 ${trackInfo ? `\n${trackInfo}` : ''}
 Дата релиза: ${releaseDate}
 
@@ -321,17 +314,12 @@ ${trackInfo ? `\n${trackInfo}` : ''}
 }
 
 Включи: тизеры, Reels/TikTok, сториз, обратный отсчёт, день релиза, пост-релизная активность, анализ.
-Тексты должны быть живыми и мотивирующими, не сухими. Пиши по-русски. Только JSON массив, без markdown.`,
-          },
-        ],
-        max_tokens: 2000,
-        temperature: 0.75,
-      }, {
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        timeout: 30000,
+Тексты должны быть живыми и мотивирующими, не сухими. Пиши по-русски. Только JSON массив, без markdown.`;
+
+      const content = await this.ai.simpleChat(systemPrompt, 'Создай план продвижения', {
+        maxTokens: 2000, temperature: 0.75, timeout: 30_000,
       });
 
-      const content = res.data?.choices?.[0]?.message?.content || '[]';
       let plan: any[];
       try {
         const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
@@ -371,8 +359,6 @@ ${trackInfo ? `\n${trackInfo}` : ''}
     mood?: string;
     release_id?: string;
   }) {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
-
     let context = body.description;
     if (body.genre) context += `, жанр: ${body.genre}`;
     if (body.mood) context += `, настроение: ${body.mood}`;
@@ -393,20 +379,8 @@ ${trackInfo ? `\n${trackInfo}` : ''}
       }
     }
 
-    if (!apiKey) {
-      return { ideas: this.fallbackPromoIdeas(context), source: 'template' };
-    }
-
     try {
-      const axios = (await import('axios')).default;
-      const res = await axios.post('https://api.deepseek.com/v1/chat/completions', {
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: `Ты — дерзкий креативный директор музыкального промо. Ты знаешь что работает в TikTok и Reels. Сгенерируй 10 идей для продвижения.
-
-Контекст: ${context}
+      const systemPrompt = `Ты — дерзкий креативный директор музыкального промо. Ты знаешь что работает в TikTok и Reels. Сгенерируй 10 идей для продвижения.
 
 Верни строго JSON массив из 10 объектов:
 {
@@ -420,17 +394,12 @@ ${trackInfo ? `\n${trackInfo}` : ''}
 }
 
 Идеи должны быть конкретные, дерзкие, для TikTok/Reels/VK. Не сухие инструкции, а живые идеи.
-Пиши по-русски. Только JSON, без markdown.`,
-          },
-        ],
-        max_tokens: 2500,
-        temperature: 0.8,
-      }, {
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        timeout: 30000,
+Пиши по-русски. Только JSON, без markdown.`;
+
+      const content = await this.ai.simpleChat(systemPrompt, context, {
+        maxTokens: 2500, temperature: 0.8, timeout: 30_000,
       });
 
-      const content = res.data?.choices?.[0]?.message?.content || '[]';
       let ideas: any[];
       try {
         const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
