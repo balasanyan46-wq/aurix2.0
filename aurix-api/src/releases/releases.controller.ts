@@ -23,6 +23,7 @@ import { MailService } from '../mail/mail.service';
 import { CreateReleaseDto } from './dto/create-release.dto';
 import { RejectReleaseDto } from './dto/reject-release.dto';
 import { UserEventsService } from '../user-events/user-events.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('releases')
@@ -34,6 +35,7 @@ export class ReleasesController {
     private readonly usersService: UsersService,
     private readonly mailService: MailService,
     private readonly events: UserEventsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Verify that the logged-in user owns the release (or is admin). */
@@ -205,6 +207,7 @@ export class ReleasesController {
     }
 
     this.notifyArtist(updated.artist_id, updated.title, 'approved').catch(() => {});
+    this.sendReleaseNotification(updated.artist_id, updated.title, 'approved').catch(() => {});
     return { success: true, status: updated.status };
   }
 
@@ -226,6 +229,7 @@ export class ReleasesController {
     }
 
     this.notifyArtist(updated.artist_id, updated.title, 'live').catch(() => {});
+    this.sendReleaseNotification(updated.artist_id, updated.title, 'live').catch(() => {});
     return { success: true, status: updated.status };
   }
 
@@ -246,6 +250,7 @@ export class ReleasesController {
       );
     }
 
+    this.sendReleaseNotification(updated.artist_id, updated.title, 'rejected', dto.reason).catch(() => {});
     return { success: true, status: updated.status };
   }
 
@@ -286,6 +291,44 @@ export class ReleasesController {
       if (r) updated++;
     }
     return { success: true, updated };
+  }
+
+  /** Send in-app notification about release status change */
+  private async sendReleaseNotification(
+    artistId: number,
+    releaseTitle: string,
+    status: 'approved' | 'live' | 'rejected',
+    reason?: string,
+  ) {
+    const artist = await this.artistsService.findById(artistId);
+    if (!artist) return;
+
+    const messages: Record<string, { title: string; message: string; type: string }> = {
+      approved: {
+        title: 'Релиз одобрен',
+        message: `Ваш релиз «${releaseTitle}» прошёл модерацию и одобрен`,
+        type: 'success',
+      },
+      live: {
+        title: 'Релиз опубликован!',
+        message: `Ваш релиз «${releaseTitle}» успешно отгружен на площадки`,
+        type: 'success',
+      },
+      rejected: {
+        title: 'Релиз отклонён',
+        message: `Ваш релиз «${releaseTitle}» отклонён${reason ? `: ${reason}` : ''}`,
+        type: 'warning',
+      },
+    };
+
+    const msg = messages[status];
+    await this.notifications.send({
+      user_id: artist.user_id,
+      title: msg.title,
+      message: msg.message,
+      type: msg.type,
+      meta: { release_title: releaseTitle, status },
+    });
   }
 
   /** Look up artist → user → send email */

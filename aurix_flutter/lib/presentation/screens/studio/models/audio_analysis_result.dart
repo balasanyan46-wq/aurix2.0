@@ -119,6 +119,9 @@ class AudioAnalysisResult {
   final String retentionKiller;
   final List<FixTimestamp> fixTimestamps;
   final String finalOpinion;
+  final String? lyrics;
+  final String lyricsAnalysis;
+  final String genre;
 
   const AudioAnalysisResult({
     required this.bpm,
@@ -167,6 +170,9 @@ class AudioAnalysisResult {
     required this.retentionKiller,
     required this.fixTimestamps,
     required this.finalOpinion,
+    this.lyrics,
+    this.lyricsAnalysis = '',
+    this.genre = '',
   });
 
   /// Parse from API response.
@@ -221,7 +227,7 @@ class AudioAnalysisResult {
       viralProbability: aiViralProb > 0 ? aiViralProb : apiViralProb,
       score: (ai['score'] as num?)?.toDouble() ?? apiScore,
       verdict: ai['verdict'] as String? ?? '',
-      genreGuess: ai['genre_guess'] as String? ?? '',
+      genreGuess: ai['genre'] as String? ?? ai['genre_guess'] as String? ?? resp['genre'] as String? ?? '',
       viralProbabilityAi: aiViralProb,
       mainProblem: ai['main_problem'] as String? ?? '',
       killerIssue: ai['killer_issue'] as String? ?? '',
@@ -254,6 +260,9 @@ class AudioAnalysisResult {
               .toList() ??
           [],
       finalOpinion: ai['final_opinion'] as String? ?? '',
+      lyrics: resp['lyrics'] as String? ?? metrics['lyrics'] as String?,
+      lyricsAnalysis: ai['lyrics_analysis'] as String? ?? '',
+      genre: resp['genre'] as String? ?? ai['genre'] as String? ?? '',
     );
   }
 

@@ -2,18 +2,17 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/data/providers/releases_provider.dart';
+import 'package:aurix_flutter/data/providers/reports_provider.dart';
+import 'package:aurix_flutter/data/models/release_model.dart';
+import 'package:aurix_flutter/data/models/report_row_model.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
+import 'package:aurix_flutter/design/widgets/premium_ui.dart';
+import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
+import 'package:aurix_flutter/core/services/event_tracker.dart';
 
-// ── Provider ─────────────────────────────────────────────────
-
-final _analyticsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
-  final res = await ApiClient.get('/analytics/dashboard');
-  final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
-  return body;
-});
-
-// ── Screen ───────────────────────────────────────────────────
+// \u2500\u2500 Screen \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -22,221 +21,220 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
   ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
-class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
-    with TickerProviderStateMixin {
-  late final AnimationController _entryCtrl;
-
+class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   @override
   void initState() {
     super.initState();
-    _entryCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..forward();
-  }
-
-  @override
-  void dispose() {
-    _entryCtrl.dispose();
-    super.dispose();
+    EventTracker.track('viewed_analytics');
   }
 
   @override
   Widget build(BuildContext context) {
-    final dataAsync = ref.watch(_analyticsProvider);
+    final releasesAsync = ref.watch(releasesProvider);
+    final reportsAsync = ref.watch(userReportRowsProvider);
 
     return Scaffold(
       backgroundColor: AurixTokens.bg0,
-      body: dataAsync.when(
-        loading: () => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(color: AurixTokens.accent),
-              const SizedBox(height: 16),
-              Text('Анализируем твою музыку...', style: TextStyle(color: AurixTokens.muted, fontSize: 13)),
-            ],
-          ),
+      body: releasesAsync.when(
+        loading: () => const PremiumLoadingState(
+          message: '\u0410\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u0443\u0435\u043c \u0442\u0432\u043e\u044e \u043c\u0443\u0437\u044b\u043a\u0443...',
         ),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.wifi_off_rounded, size: 48, color: AurixTokens.muted.withValues(alpha: 0.3)),
-              const SizedBox(height: 12),
-              const Text('Не удалось загрузить данные', style: TextStyle(color: AurixTokens.muted)),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => ref.invalidate(_analyticsProvider),
-                child: const Text('Попробовать снова', style: TextStyle(color: AurixTokens.orange)),
-              ),
-            ],
-          ),
+        error: (e, _) => PremiumErrorState(
+          message: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435',
+          onRetry: () {
+            ref.invalidate(releasesProvider);
+            ref.invalidate(userReportRowsProvider);
+          },
         ),
-        data: (data) => _buildDashboard(data),
+        data: (releases) {
+          final reports = reportsAsync.valueOrNull ?? <ReportRowModel>[];
+          return _AnalyticsDashboard(
+            releases: releases,
+            reports: reports,
+            onRefresh: () async {
+              ref.invalidate(releasesProvider);
+              ref.invalidate(userReportRowsProvider);
+            },
+          );
+        },
       ),
     );
   }
+}
 
-  Widget _buildDashboard(Map<String, dynamic> data) {
-    final summary = data['summary'] as Map<String, dynamic>? ?? {};
-    final series = (data['stream_series'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final releases = (data['releases'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    final diagnosis = (data['diagnosis'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+class _AnalyticsDashboard extends StatelessWidget {
+  const _AnalyticsDashboard({
+    required this.releases,
+    required this.reports,
+    required this.onRefresh,
+  });
+  final List<ReleaseModel> releases;
+  final List<ReportRowModel> reports;
+  final Future<void> Function() onRefresh;
 
-    final totalStreams = summary['total_streams'] as int? ?? 0;
-    final totalRevenue = (summary['total_revenue'] as num?)?.toDouble() ?? 0;
-    final growthPct = summary['growth_pct'] as int? ?? 0;
-    final engagement = summary['engagement'] as int? ?? 0;
-    final viral = summary['viral_score'] as int? ?? 0;
-    final totalClicks = summary['total_clicks'] as int? ?? 0;
+  @override
+  Widget build(BuildContext context) {
+    final totalStreams = reports.fold<int>(0, (s, r) => s + r.streams);
+    final totalRevenue = reports.fold<double>(0, (s, r) => s + r.revenue);
+
+    // Build daily series from reports
+    final dayMap = <String, int>{};
+    for (final r in reports) {
+      if (r.reportDate != null) {
+        final key = r.reportDate!.toIso8601String().substring(0, 10);
+        dayMap[key] = (dayMap[key] ?? 0) + r.streams;
+      }
+    }
+    final sortedDays = dayMap.keys.toList()..sort();
+    final series = sortedDays
+        .map((d) => <String, dynamic>{'day': d, 'streams': dayMap[d]})
+        .toList();
+
+    // Build per-release stats
+    final releaseStats = <Map<String, dynamic>>[];
+    for (final rel in releases) {
+      final relReports = reports.where((r) => r.releaseId == rel.id);
+      final streams = relReports.fold<int>(0, (s, r) => s + r.streams);
+      final revenue = relReports.fold<double>(0, (s, r) => s + r.revenue);
+      releaseStats.add({
+        'title': rel.title,
+        'genre': rel.genre ?? '',
+        'streams': streams,
+        'revenue': revenue,
+        'clicks': 0,
+      });
+    }
+
+    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
 
     return RefreshIndicator(
-      color: AurixTokens.orange,
-      onRefresh: () async => ref.invalidate(_analyticsProvider),
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          // Header
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-              child: _FadeSlide(controller: _entryCtrl, delay: 0, child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('ДИАГНОСТИКА', style: TextStyle(
-                    color: AurixTokens.text, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 1.5,
-                  )),
-                  const SizedBox(height: 4),
-                  Text('Что происходит с твоей музыкой прямо сейчас', style: TextStyle(
-                    color: AurixTokens.muted.withValues(alpha: 0.6), fontSize: 13,
-                  )),
-                ],
-              )),
+      color: AurixTokens.accent,
+      onRefresh: onRefresh,
+      child: PremiumPageScaffold(
+        title: '\u0414\u0438\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0430',
+        subtitle: '\u0427\u0442\u043e \u043f\u0440\u043e\u0438\u0441\u0445\u043e\u0434\u0438\u0442 \u0441 \u0442\u0432\u043e\u0435\u0439 \u043c\u0443\u0437\u044b\u043a\u043e\u0439 \u043f\u0440\u044f\u043c\u043e \u0441\u0435\u0439\u0447\u0430\u0441',
+        systemLabel: 'ANALYTICS ENGINE',
+        systemColor: AurixTokens.accent,
+        children: [
+          // KPI Grid
+          FadeInSlide(
+            delayMs: 60,
+            child: _KpiGrid(
+              isDesktop: isDesktop,
+              totalStreams: totalStreams,
+              growthPct: 0,
+              engagement: 0,
+              viral: 0,
+              totalClicks: 0,
+              totalRevenue: totalRevenue,
             ),
           ),
 
-          // ── DIAGNOSIS BLOCK ─────────────────────────────────
-          if (diagnosis.isNotEmpty)
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              sliver: SliverList.builder(
-                itemCount: diagnosis.length,
-                itemBuilder: (ctx, i) => _FadeSlide(
-                  controller: _entryCtrl,
-                  delay: 0.05 + i * 0.06,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _DiagnosisCard(item: diagnosis[i]),
-                  ),
-                ),
-              ),
-            ),
-
-          // KPI cards
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            sliver: SliverToBoxAdapter(
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  _FadeSlide(controller: _entryCtrl, delay: 0.25, child: _KpiCard(
-                    label: 'СТРИМЫ', value: _formatNumber(totalStreams),
-                    change: growthPct, icon: Icons.play_circle_rounded,
-                    glowColor: growthPct >= 0 ? AurixTokens.positive : AurixTokens.danger,
-                  )),
-                  _FadeSlide(controller: _entryCtrl, delay: 0.28, child: _KpiCard(
-                    label: 'ВОВЛЕЧЁННОСТЬ', value: '$engagement',
-                    suffix: '/ 100', icon: Icons.favorite_rounded,
-                    glowColor: AurixTokens.orange,
-                  )),
-                  _FadeSlide(controller: _entryCtrl, delay: 0.31, child: _KpiCard(
-                    label: 'ВИРАЛЬНОСТЬ', value: '$viral',
-                    suffix: '/ 100', icon: Icons.whatshot_rounded,
-                    glowColor: AurixTokens.accent,
-                  )),
-                  _FadeSlide(controller: _entryCtrl, delay: 0.34, child: _KpiCard(
-                    label: 'КЛИКИ', value: _formatNumber(totalClicks),
-                    icon: Icons.touch_app_rounded, glowColor: AurixTokens.muted,
-                  )),
-                  _FadeSlide(controller: _entryCtrl, delay: 0.37, child: _KpiCard(
-                    label: 'ДОХОД', value: '${totalRevenue.toStringAsFixed(0)} ₽',
-                    icon: Icons.account_balance_wallet_rounded,
-                    glowColor: AurixTokens.positive,
-                  )),
-                ],
-              ),
-            ),
-          ),
-
-          // ── ACTION BUTTONS ──────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-              child: _FadeSlide(
-                controller: _entryCtrl, delay: 0.4,
-                child: Row(
-                  children: [
-                    Expanded(child: _ActionButton(
-                      label: 'Построить план',
-                      subtitle: 'AI соберёт стратегию',
-                      icon: Icons.rocket_launch_rounded,
-                      color: AurixTokens.accent,
-                      onTap: () => context.push('/stats/release-plan'),
-                    )),
-                    const SizedBox(width: 12),
-                    Expanded(child: _ActionButton(
-                      label: 'Промо идеи',
-                      subtitle: 'Что снять прямо сейчас',
-                      icon: Icons.local_fire_department_rounded,
-                      color: AurixTokens.orange,
-                      onTap: () => context.push('/stats/promo-ideas'),
-                    )),
-                  ],
-                ),
-              ),
-            ),
+          // Action row
+          const SizedBox(height: 20),
+          FadeInSlide(
+            delayMs: 180,
+            child: _ActionRow(isDesktop: isDesktop),
           ),
 
           // Chart
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-              child: _FadeSlide(
-                controller: _entryCtrl, delay: 0.45,
-                child: _StreamChart(series: series),
-              ),
-            ),
+          const SizedBox(height: 20),
+          FadeInSlide(
+            delayMs: 240,
+            child: _StreamChartBlock(series: series),
           ),
 
           // Releases
-          if (releases.isNotEmpty) ...[
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
-                child: _FadeSlide(
-                  controller: _entryCtrl, delay: 0.5,
-                  child: const Text('ТВОИ РЕЛИЗЫ', style: TextStyle(
-                    color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5,
-                  )),
-                ),
-              ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-              sliver: SliverList.builder(
-                itemCount: releases.length,
-                itemBuilder: (ctx, i) => _FadeSlide(
-                  controller: _entryCtrl,
-                  delay: 0.55 + i * 0.04,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ReleaseRow(release: releases[i]),
-                  ),
-                ),
-              ),
+          if (releaseStats.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            FadeInSlide(
+              delayMs: 300,
+              child: _ReleasesSection(releases: releaseStats),
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// KPI Grid \u2014 responsive grid of metric cards
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+class _KpiGrid extends StatelessWidget {
+  const _KpiGrid({
+    required this.isDesktop,
+    required this.totalStreams,
+    required this.growthPct,
+    required this.engagement,
+    required this.viral,
+    required this.totalClicks,
+    required this.totalRevenue,
+  });
+  final bool isDesktop;
+  final int totalStreams, growthPct, engagement, viral, totalClicks;
+  final double totalRevenue;
+
+  @override
+  Widget build(BuildContext context) {
+    final kpis = [
+      _KpiData(
+        label: '\u0421\u0442\u0440\u0438\u043c\u044b',
+        value: _formatNumber(totalStreams),
+        icon: Icons.play_circle_rounded,
+        color: growthPct >= 0 ? AurixTokens.positive : AurixTokens.danger,
+        change: growthPct,
+      ),
+      _KpiData(
+        label: '\u0412\u043e\u0432\u043b\u0435\u0447\u0451\u043d\u043d\u043e\u0441\u0442\u044c',
+        value: '$engagement',
+        suffix: '/ 100',
+        icon: Icons.favorite_rounded,
+        color: AurixTokens.warning,
+      ),
+      _KpiData(
+        label: '\u0412\u0438\u0440\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u044c',
+        value: '$viral',
+        suffix: '/ 100',
+        icon: Icons.whatshot_rounded,
+        color: AurixTokens.accent,
+      ),
+      _KpiData(
+        label: '\u041a\u043b\u0438\u043a\u0438',
+        value: _formatNumber(totalClicks),
+        icon: Icons.touch_app_rounded,
+        color: AurixTokens.aiAccent,
+      ),
+      _KpiData(
+        label: '\u0414\u043e\u0445\u043e\u0434',
+        value: '${totalRevenue.toStringAsFixed(0)} \u20bd',
+        icon: Icons.account_balance_wallet_rounded,
+        color: AurixTokens.positive,
+      ),
+    ];
+
+    if (isDesktop) {
+      return Row(
+        children: [
+          for (int i = 0; i < kpis.length; i++) ...[
+            if (i > 0) const SizedBox(width: 12),
+            Expanded(child: _KpiCard(data: kpis[i])),
+          ],
+        ],
+      );
+    }
+
+    // Mobile: 2-column wrap
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: kpis
+          .map((k) => SizedBox(
+                width: (MediaQuery.sizeOf(context).width - 52) / 2,
+                child: _KpiCard(data: k),
+              ))
+          .toList(),
     );
   }
 
@@ -247,7 +245,240 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
   }
 }
 
-// ── DIAGNOSIS CARD ──────────────────────────────────────────
+class _KpiData {
+  const _KpiData({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.change,
+    this.suffix,
+  });
+  final String label, value;
+  final IconData icon;
+  final Color color;
+  final int? change;
+  final String? suffix;
+}
+
+class _KpiCard extends StatefulWidget {
+  const _KpiCard({required this.data});
+  final _KpiData data;
+
+  @override
+  State<_KpiCard> createState() => _KpiCardState();
+}
+
+class _KpiCardState extends State<_KpiCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = widget.data;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: AurixTokens.dMedium,
+        curve: AurixTokens.cEase,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _hovered
+                  ? d.color.withValues(alpha: 0.06)
+                  : AurixTokens.surface1.withValues(alpha: 0.5),
+              AurixTokens.bg1.withValues(alpha: 0.9),
+            ],
+          ),
+          border: Border.all(
+            color: _hovered
+                ? d.color.withValues(alpha: 0.3)
+                : AurixTokens.stroke(0.14),
+          ),
+          boxShadow: _hovered
+              ? [
+                  BoxShadow(
+                    color: d.color.withValues(alpha: 0.1),
+                    blurRadius: 24,
+                    spreadRadius: -8,
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: d.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(d.icon, size: 14, color: d.color),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    d.label.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: AurixTokens.fontMono,
+                      color: AurixTokens.micro,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  d.value,
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.text,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: AurixTokens.tabularFigures,
+                    height: 1,
+                  ),
+                ),
+                if (d.suffix != null) ...[
+                  const SizedBox(width: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      d.suffix!,
+                      style: TextStyle(
+                        fontFamily: AurixTokens.fontMono,
+                        color: AurixTokens.micro,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (d.change != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (d.change! >= 0 ? AurixTokens.positive : AurixTokens.danger)
+                      .withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      d.change! >= 0
+                          ? Icons.trending_up_rounded
+                          : Icons.trending_down_rounded,
+                      size: 11,
+                      color: d.change! >= 0
+                          ? AurixTokens.positive
+                          : AurixTokens.danger,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      '${d.change! >= 0 ? '+' : ''}${d.change}%',
+                      style: TextStyle(
+                        fontFamily: AurixTokens.fontMono,
+                        color: d.change! >= 0
+                            ? AurixTokens.positive
+                            : AurixTokens.danger,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Diagnosis Section
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+class _DiagnosisSection extends StatelessWidget {
+  const _DiagnosisSection({required this.diagnosis});
+  final List<Map<String, dynamic>> diagnosis;
+
+  @override
+  Widget build(BuildContext context) {
+    return PremiumSectionCard(
+      glowColor: AurixTokens.warning,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AurixTokens.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.health_and_safety_rounded, size: 14, color: AurixTokens.warning),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '\u0414\u0418\u0410\u0413\u041d\u041e\u0417',
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontMono,
+                  color: AurixTokens.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AurixTokens.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${diagnosis.length}',
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.warning,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          for (int i = 0; i < diagnosis.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _DiagnosisCard(item: diagnosis[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _DiagnosisCard extends StatelessWidget {
   const _DiagnosisCard({required this.item});
@@ -267,103 +498,133 @@ class _DiagnosisCard extends StatelessWidget {
         ? AurixTokens.positive
         : isCritical
             ? AurixTokens.danger
-            : AurixTokens.orange;
+            : AurixTokens.warning;
+    final severityIcon = isPositive
+        ? Icons.check_circle_rounded
+        : isCritical
+            ? Icons.error_rounded
+            : Icons.warning_amber_rounded;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AurixTokens.bg1,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor.withValues(alpha: 0.3)),
-        boxShadow: [BoxShadow(color: borderColor.withValues(alpha: 0.08), blurRadius: 20, spreadRadius: -4)],
+        borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+        color: borderColor.withValues(alpha: 0.04),
+        border: Border.all(color: borderColor.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Problem
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(isPositive ? '✅' : isCritical ? '🚨' : '🔥', style: const TextStyle(fontSize: 18)),
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: borderColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(severityIcon, size: 13, color: borderColor),
+              ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(problem, style: TextStyle(
-                  color: AurixTokens.text, fontSize: 15, fontWeight: FontWeight.w700, height: 1.3,
-                )),
+                child: Text(
+                  problem,
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontBody,
+                    color: AurixTokens.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
+                ),
               ),
             ],
           ),
-
-          // Cause
           if (cause.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text(cause, style: TextStyle(
-                color: AurixTokens.muted.withValues(alpha: 0.7), fontSize: 12, height: 1.4,
-              )),
+              padding: const EdgeInsets.only(top: 8, left: 34),
+              child: Text(
+                cause,
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontBody,
+                  color: AurixTokens.muted,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
             ),
-
-          const SizedBox(height: 14),
-
-          // Fix
           if (fix.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AurixTokens.accent.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.12)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('💡', style: TextStyle(fontSize: 14)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(fix, style: const TextStyle(
-                      color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w500, height: 1.4,
-                    )),
-                  ),
-                ],
+            Padding(
+              padding: const EdgeInsets.only(top: 10, left: 34),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AurixTokens.accent.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.1)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.lightbulb_rounded, size: 13, color: AurixTokens.accent.withValues(alpha: 0.6)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        fix,
+                        style: TextStyle(
+                          fontFamily: AurixTokens.fontBody,
+                          color: AurixTokens.text,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-
-          // Effect
           if (effect.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(top: 8, left: 34),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('🚀', style: TextStyle(fontSize: 12)),
+                  Icon(Icons.trending_up_rounded, size: 12, color: AurixTokens.positive.withValues(alpha: 0.7)),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(effect, style: TextStyle(
-                      color: AurixTokens.positive.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w600, height: 1.4,
-                    )),
+                    child: Text(
+                      effect,
+                      style: TextStyle(
+                        fontFamily: AurixTokens.fontBody,
+                        color: AurixTokens.positive,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-
-          // Action button
           if (!isPositive)
             Padding(
-              padding: const EdgeInsets.only(top: 14),
+              padding: const EdgeInsets.only(top: 12, left: 34),
               child: Row(
                 children: [
                   _MiniAction(
-                    label: 'Сделать это',
+                    label: '\u0421\u0434\u0435\u043b\u0430\u0442\u044c \u044d\u0442\u043e',
                     icon: Icons.check_circle_outline_rounded,
                     color: AurixTokens.accent,
                     onTap: () => context.push('/stats/release-plan'),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   _MiniAction(
-                    label: 'Промо-план от AI',
-                    icon: Icons.auto_awesome,
-                    color: AurixTokens.orange,
+                    label: '\u041f\u0440\u043e\u043c\u043e-\u043f\u043b\u0430\u043d \u043e\u0442 AI',
+                    icon: Icons.auto_awesome_rounded,
+                    color: AurixTokens.warning,
                     onTap: () => context.push('/stats/promo-ideas'),
                   ),
                 ],
@@ -375,9 +636,7 @@ class _DiagnosisCard extends StatelessWidget {
   }
 }
 
-// ── Mini Action ──────────────────────────────────────────────
-
-class _MiniAction extends StatelessWidget {
+class _MiniAction extends StatefulWidget {
   const _MiniAction({required this.label, required this.icon, required this.color, required this.onTap});
   final String label;
   final IconData icon;
@@ -385,157 +644,302 @@ class _MiniAction extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
+  State<_MiniAction> createState() => _MiniActionState();
 }
 
-// ── KPI Card ─────────────────────────────────────────────────
-
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({
-    required this.label, required this.value,
-    required this.icon, required this.glowColor,
-    this.change, this.suffix,
-  });
-  final String label, value;
-  final IconData icon;
-  final Color glowColor;
-  final int? change;
-  final String? suffix;
+class _MiniActionState extends State<_MiniAction> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final w = (MediaQuery.sizeOf(context).width - 52) / 2;
-    return Container(
-      width: w.clamp(140, 220),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AurixTokens.bg1,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: glowColor.withValues(alpha: 0.2)),
-        boxShadow: [BoxShadow(color: glowColor.withValues(alpha: 0.08), blurRadius: 24, spreadRadius: -4)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(icon, size: 16, color: glowColor.withValues(alpha: 0.7)),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: AurixTokens.muted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1)),
-          ]),
-          const SizedBox(height: 10),
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(value, style: const TextStyle(color: AurixTokens.text, fontSize: 26, fontWeight: FontWeight.w800, height: 1)),
-            if (suffix != null) ...[
-              const SizedBox(width: 4),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(suffix!, style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
-              ),
-            ],
-          ]),
-          if (change != null) ...[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: (change! >= 0 ? AurixTokens.positive : AurixTokens.danger).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                '${change! >= 0 ? '↑' : '↓'} ${change!.abs()}%',
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: AurixTokens.dFast,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: widget.color.withValues(alpha: _hovered ? 0.15 : 0.08),
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(
+              color: widget.color.withValues(alpha: _hovered ? 0.3 : 0.15),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 12, color: widget.color),
+              const SizedBox(width: 5),
+              Text(
+                widget.label,
                 style: TextStyle(
-                  color: change! >= 0 ? AurixTokens.positive : AurixTokens.danger,
-                  fontSize: 11, fontWeight: FontWeight.w700,
+                  fontFamily: AurixTokens.fontBody,
+                  color: widget.color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
-          ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-// ── Stream Chart ─────────────────────────────────────────────
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Action Row
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
-class _StreamChart extends StatelessWidget {
-  const _StreamChart({required this.series});
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({required this.isDesktop});
+  final bool isDesktop;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ActionBlock(
+            icon: Icons.rocket_launch_rounded,
+            title: '\u041f\u043e\u0441\u0442\u0440\u043e\u0438\u0442\u044c \u043f\u043b\u0430\u043d',
+            subtitle: 'AI \u0441\u043e\u0431\u0435\u0440\u0451\u0442 \u0441\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u044e',
+            color: AurixTokens.accent,
+            onTap: () => context.push('/stats/release-plan'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _ActionBlock(
+            icon: Icons.local_fire_department_rounded,
+            title: '\u041f\u0440\u043e\u043c\u043e \u0438\u0434\u0435\u0438',
+            subtitle: '\u0427\u0442\u043e \u0441\u043d\u044f\u0442\u044c \u043f\u0440\u044f\u043c\u043e \u0441\u0435\u0439\u0447\u0430\u0441',
+            color: AurixTokens.warning,
+            onTap: () => context.push('/stats/promo-ideas'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionBlock extends StatefulWidget {
+  const _ActionBlock({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String title, subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  State<_ActionBlock> createState() => _ActionBlockState();
+}
+
+class _ActionBlockState extends State<_ActionBlock> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: AurixTokens.dMedium,
+          curve: AurixTokens.cEase,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                widget.color.withValues(alpha: _hovered ? 0.12 : 0.06),
+                AurixTokens.bg1.withValues(alpha: 0.9),
+              ],
+            ),
+            border: Border.all(
+              color: widget.color.withValues(alpha: _hovered ? 0.35 : 0.18),
+            ),
+            boxShadow: _hovered
+                ? [
+                    BoxShadow(
+                      color: widget.color.withValues(alpha: 0.12),
+                      blurRadius: 24,
+                      spreadRadius: -8,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedContainer(
+                duration: AurixTokens.dMedium,
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: _hovered ? 0.2 : 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: widget.color.withValues(alpha: _hovered ? 0.3 : 0.15),
+                  ),
+                ),
+                child: Icon(widget.icon, size: 18, color: widget.color),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                widget.title,
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontHeading,
+                  color: _hovered ? widget.color : AurixTokens.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                widget.subtitle,
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontBody,
+                  color: AurixTokens.micro,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Stream Chart Block
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+class _StreamChartBlock extends StatelessWidget {
+  const _StreamChartBlock({required this.series});
   final List<Map<String, dynamic>> series;
 
   @override
   Widget build(BuildContext context) {
-    if (series.isEmpty) {
-      return Container(
-        height: 160,
-        decoration: BoxDecoration(
-          color: AurixTokens.bg1, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AurixTokens.border),
-        ),
-        child: const Center(child: Text('Данных пока нет — выпусти трек', style: TextStyle(color: AurixTokens.muted, fontSize: 13))),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AurixTokens.bg1,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.15)),
-      ),
+    return PremiumSectionCard(
+      glowColor: AurixTokens.accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('СТРИМЫ ЗА 30 ДНЕЙ', style: TextStyle(
-            color: AurixTokens.muted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1,
-          )),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 120,
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: _ChartPainter(
-                values: series.map((s) => (s['streams'] as int? ?? 0).toDouble()).toList(),
-                lineColor: AurixTokens.accent,
-                glowColor: AurixTokens.accent.withValues(alpha: 0.15),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_shortDay(series.first['day']?.toString() ?? ''), style: _axisStyle),
-              Text(_shortDay(series[series.length ~/ 2]['day']?.toString() ?? ''), style: _axisStyle),
-              Text(_shortDay(series.last['day']?.toString() ?? ''), style: _axisStyle),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AurixTokens.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.show_chart_rounded, size: 14, color: AurixTokens.accent),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '\u0421\u0422\u0420\u0418\u041c\u042b \u0417\u0410 30 \u0414\u041d\u0415\u0419',
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontMono,
+                  color: AurixTokens.text,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 18),
+          if (series.isEmpty)
+            Container(
+              height: 120,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: AurixTokens.surface1.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+                border: Border.all(color: AurixTokens.stroke(0.08)),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.bar_chart_rounded, size: 24, color: AurixTokens.micro),
+                    const SizedBox(height: 8),
+                    Text(
+                      '\u0414\u0430\u043d\u043d\u044b\u0445 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442 \u2014 \u0432\u044b\u043f\u0443\u0441\u0442\u0438 \u0442\u0440\u0435\u043a',
+                      style: TextStyle(
+                        fontFamily: AurixTokens.fontBody,
+                        color: AurixTokens.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            SizedBox(
+              height: 140,
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _ChartPainter(
+                  values: series.map((s) => (s['streams'] as int? ?? 0).toDouble()).toList(),
+                  lineColor: AurixTokens.accent,
+                  glowColor: AurixTokens.accent.withValues(alpha: 0.15),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _shortDay(series.first['day']?.toString() ?? ''),
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.micro,
+                    fontSize: 10,
+                  ),
+                ),
+                Text(
+                  _shortDay(series[series.length ~/ 2]['day']?.toString() ?? ''),
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.micro,
+                    fontSize: 10,
+                  ),
+                ),
+                Text(
+                  _shortDay(series.last['day']?.toString() ?? ''),
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.micro,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
   static String _shortDay(String iso) => iso.length >= 10 ? iso.substring(5, 10) : iso;
-  static const _axisStyle = TextStyle(color: AurixTokens.muted, fontSize: 10);
 }
 
 class _ChartPainter extends CustomPainter {
@@ -572,134 +976,231 @@ class _ChartPainter extends CustomPainter {
     fillPath.lineTo(size.width, size.height);
     fillPath.close();
 
-    canvas.drawPath(fillPath, Paint()..shader = LinearGradient(
-      begin: Alignment.topCenter, end: Alignment.bottomCenter,
-      colors: [glowColor, glowColor.withValues(alpha: 0)],
-    ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)));
+    // Fill gradient
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [glowColor, glowColor.withValues(alpha: 0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
 
-    canvas.drawPath(path, Paint()
-      ..color = lineColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round);
+    // Glow line
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = lineColor.withValues(alpha: 0.15)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+
+    // Main line
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = lineColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // End dot
+    if (values.isNotEmpty) {
+      final lastX = (values.length - 1) * step;
+      final lastY = size.height - (values.last / maxVal) * size.height * 0.9;
+      canvas.drawCircle(
+        Offset(lastX, lastY),
+        3.5,
+        Paint()..color = lineColor,
+      );
+      canvas.drawCircle(
+        Offset(lastX, lastY),
+        6,
+        Paint()
+          ..color = lineColor.withValues(alpha: 0.2)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _ChartPainter old) => old.values != values;
 }
 
-// ── Release Row ──────────────────────────────────────────────
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Releases Section
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
-class _ReleaseRow extends StatelessWidget {
+class _ReleasesSection extends StatelessWidget {
+  const _ReleasesSection({required this.releases});
+  final List<Map<String, dynamic>> releases;
+
+  @override
+  Widget build(BuildContext context) {
+    return PremiumSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AurixTokens.aiAccent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.album_rounded, size: 14, color: AurixTokens.aiAccent),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '\u0422\u0412\u041e\u0418 \u0420\u0415\u041b\u0418\u0417\u042b',
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontMono,
+                  color: AurixTokens.text,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AurixTokens.aiAccent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${releases.length}',
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.aiAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (int i = 0; i < releases.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _ReleaseRow(release: releases[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReleaseRow extends StatefulWidget {
   const _ReleaseRow({required this.release});
   final Map<String, dynamic> release;
 
   @override
-  Widget build(BuildContext context) {
-    final title = release['title']?.toString() ?? '';
-    final streams = release['streams'] as int? ?? 0;
-    final revenue = (release['revenue'] as num?)?.toDouble() ?? 0;
-    final clicks = release['clicks'] as int? ?? 0;
-    final genre = release['genre']?.toString() ?? '';
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AurixTokens.bg1,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AurixTokens.border),
-      ),
-      child: Row(children: [
-        Container(
-          width: 42, height: 42,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            gradient: LinearGradient(
-              colors: [AurixTokens.accent.withValues(alpha: 0.2), AurixTokens.orange.withValues(alpha: 0.1)],
-            ),
-          ),
-          child: const Icon(Icons.music_note_rounded, color: AurixTokens.accent, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(color: AurixTokens.text, fontSize: 14, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-            if (genre.isNotEmpty) Text(genre, style: const TextStyle(color: AurixTokens.muted, fontSize: 11)),
-          ],
-        )),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text('$streams стр.', style: const TextStyle(color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w600)),
-            Text('${revenue.toStringAsFixed(0)} ₽ · $clicks кл.', style: const TextStyle(color: AurixTokens.muted, fontSize: 10)),
-          ],
-        ),
-      ]),
-    );
-  }
+  State<_ReleaseRow> createState() => _ReleaseRowState();
 }
 
-// ── Action Button ────────────────────────────────────────────
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.label, required this.subtitle,
-    required this.icon, required this.color, required this.onTap,
-  });
-  final String label, subtitle;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
+class _ReleaseRowState extends State<_ReleaseRow> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+    final title = widget.release['title']?.toString() ?? '';
+    final streams = widget.release['streams'] as int? ?? 0;
+    final revenue = (widget.release['revenue'] as num?)?.toDouble() ?? 0;
+    final clicks = widget.release['clicks'] as int? ?? 0;
+    final genre = widget.release['genre']?.toString() ?? '';
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: AurixTokens.dFast,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.06), blurRadius: 16)],
+          borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+          color: _hovered
+              ? AurixTokens.surface2.withValues(alpha: 0.5)
+              : AurixTokens.surface1.withValues(alpha: 0.3),
+          border: Border.all(
+            color: _hovered
+                ? AurixTokens.accent.withValues(alpha: 0.15)
+                : AurixTokens.stroke(0.08),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Icon(icon, size: 22, color: color),
-            const SizedBox(height: 10),
-            Text(label, style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 2),
-            Text(subtitle, style: TextStyle(color: color.withValues(alpha: 0.5), fontSize: 11)),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  colors: [
+                    AurixTokens.accent.withValues(alpha: 0.18),
+                    AurixTokens.aiAccent.withValues(alpha: 0.1),
+                  ],
+                ),
+                border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.12)),
+              ),
+              child: const Icon(Icons.music_note_rounded, color: AurixTokens.accent, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: AurixTokens.fontBody,
+                      color: AurixTokens.text,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (genre.isNotEmpty)
+                    Text(
+                      genre,
+                      style: TextStyle(
+                        fontFamily: AurixTokens.fontBody,
+                        color: AurixTokens.micro,
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$streams \u0441\u0442\u0440.',
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: AurixTokens.tabularFigures,
+                  ),
+                ),
+                Text(
+                  '${revenue.toStringAsFixed(0)} \u20bd \u00b7 $clicks \u043a\u043b.',
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.micro,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── FadeSlide ────────────────────────────────────────────────
-
-class _FadeSlide extends StatelessWidget {
-  const _FadeSlide({required this.controller, required this.delay, required this.child});
-  final AnimationController controller;
-  final double delay;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final curved = CurvedAnimation(
-      parent: controller,
-      curve: Interval(delay.clamp(0, 0.9), (delay + 0.3).clamp(0, 1), curve: Curves.easeOutCubic),
-    );
-    return AnimatedBuilder(
-      animation: curved,
-      builder: (_, __) => Opacity(
-        opacity: curved.value,
-        child: Transform.translate(
-          offset: Offset(0, 20 * (1 - curved.value)),
-          child: child,
         ),
       ),
     );

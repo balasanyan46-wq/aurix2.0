@@ -595,7 +595,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: selectedPlan,
+                initialValue: selectedPlan,
                 dropdownColor: AurixTokens.bg2,
                 decoration: const InputDecoration(labelText: 'Тариф'),
                 items: const [
@@ -613,7 +613,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
-                value: durationDays,
+                initialValue: durationDays,
                 dropdownColor: AurixTokens.bg2,
                 decoration: const InputDecoration(labelText: 'Срок (дней)'),
                 items: const [7, 14, 30, 60, 90, 180, 365]
@@ -663,7 +663,7 @@ class _UserActionsSheetState extends ConsumerState<_UserActionsSheet> {
         ),
         content: StatefulBuilder(
           builder: (dialogCtx, setStateDialog) => DropdownButtonFormField<int>(
-            value: selected,
+            initialValue: selected,
             dropdownColor: AurixTokens.bg2,
             decoration: const InputDecoration(labelText: 'Срок (дней)'),
             items: options

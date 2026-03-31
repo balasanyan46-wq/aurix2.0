@@ -43,8 +43,7 @@ import 'package:aurix_flutter/features/dnk/presentation/dnk_screen.dart';
 import 'package:aurix_flutter/features/dnk/presentation/dnk_tests_hub_screen.dart';
 import 'package:aurix_flutter/features/dnk/presentation/dnk_test_launch_screen.dart';
 import 'package:aurix_flutter/features/dnk/presentation/dnk_test_result_loader_screen.dart';
-import 'package:aurix_flutter/features/progress/presentation/screens/progress_home_screen.dart';
-import 'package:aurix_flutter/features/progress/presentation/screens/habit_manage_screen.dart';
+import 'package:aurix_flutter/features/brain/presentation/brain_screen.dart';
 import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_landing_screen.dart';
 import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_onboarding_screen.dart';
 import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_ai_intake_screen.dart';
@@ -54,6 +53,7 @@ import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_
 import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_saved_screen.dart';
 import 'package:aurix_flutter/presentation/widgets/subscription_guard.dart';
 import 'package:aurix_flutter/presentation/screens/promo/promo_video_screen.dart';
+import 'package:aurix_flutter/presentation/screens/payments/payment_result_screen.dart';
 
 /// Fade transition for shell-internal pages (200ms, easeOut).
 class _FadePage<T> extends CustomTransitionPage<T> {
@@ -213,6 +213,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => _FadePage(child: const SubscriptionRouteScreen()),
           ),
           GoRoute(
+            path: '/payment-result',
+            pageBuilder: (context, state) {
+              final orderId = state.uri.queryParameters['orderId'];
+              final status = state.uri.queryParameters['status'];
+              return _FadePage(
+                child: PaymentResultScreen(orderId: orderId, urlStatus: status),
+              );
+            },
+          ),
+          GoRoute(
             path: '/credits',
             pageBuilder: (context, state) => _FadePage(child: const CreditsScreen()),
           ),
@@ -320,14 +330,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/progress',
-            pageBuilder: (context, state) => _FadePage(child: const ProgressHomeScreen()),
-          ),
-          GoRoute(
-            path: '/progress/manage',
-            pageBuilder: (context, state) {
-              final openNew = state.uri.queryParameters['new'] == '1';
-              return _FadePage(child: HabitManageScreen(openNewOnStart: openNew));
-            },
+            pageBuilder: (context, state) => _FadePage(child: const BrainScreen()),
           ),
           GoRoute(
             path: '/navigator',

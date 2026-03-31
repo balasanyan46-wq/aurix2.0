@@ -1,0 +1,7 @@
+fastapi==0.115.0
+uvicorn==0.31.0
+librosa==0.10.2
+numpy==1.26.4
+scipy==1.14.1
+python-multipart==0.0.12
+faster-whisper==1.1.0

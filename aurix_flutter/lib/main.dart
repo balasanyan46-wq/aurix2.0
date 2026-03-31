@@ -15,16 +15,9 @@ void main() async {
     debugPrint('AURIX FlutterError: ${details.exception}\n${details.stack}');
   };
 
-  // Show actual error text in release mode (instead of grey box)
+  // Show minimal error in release mode (instead of grey box)
   ErrorWidget.builder = (FlutterErrorDetails details) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: const Color(0xFF1A0000),
-      child: Text(
-        'Error: ${details.exception}',
-        style: const TextStyle(color: Color(0xFFFF4444), fontSize: 12),
-      ),
-    );
+    return const SizedBox.shrink();
   };
 
   runApp(const ProviderScope(child: AurixApp()));

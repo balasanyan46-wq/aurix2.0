@@ -24,17 +24,17 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   bool _synced = false;
 
   static const _monthlyPrices = <String, int>{
-    'start': 12,
-    'breakthrough': 24,
-    'empire': 59,
+    'start': 990,
+    'breakthrough': 1990,
+    'empire': 3990,
   };
 
   int _yearlyPrice(int monthly) => (monthly * 12 * 0.8).round();
 
   String _priceLabel(SubscriptionPlan plan) {
     final monthly = _monthlyPrices[plan.slug] ?? 0;
-    if (_isYearly) return '\$${_yearlyPrice(monthly)}/год';
-    return '\$$monthly/мес';
+    if (_isYearly) return '${_yearlyPrice(monthly)} \u20BD/\u0433\u043E\u0434';
+    return '$monthly \u20BD/\u043C\u0435\u0441';
   }
 
   String? _savingsLabel(SubscriptionPlan plan) {
@@ -42,7 +42,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
     final monthly = _monthlyPrices[plan.slug] ?? 0;
     final saved = (monthly * 12) - _yearlyPrice(monthly);
     if (saved <= 0) return null;
-    return '−\$$saved в год';
+    return '\u2212$saved \u20BD \u0432 \u0433\u043E\u0434';
   }
 
   void _snack(String text) {

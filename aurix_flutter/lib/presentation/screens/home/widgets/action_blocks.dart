@@ -8,12 +8,14 @@ class ActionCardData {
     required this.subtitle,
     required this.icon,
     required this.onTap,
+    this.accentColor,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final VoidCallback onTap;
+  final Color? accentColor;
 }
 
 class QuickActionsBlock extends StatelessWidget {
@@ -34,28 +36,32 @@ class QuickActionsBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final cards = [
       ActionCardData(
-        title: 'Создать релиз',
-        subtitle: 'Новый релиз и базовые данные',
+        title: '\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u0440\u0435\u043b\u0438\u0437',
+        subtitle: '\u041d\u043e\u0432\u044b\u0439 \u0440\u0435\u043b\u0438\u0437',
         icon: Icons.album_rounded,
         onTap: onCreateRelease,
+        accentColor: AurixTokens.accent,
       ),
       ActionCardData(
-        title: 'Загрузить трек',
-        subtitle: 'Добавить материал в текущий релиз',
+        title: '\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0442\u0440\u0435\u043a',
+        subtitle: '\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b',
         icon: Icons.upload_file_rounded,
         onTap: onUploadTrack,
+        accentColor: AurixTokens.positive,
       ),
       ActionCardData(
-        title: 'Сгенерировать обложку',
-        subtitle: 'Быстро получить вариант обложки',
+        title: '\u041e\u0431\u043b\u043e\u0436\u043a\u0430 AI',
+        subtitle: '\u0421\u0433\u0435\u043d\u0435\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c',
         icon: Icons.auto_awesome_rounded,
         onTap: onGenerateCover,
+        accentColor: AurixTokens.aiAccent,
       ),
       ActionCardData(
-        title: 'Запустить продвижение',
-        subtitle: 'Перейти к промо и запуску',
-        icon: Icons.rocket_launch_rounded,
+        title: '\u041f\u0440\u043e\u0434\u0432\u0438\u0436\u0435\u043d\u0438\u0435',
+        subtitle: '\u0417\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043f\u0440\u043e\u043c\u043e',
+        icon: Icons.campaign_rounded,
         onTap: onPromotion,
+        accentColor: AurixTokens.warning,
       ),
     ];
 
@@ -63,18 +69,29 @@ class QuickActionsBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const HomeSectionTitle('Быстрые действия'),
-          const SizedBox(height: 10),
+          const HomeSectionTitle('\u0411\u044b\u0441\u0442\u0440\u044b\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f', icon: Icons.bolt_rounded),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, c) {
-              final isMobile = c.maxWidth < 760;
-              final width = isMobile ? c.maxWidth : (c.maxWidth - 12) / 2;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              final isMobile = c.maxWidth < 600;
+              if (isMobile) {
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: cards
+                      .map((card) => SizedBox(
+                            width: (c.maxWidth - 10) / 2,
+                            child: ActionCard(data: card),
+                          ))
+                      .toList(),
+                );
+              }
+              return Row(
                 children: cards
-                    .map((card) => SizedBox(width: width, child: ActionCard(data: card)))
-                    .toList(),
+                    .map((card) => Expanded(child: ActionCard(data: card)))
+                    .expand((w) => [w, const SizedBox(width: 10)])
+                    .toList()
+                  ..removeLast(),
               );
             },
           ),
@@ -103,28 +120,32 @@ class ToolsBlock extends StatelessWidget {
     final isMobile = MediaQuery.sizeOf(context).width < 900;
     final cards = [
       ActionCardData(
-        title: 'Студия',
-        subtitle: 'AI-инструменты для релиза',
+        title: '\u0421\u0442\u0443\u0434\u0438\u044f',
+        subtitle: 'AI-\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u044b',
         icon: Icons.auto_awesome_rounded,
         onTap: onStudio,
+        accentColor: AurixTokens.aiAccent,
       ),
       ActionCardData(
-        title: 'Продвижение',
-        subtitle: 'Кампании и рекламные шаги',
-        icon: Icons.rocket_launch_rounded,
+        title: '\u041f\u0440\u043e\u0434\u0432\u0438\u0436\u0435\u043d\u0438\u0435',
+        subtitle: '\u041a\u0430\u043c\u043f\u0430\u043d\u0438\u0438',
+        icon: Icons.campaign_rounded,
         onTap: onPromotion,
+        accentColor: AurixTokens.accent,
       ),
       ActionCardData(
-        title: 'Команда',
-        subtitle: 'Исполнители и продакшн-задачи',
+        title: '\u041a\u043e\u043c\u0430\u043d\u0434\u0430',
+        subtitle: '\u041f\u0440\u043e\u0434\u0430\u043a\u0448\u043d',
         icon: Icons.groups_rounded,
         onTap: onTeam,
+        accentColor: AurixTokens.positive,
       ),
       ActionCardData(
-        title: 'Юридические документы',
-        subtitle: 'Договоры и правовые шаблоны',
+        title: '\u042e\u0440\u0438\u0434\u0438\u0447\u0435\u0441\u043a\u0438\u0435',
+        subtitle: '\u0414\u043e\u0433\u043e\u0432\u043e\u0440\u044b',
         icon: Icons.gavel_rounded,
         onTap: onLegal,
+        accentColor: AurixTokens.warning,
       ),
     ];
 
@@ -132,25 +153,26 @@ class ToolsBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const HomeSectionTitle('Инструменты'),
-          const SizedBox(height: 10),
+          const HomeSectionTitle('\u0418\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442\u044b', icon: Icons.build_rounded),
+          const SizedBox(height: 14),
           if (isMobile)
-            ...cards
-                .map((c) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: ActionCard(data: c, compact: true),
-                    ))
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: cards
+                  .map((c) => SizedBox(
+                        width: (MediaQuery.sizeOf(context).width - 72) / 2,
+                        child: ActionCard(data: c),
+                      ))
+                  .toList(),
+            )
           else
             Row(
-              children: [
-                Expanded(flex: 2, child: ActionCard(data: cards[0])),
-                const SizedBox(width: 10),
-                Expanded(child: ActionCard(data: cards[1], compact: true)),
-                const SizedBox(width: 10),
-                Expanded(child: ActionCard(data: cards[2], compact: true)),
-                const SizedBox(width: 10),
-                Expanded(flex: 2, child: ActionCard(data: cards[3])),
-              ],
+              children: cards
+                  .map((card) => Expanded(child: ActionCard(data: card)))
+                  .expand((w) => [w, const SizedBox(width: 10)])
+                  .toList()
+                ..removeLast(),
             ),
         ],
       ),
@@ -172,128 +194,76 @@ class _ActionCardState extends State<ActionCard> {
 
   @override
   Widget build(BuildContext context) {
-    final h = widget.compact ? 106.0 : 126.0;
-    final borderColor = _hovered ? AurixTokens.stroke(0.34) : AurixTokens.stroke(0.22);
+    final color = widget.data.accentColor ?? AurixTokens.accent;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        constraints: BoxConstraints(minHeight: h),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: AurixTokens.bg1.withValues(alpha: 0.94),
-          border: Border.all(color: borderColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: _hovered ? 0.26 : 0.2),
-              blurRadius: _hovered ? 18 : 10,
-              spreadRadius: -10,
-              offset: const Offset(0, 8),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.data.onTap,
+        child: AnimatedContainer(
+          duration: AurixTokens.dMedium,
+          curve: AurixTokens.cEase,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+            color: _hovered
+                ? AurixTokens.surface2.withValues(alpha: 0.8)
+                : AurixTokens.surface1.withValues(alpha: 0.5),
+            border: Border.all(
+              color: _hovered ? color.withValues(alpha: 0.25) : AurixTokens.stroke(0.12),
             ),
-          ],
-        ),
-        child: AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.only(top: _hovered ? 0 : 2, bottom: _hovered ? 2 : 0),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: widget.data.onTap,
-              borderRadius: BorderRadius.circular(16),
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final isNarrow = c.maxWidth < 190;
-                  final isUltraNarrow = c.maxWidth < 120;
-                  final hPad = isUltraNarrow ? 8.0 : 14.0;
-                  final vPad = isUltraNarrow ? 10.0 : 12.0;
-                  final iconSize = isUltraNarrow ? 28.0 : 34.0;
-                  final iconInner = isUltraNarrow ? 15.0 : 18.0;
-                  late final Widget content;
-                  if (isUltraNarrow) {
-                    content = Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: iconSize,
-                          height: iconSize,
-                          decoration: BoxDecoration(
-                            color: AurixTokens.orange.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(widget.data.icon, size: iconInner, color: AurixTokens.orange),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.data.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AurixTokens.text,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            height: 1.15,
-                          ),
-                        ),
-                      ],
-                    );
-                  } else {
-                    content = Row(
-                      children: [
-                        Container(
-                          width: iconSize,
-                          height: iconSize,
-                          decoration: BoxDecoration(
-                            color: AurixTokens.orange.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(widget.data.icon, size: iconInner, color: AurixTokens.orange),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                widget.data.title,
-                                maxLines: isNarrow ? 2 : 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AurixTokens.text,
-                                  fontSize: isNarrow ? 14.5 : 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                widget.data.subtitle,
-                                maxLines: isNarrow ? 2 : 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AurixTokens.textSecondary.withValues(alpha: 0.95),
-                                  fontSize: isNarrow ? 12 : 12.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (!isNarrow)
-                          const Icon(Icons.chevron_right_rounded, color: AurixTokens.muted),
-                      ],
-                    );
-                  }
-                  return Padding(
-                    padding: EdgeInsets.symmetric(horizontal: hPad, vertical: vPad),
-                    child: content,
-                  );
-                },
+            boxShadow: _hovered
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.08),
+                      blurRadius: 20,
+                      spreadRadius: -8,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedContainer(
+                duration: AurixTokens.dMedium,
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: _hovered ? 0.18 : 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: color.withValues(alpha: _hovered ? 0.25 : 0.12),
+                  ),
+                ),
+                child: Icon(widget.data.icon, size: 20, color: color),
               ),
-            ),
+              const SizedBox(height: 12),
+              Text(
+                widget.data.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontBody,
+                  color: AurixTokens.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                widget.data.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontBody,
+                  color: AurixTokens.micro,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
       ),

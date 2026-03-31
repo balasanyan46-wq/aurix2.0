@@ -615,6 +615,12 @@ class _TrackAnalysisScreenState extends ConsumerState<TrackAnalysisScreen>
           const SizedBox(height: 16),
         ],
 
+        // ── Lyrics (transcribed by Whisper) ──
+        if (r.lyrics != null && r.lyrics!.isNotEmpty) ...[
+          _LyricsCard(lyrics: r.lyrics!, analysis: r.lyricsAnalysis),
+          const SizedBox(height: 16),
+        ],
+
         // ── Listener dropout ──
         if (r.listenerDropout.isNotEmpty) ...[
           _WarningCard(
@@ -1049,6 +1055,104 @@ class _WarningCard extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════
 // Analysis Card
 // ══════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════
+// Lyrics Card — transcribed text + AI analysis
+// ══════════════════════════════════════════════════════════════
+
+class _LyricsCard extends StatefulWidget {
+  final String lyrics;
+  final String analysis;
+  const _LyricsCard({required this.lyrics, this.analysis = ''});
+
+  @override
+  State<_LyricsCard> createState() => _LyricsCardState();
+}
+
+class _LyricsCardState extends State<_LyricsCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = widget.lyrics.split('\n');
+    final preview = lines.take(8).join('\n');
+    final hasMore = lines.length > 8;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AurixTokens.aiAccent.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AurixTokens.aiAccent.withValues(alpha: 0.12)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AurixTokens.aiAccent.withValues(alpha: 0.12)),
+            child: Icon(Icons.lyrics_rounded, size: 16, color: AurixTokens.aiAccent),
+          ),
+          const SizedBox(width: 12),
+          Text('Текст (распознан AI)',
+              style: TextStyle(
+                  color: AurixTokens.aiAccent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 12),
+        Text(
+          _expanded ? widget.lyrics : preview,
+          style: TextStyle(
+            color: AurixTokens.text.withValues(alpha: 0.85),
+            fontSize: 13,
+            height: 1.6,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        if (hasMore) ...[
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Text(
+              _expanded ? 'Свернуть' : 'Показать весь текст (${lines.length} строк)',
+              style: TextStyle(
+                color: AurixTokens.aiAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+        if (widget.analysis.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AurixTokens.text.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Анализ текста',
+                  style: TextStyle(
+                      color: AurixTokens.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text(widget.analysis,
+                  style: TextStyle(
+                      color: AurixTokens.text.withValues(alpha: 0.8),
+                      fontSize: 12,
+                      height: 1.5)),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+}
 
 class _AnalysisCard extends StatelessWidget {
   final IconData icon;

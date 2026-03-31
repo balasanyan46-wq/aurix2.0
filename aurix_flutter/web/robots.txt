@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /blog/
+Allow: /solutions/
+Allow: /articles/
+Allow: /guide.html
+
+Disallow: /api/
+Disallow: /storage/
+Disallow: /assets/packages/
+
+Sitemap: https://aurixmusic.ru/sitemap.xml

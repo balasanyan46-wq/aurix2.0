@@ -36,8 +36,8 @@ import { BillingModule } from './billing/billing.module';
 import { GrowthModule } from './growth/growth.module';
 import { SmartLinkModule } from './smart-link/smart-link.module';
 import { StudioToolsModule } from './studio-tools/studio-tools.module';
-import { SystemModule } from './system/system.module';
-import { InsightsModule } from './insights/insights.module';
+import { BrainModule } from './brain/brain.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -79,8 +79,8 @@ import { InsightsModule } from './insights/insights.module';
     GrowthModule,
     SmartLinkModule,
     StudioToolsModule,
-    SystemModule,
-    InsightsModule,
+    BrainModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

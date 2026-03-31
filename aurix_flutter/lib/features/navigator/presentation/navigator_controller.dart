@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
@@ -430,26 +431,19 @@ class NavigatorController extends StateNotifier<NavigatorState> {
 
   Future<NavigatorProgressSignal?> _readProgressSignal(String? userId) async {
     if (userId == null) return null;
-    final repo = _ref.read(progressCheckinsRepositoryProvider);
-    final end = DateTime.now();
-    final start = end.subtract(const Duration(days: 13));
-    final checkins = await repo.getCheckins(startDay: start, endDay: end);
-    if (checkins.isEmpty) {
-      return const NavigatorProgressSignal(consistencyScore: 0.2, disciplineDrop: true);
+    try {
+      final res = await ApiClient.get('/brain/profile');
+      final data = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+      final events7d = (data['events_7d'] as num?)?.toInt() ?? 0;
+      final consistency = (events7d / 7).clamp(0.0, 1.0);
+      return NavigatorProgressSignal(
+        consistencyScore: consistency,
+        disciplineDrop: consistency < 0.35,
+      );
+    } catch (e) {
+      debugPrint('[Navigator] Failed to read progress signal: $e');
+      return null;
     }
-    final recent = checkins.where((c) =>
-        c.day.isAfter(end.subtract(const Duration(days: 7))) ||
-        c.day.isAtSameMomentAs(end.subtract(const Duration(days: 7))));
-    final prev = checkins.where((c) =>
-        c.day.isBefore(end.subtract(const Duration(days: 7))));
-    final recentCount = recent.length;
-    final prevCount = prev.length;
-    final consistency = (recentCount / 7).clamp(0, 1).toDouble();
-    final drop = prevCount > 0 && recentCount < (prevCount * 0.6);
-    return NavigatorProgressSignal(
-      consistencyScore: consistency,
-      disciplineDrop: drop || consistency < 0.35,
-    );
   }
 
   Future<NavigatorDnkSignal?> _readDnkSignal(String? userId) async {

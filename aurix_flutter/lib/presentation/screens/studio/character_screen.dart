@@ -329,7 +329,7 @@ class _CharacterScreenState extends ConsumerState<CharacterScreen> {
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: _ctrl.text.trim().isEmpty ? null : _generate,
+            onPressed: _generate,
             icon: Icon(_c.icon, size: 20),
             label: const Text('Создать', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             style: FilledButton.styleFrom(

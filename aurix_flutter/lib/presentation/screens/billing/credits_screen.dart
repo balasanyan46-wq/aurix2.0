@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/providers/billing_providers.dart';
@@ -21,42 +22,30 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
     ref.invalidate(creditTransactionsProvider);
   }
 
-  /// Order-based purchase flow: create order → confirm → update balance.
-  Future<void> _purchase(int credits, String priceLabel) async {
+  /// Purchase credits via T-Bank: create payment → redirect to T-Bank → webhook confirms.
+  Future<void> _purchase(String packageId) async {
     setState(() {
       _purchasing = true;
       _purchaseError = null;
     });
 
     try {
-      // Step 1: Create order
-      final orderRes = await ApiClient.post('/billing/create-order', data: {
-        'credits': credits,
-        'price_label': priceLabel,
+      final res = await ApiClient.post('/payments/credits', data: {
+        'package': packageId,
       });
-      final orderBody = orderRes.data is Map ? Map<String, dynamic>.from(orderRes.data as Map) : <String, dynamic>{};
-      final orderId = orderBody['orderId'] as String?;
-      if (orderId == null) throw Exception('Не удалось создать заказ');
+      final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
 
-      // Step 2: Confirm payment
-      // In production this would happen after a real payment gateway callback.
-      // For now the confirm endpoint validates the order chain.
-      final confirmRes = await ApiClient.post('/billing/confirm', data: {
-        'orderId': orderId,
-      });
-      final confirmData = confirmRes.data is Map ? Map<String, dynamic>.from(confirmRes.data as Map) : <String, dynamic>{};
-
-      if (confirmData['ok'] == true) {
-        _refresh();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('+$credits кредитов ($priceLabel)'),
-            backgroundColor: AurixTokens.positive,
-            behavior: SnackBarBehavior.floating,
-          ));
+      if (body['success'] == true && body['data'] != null) {
+        final data = Map<String, dynamic>.from(body['data'] as Map);
+        final url = data['paymentUrl'] as String?;
+        if (url != null && url.isNotEmpty) {
+          final uri = Uri.parse(url);
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          throw Exception('Не удалось получить ссылку на оплату');
         }
       } else {
-        throw Exception(confirmData['error'] ?? 'Ошибка подтверждения');
+        throw Exception(body['error']?.toString() ?? 'Ошибка создания платежа');
       }
     } catch (e) {
       final msg = e.toString().replaceAll('Exception: ', '');
@@ -148,9 +137,9 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
 
   Widget _buildPackages() {
     final packages = [
-      (credits: 50, price: '499 ₽', label: 'Старт', icon: Icons.flash_on_rounded, color: AurixTokens.muted),
-      (credits: 200, price: '1 490 ₽', label: 'Прорыв', icon: Icons.rocket_launch_rounded, color: AurixTokens.orange),
-      (credits: 500, price: '2 990 ₽', label: 'Империя', icon: Icons.diamond_rounded, color: AurixTokens.accent),
+      (id: 'small', credits: 100, price: '490 ₽', label: 'Старт', icon: Icons.flash_on_rounded, color: AurixTokens.muted),
+      (id: 'medium', credits: 500, price: '1 990 ₽', label: 'Прорыв', icon: Icons.rocket_launch_rounded, color: AurixTokens.orange),
+      (id: 'large', credits: 1000, price: '3 490 ₽', label: 'Империя', icon: Icons.diamond_rounded, color: AurixTokens.accent),
     ];
 
     return Row(
@@ -160,7 +149,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: _purchasing ? null : () => _purchase(p.credits, '${p.label} (${p.price})'),
+              onTap: _purchasing ? null : () => _purchase(p.id),
               borderRadius: BorderRadius.circular(12),
               child: AnimatedOpacity(
                 opacity: _purchasing ? 0.5 : 1.0,

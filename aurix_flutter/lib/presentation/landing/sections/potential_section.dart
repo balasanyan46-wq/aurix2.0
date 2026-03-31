@@ -165,7 +165,7 @@ class _ScorePainter extends CustomPainter {
           color: AurixTokens.text,
           fontSize: 52,
           fontWeight: FontWeight.w800,
-          fontFamily: 'Inter',
+          fontFamily: AurixTokens.fontBody,
           letterSpacing: -2,
         ),
       ),
@@ -177,7 +177,7 @@ class _ScorePainter extends CustomPainter {
     final tp2 = TextPainter(
       text: TextSpan(
         text: '/ 100',
-        style: TextStyle(color: AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w500, fontFamily: 'Inter'),
+        style: TextStyle(color: AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w500, fontFamily: AurixTokens.fontBody),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

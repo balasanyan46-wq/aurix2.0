@@ -48,10 +48,29 @@ export class SupportController {
     return this.svc.createTicket({ ...body, user_id: req.user.id });
   }
 
-  // Admin only: update ticket status
-  @UseGuards(AdminGuard)
+  // Update ticket — admin can update anything, owner can bump updated_at / reopen
   @Put('support-tickets/:id')
-  async updateTicket(@Param('id') id: string, @Body() body: Record<string, any>) {
+  async updateTicket(@Req() req: any, @Param('id') id: string, @Body() body: Record<string, any>) {
+    const admin = await this.isAdmin(req.user.id);
+
+    if (!admin) {
+      // Verify ownership
+      const ticket = await this.svc.getTicketById(+id);
+      if (!ticket || ticket.user_id !== req.user.id) {
+        throw new HttpException('not your ticket', HttpStatus.FORBIDDEN);
+      }
+      // Non-admin can only update: updated_at, status→open (reopen)
+      const allowed: Record<string, any> = {};
+      if (body.updated_at) allowed.updated_at = body.updated_at;
+      if (body.status === 'open') allowed.status = 'open';
+      if (Object.keys(allowed).length === 0) {
+        throw new HttpException('no allowed fields', HttpStatus.FORBIDDEN);
+      }
+      const row = await this.svc.updateTicket(+id, allowed);
+      if (!row) throw new HttpException('not found', HttpStatus.NOT_FOUND);
+      return row;
+    }
+
     const row = await this.svc.updateTicket(+id, body);
     if (!row) throw new HttpException('not found', HttpStatus.NOT_FOUND);
     return row;

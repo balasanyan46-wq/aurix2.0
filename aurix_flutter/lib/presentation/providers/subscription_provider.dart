@@ -35,7 +35,7 @@ final effectivePlanProvider = Provider<String>((ref) {
   final sub = ref.watch(currentSubscriptionProvider);
   if (sub != null && sub.plan.isNotEmpty) return sub.plan;
   final profile = ref.watch(currentProfileProvider).valueOrNull;
-  return profile?.planId ?? profile?.plan ?? 'start';
+  return profile?.planId ?? profile?.plan ?? 'free';
 });
 
 final effectiveBillingPeriodProvider = Provider<String>((ref) {
@@ -52,8 +52,10 @@ int _planRank(String raw) {
     case 'breakthrough':
       return 2;
     case 'start':
-    default:
       return 1;
+    case 'free':
+    default:
+      return 0;
   }
 }
 

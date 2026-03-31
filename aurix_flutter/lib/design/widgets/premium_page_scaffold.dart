@@ -13,11 +13,13 @@ class PremiumPageScaffold extends StatelessWidget {
     this.title,
     this.subtitle,
     this.trailing,
-    this.maxWidth = 960,
+    this.maxWidth = 1060,
     this.padding,
     this.animate = true,
     this.staggerMs = 50,
     this.heroChild,
+    this.systemLabel,
+    this.systemColor,
   });
 
   final List<Widget> children;
@@ -29,12 +31,14 @@ class PremiumPageScaffold extends StatelessWidget {
   final bool animate;
   final int staggerMs;
   final Widget? heroChild;
+  final String? systemLabel;
+  final Color? systemColor;
 
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
     final effectivePadding =
-        padding ?? EdgeInsets.fromLTRB(isDesktop ? 32 : 20, 24, isDesktop ? 32 : 20, 32);
+        padding ?? EdgeInsets.fromLTRB(isDesktop ? 32 : 20, 20, isDesktop ? 32 : 20, 32);
 
     final header = title != null
         ? _PageHeader(
@@ -42,6 +46,8 @@ class PremiumPageScaffold extends StatelessWidget {
             subtitle: subtitle,
             trailing: trailing,
             heroChild: heroChild,
+            systemLabel: systemLabel,
+            systemColor: systemColor,
           )
         : null;
 
@@ -80,62 +86,130 @@ class _PageHeader extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.heroChild,
+    this.systemLabel,
+    this.systemColor,
   });
 
   final String title;
   final String? subtitle;
   final Widget? trailing;
   final Widget? heroChild;
+  final String? systemLabel;
+  final Color? systemColor;
 
   @override
   Widget build(BuildContext context) {
+    final color = systemColor ?? AurixTokens.accent;
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: AurixTokens.text,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                        height: 1.15,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AurixTokens.radiusHero),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AurixTokens.bg1,
+              AurixTokens.surface2.withValues(alpha: 0.6),
+              AurixTokens.bg1.withValues(alpha: 0.95),
+            ],
+          ),
+          border: Border.all(color: AurixTokens.stroke(0.16)),
+          boxShadow: AurixTokens.elevatedShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // System label
+            if (systemLabel != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: color.withValues(alpha: 0.18)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: AurixTokens.positive,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AurixTokens.positive.withValues(alpha: 0.5),
+                              blurRadius: 6,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(width: 7),
                       Text(
-                        subtitle!,
-                        style: const TextStyle(
-                          color: AurixTokens.muted,
-                          fontSize: 14,
-                          height: 1.5,
+                        systemLabel!,
+                        style: TextStyle(
+                          fontFamily: AurixTokens.fontMono,
+                          color: color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 16),
-                trailing!,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontFamily: AurixTokens.fontHeading,
+                          color: AurixTokens.text,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.4,
+                          height: 1.15,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          subtitle!,
+                          style: TextStyle(
+                            fontFamily: AurixTokens.fontBody,
+                            color: AurixTokens.muted,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 16),
+                  trailing!,
+                ],
               ],
+            ),
+            if (heroChild != null) ...[
+              const SizedBox(height: 16),
+              heroChild!,
             ],
-          ),
-          if (heroChild != null) ...[
-            const SizedBox(height: 16),
-            heroChild!,
           ],
-        ],
+        ),
       ),
     );
   }
@@ -167,7 +241,7 @@ class PremiumErrorState extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AurixTokens.danger.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(icon, size: 28, color: AurixTokens.danger.withValues(alpha: 0.7)),
           ),
@@ -175,7 +249,8 @@ class PremiumErrorState extends StatelessWidget {
           if (title != null) ...[
             Text(
               title!,
-              style: const TextStyle(
+              style: TextStyle(
+                fontFamily: AurixTokens.fontHeading,
                 color: AurixTokens.text,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -197,7 +272,7 @@ class PremiumErrorState extends StatelessWidget {
             FilledButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Повторить'),
+              label: const Text('\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c'),
             ),
           ],
         ],
@@ -235,7 +310,8 @@ class PremiumLoadingState extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 message!,
-                style: const TextStyle(
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontBody,
                   color: AurixTokens.muted,
                   fontSize: 13,
                 ),
@@ -290,13 +366,12 @@ class PremiumTextField extends StatelessWidget {
       onChanged: onChanged,
       enabled: enabled,
       obscureText: obscureText,
-      style: const TextStyle(color: AurixTokens.text, fontSize: 15),
+      style: TextStyle(fontFamily: AurixTokens.fontBody, color: AurixTokens.text, fontSize: 15),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
-        // Theme-level InputDecorationTheme handles all the border styling
       ),
     );
   }
@@ -312,9 +387,17 @@ class PremiumDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: height / 2),
-      child: Divider(
-        color: AurixTokens.stroke(0.12),
+      child: Container(
         height: 1,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.transparent,
+              AurixTokens.stroke(0.14),
+              Colors.transparent,
+            ],
+          ),
+        ),
       ),
     );
   }

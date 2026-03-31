@@ -1,62 +1,28 @@
-/* AURIX FX — lightweight space-tech layer */
+/* AURIX FX — minimal, clean */
 :root{
   --aurix-accent:#FF6A1A;
-  --aurix-accent2:#7B5CFF;
-  --aurix-mx:50vw;
-  --aurix-my:30vh;
 }
 
 body{
   position:relative;
   isolation:isolate;
+  background:#050505;
 }
 
-/* Subtle static gradient glow — no animation, zero GPU cost */
+/* Subtle noise texture */
 body::before{
   content:"";
   position:fixed;
-  inset:-10%;
-  z-index:0;
-  pointer-events:none;
-  background:
-    radial-gradient(800px 500px at 20% 5%, rgba(255,106,26,.10), transparent 60%),
-    radial-gradient(700px 450px at 75% 20%, rgba(123,92,255,.07), transparent 60%),
-    radial-gradient(600px 500px at 50% 80%, rgba(123,92,255,.05), transparent 60%);
-  opacity:.9;
-}
-
-/* Neural grid pattern — subtle, static, adds depth */
-body::after{
-  content:"";
-  position:fixed;
   inset:0;
   z-index:0;
   pointer-events:none;
-  background-image:
-    linear-gradient(rgba(123,92,255,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(123,92,255,.03) 1px, transparent 1px);
-  background-size:80px 80px;
-  mask-image:radial-gradient(ellipse 70% 60% at 50% 30%, black 20%, transparent 70%);
-  -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 30%, black 20%, transparent 70%);
-  opacity:.6;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat:repeat;
+  background-size:128px;
+  opacity:0.03;
 }
 
-/* Cursor glow (JS updates vars) — desktop only, lightweight */
-#aurixCursorGlow{
-  position:fixed;
-  inset:0;
-  pointer-events:none;
-  z-index:1;
-  background:
-    radial-gradient(320px 240px at var(--aurix-mx) var(--aurix-my), rgba(255,106,26,.08), transparent 60%);
-  opacity:.8;
-  transition:opacity .3s ease;
-}
-
-/* Ensure Flutter content is above FX */
-#aurixCursorGlow{ z-index:1; }
-
-/* Flutter rendering elements — do NOT override position on flutter-view */
+/* Flutter rendering — above FX */
 flutter-view,
 flt-glass-pane,
 flt-scene-host,
@@ -68,8 +34,6 @@ flt-semantics-host{
   z-index:9999 !important;
 }
 
-/* Pause on reduced motion */
 @media (prefers-reduced-motion: reduce){
-  #aurixCursorGlow{display:none}
-  body::after{display:none}
+  body::before{display:none}
 }

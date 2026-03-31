@@ -13,11 +13,15 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
 import { CreditsService } from './credits.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class BillingController {
-  constructor(private readonly credits: CreditsService) {}
+  constructor(
+    private readonly credits: CreditsService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   // ── USER ENDPOINTS ───────────────────────────────────────
 
@@ -123,6 +127,15 @@ export class BillingController {
       [req.user.id, String(body.user_id), JSON.stringify({ amount: body.amount, reason: body.reason })],
     );
 
+    // Notify user about bonus credits
+    this.notifications.send({
+      user_id: body.user_id,
+      title: 'Начислены бонусные кредиты',
+      message: `Вам начислено ${body.amount} кредитов${body.reason ? `: ${body.reason}` : ''}`,
+      type: 'success',
+      meta: { amount: body.amount, reason: body.reason },
+    }).catch(() => {});
+
     return { ok: true, balance: result.balance, transactionId: result.transactionId };
   }
 
@@ -134,6 +147,15 @@ export class BillingController {
       throw new HttpException('user_id and plan required', HttpStatus.BAD_REQUEST);
     }
     const result = await this.credits.grantPlanCredits(body.user_id, body.plan);
+
+    this.notifications.send({
+      user_id: body.user_id,
+      title: 'Начислены кредиты по плану',
+      message: `Вам начислено ${result.granted} кредитов по плану «${body.plan}»`,
+      type: 'success',
+      meta: { plan: body.plan, granted: result.granted },
+    }).catch(() => {});
+
     return { ok: true, balance: result.balance, granted: result.granted };
   }
 
@@ -214,6 +236,15 @@ export class BillingController {
         [body.user_id, diff, body.credits],
       );
     }
+
+    // Notify user about balance change
+    this.notifications.send({
+      user_id: body.user_id,
+      title: 'Баланс изменён',
+      message: `Ваш баланс установлен: ${body.credits} кредитов`,
+      type: 'system',
+      meta: { new_balance: body.credits },
+    }).catch(() => {});
 
     return { ok: true, balance: body.credits };
   }

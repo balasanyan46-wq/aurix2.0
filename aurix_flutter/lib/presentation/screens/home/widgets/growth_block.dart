@@ -36,20 +36,21 @@ class GrowthBlock extends ConsumerWidget {
         final activeGoals = goals.where((g) => g['is_completed'] != true).length;
 
         return HomeSectionCard(
+          glowColor: AurixTokens.aiAccent,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
               Row(
                 children: [
-                  const HomeSectionTitle('Рост'),
-                  const SizedBox(width: 8),
+                  const HomeSectionTitle('\u0420\u043e\u0441\u0442', icon: Icons.trending_up_rounded),
+                  const SizedBox(width: 10),
                   _LevelBadge(level: level, name: levelName),
                   const Spacer(),
                   if (currentStreak > 0) _StreakChip(streak: currentStreak),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 18),
 
               // XP Progress bar
               _XpProgressBar(
@@ -58,7 +59,7 @@ class GrowthBlock extends ConsumerWidget {
                 xpToNext: xpToNext,
                 level: level,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // Stats row
               Row(
@@ -67,7 +68,7 @@ class GrowthBlock extends ConsumerWidget {
                     child: _GrowthStatTile(
                       icon: Icons.emoji_events_rounded,
                       color: AurixTokens.warning,
-                      label: 'Достижения',
+                      label: '\u0414\u043e\u0441\u0442\u0438\u0436\u0435\u043d\u0438\u044f',
                       value: '$unlockedCount / $totalAch',
                       onTap: onOpenAchievements,
                     ),
@@ -77,8 +78,8 @@ class GrowthBlock extends ConsumerWidget {
                     child: _GrowthStatTile(
                       icon: Icons.flag_rounded,
                       color: AurixTokens.positive,
-                      label: 'Цели',
-                      value: activeGoals > 0 ? '$activeGoals активных' : 'Создать',
+                      label: '\u0426\u0435\u043b\u0438',
+                      value: activeGoals > 0 ? '$activeGoals \u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445' : '\u0421\u043e\u0437\u0434\u0430\u0442\u044c',
                       onTap: onOpenGoals,
                     ),
                   ),
@@ -104,16 +105,17 @@ class _LevelBadge extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AurixTokens.accent.withValues(alpha: 0.22),
-            AurixTokens.aiAccent.withValues(alpha: 0.15),
+            AurixTokens.accent.withValues(alpha: 0.18),
+            AurixTokens.aiAccent.withValues(alpha: 0.12),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.22)),
       ),
       child: Text(
         'Lv.$level $name',
-        style: const TextStyle(
+        style: TextStyle(
+          fontFamily: AurixTokens.fontMono,
           color: AurixTokens.accentWarm,
           fontSize: 11,
           fontWeight: FontWeight.w700,
@@ -133,17 +135,19 @@ class _StreakChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AurixTokens.warning.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
+        color: AurixTokens.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AurixTokens.warning.withValues(alpha: 0.18)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.local_fire_department_rounded, size: 14, color: AurixTokens.warning),
+          Icon(Icons.local_fire_department_rounded, size: 13, color: AurixTokens.warning),
           const SizedBox(width: 3),
           Text(
-            '$streak д.',
-            style: const TextStyle(
+            '$streak \u0434.',
+            style: TextStyle(
+              fontFamily: AurixTokens.fontMono,
               color: AurixTokens.warning,
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -176,51 +180,51 @@ class _XpProgressBar extends StatelessWidget {
           children: [
             Text(
               '$currentXp XP',
-              style: const TextStyle(
+              style: TextStyle(
+                fontFamily: AurixTokens.fontMono,
                 color: AurixTokens.text,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
                 fontFeatures: AurixTokens.tabularFigures,
               ),
             ),
             const Spacer(),
             if (xpToNext > 0)
               Text(
-                'до Lv.${level + 1}: $xpToNext XP',
+                '\u0434\u043e Lv.${level + 1}: $xpToNext XP',
                 style: TextStyle(
-                  color: AurixTokens.muted,
+                  fontFamily: AurixTokens.fontBody,
+                  color: AurixTokens.micro,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(4),
           child: SizedBox(
-            height: 8,
+            height: 6,
             child: Stack(
               children: [
-                // Background
                 Container(
                   decoration: BoxDecoration(
-                    color: AurixTokens.glass(0.08),
-                    borderRadius: BorderRadius.circular(6),
+                    color: AurixTokens.glass(0.06),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                // Progress fill
                 FractionallySizedBox(
                   widthFactor: progress.clamp(0.0, 1.0),
                   child: Container(
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AurixTokens.accent, AurixTokens.accentWarm],
+                      gradient: LinearGradient(
+                        colors: [AurixTokens.aiAccent, AurixTokens.accent],
                       ),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(4),
                       boxShadow: [
                         BoxShadow(
-                          color: AurixTokens.accent.withValues(alpha: 0.4),
+                          color: AurixTokens.aiAccent.withValues(alpha: 0.35),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -237,7 +241,7 @@ class _XpProgressBar extends StatelessWidget {
   }
 }
 
-class _GrowthStatTile extends StatelessWidget {
+class _GrowthStatTile extends StatefulWidget {
   const _GrowthStatTile({
     required this.icon,
     required this.color,
@@ -252,53 +256,72 @@ class _GrowthStatTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<_GrowthStatTile> createState() => _GrowthStatTileState();
+}
+
+class _GrowthStatTileState extends State<_GrowthStatTile> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AurixTokens.glass(0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AurixTokens.stroke(0.14)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 16, color: color),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: widget.onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: AurixTokens.dFast,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _hovered ? AurixTokens.surface2.withValues(alpha: 0.6) : AurixTokens.glass(0.04),
+            borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+            border: Border.all(
+              color: _hovered ? widget.color.withValues(alpha: 0.2) : AurixTokens.stroke(0.1),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: AurixTokens.muted,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      color: AurixTokens.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(widget.icon, size: 16, color: widget.color),
               ),
-            ),
-            Icon(Icons.chevron_right_rounded, size: 16, color: AurixTokens.muted),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.label,
+                      style: TextStyle(
+                        fontFamily: AurixTokens.fontBody,
+                        color: AurixTokens.micro,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    Text(
+                      widget.value,
+                      style: TextStyle(
+                        fontFamily: AurixTokens.fontBody,
+                        color: AurixTokens.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (widget.onTap != null)
+                Icon(Icons.chevron_right_rounded, size: 16, color: AurixTokens.micro),
+            ],
+          ),
         ),
       ),
     );
@@ -314,15 +337,15 @@ class _GrowthBlockSkeleton extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 120, height: 16, decoration: BoxDecoration(color: AurixTokens.glass(0.08), borderRadius: BorderRadius.circular(8))),
+          Container(width: 120, height: 16, decoration: BoxDecoration(color: AurixTokens.glass(0.06), borderRadius: BorderRadius.circular(8))),
           const SizedBox(height: 14),
-          Container(width: double.infinity, height: 8, decoration: BoxDecoration(color: AurixTokens.glass(0.08), borderRadius: BorderRadius.circular(6))),
+          Container(width: double.infinity, height: 6, decoration: BoxDecoration(color: AurixTokens.glass(0.06), borderRadius: BorderRadius.circular(4))),
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: Container(height: 56, decoration: BoxDecoration(color: AurixTokens.glass(0.05), borderRadius: BorderRadius.circular(14)))),
+              Expanded(child: Container(height: 56, decoration: BoxDecoration(color: AurixTokens.glass(0.04), borderRadius: BorderRadius.circular(AurixTokens.radiusSm)))),
               const SizedBox(width: 10),
-              Expanded(child: Container(height: 56, decoration: BoxDecoration(color: AurixTokens.glass(0.05), borderRadius: BorderRadius.circular(14)))),
+              Expanded(child: Container(height: 56, decoration: BoxDecoration(color: AurixTokens.glass(0.04), borderRadius: BorderRadius.circular(AurixTokens.radiusSm)))),
             ],
           ),
         ],
