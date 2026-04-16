@@ -29,8 +29,11 @@ import { AiContextService, ContextMode } from './ai-context.service';
 import { AiProfileService } from './ai-profile.service';
 import { CoverService } from './cover.service';
 import { AudioAnalysisService } from './audio-analysis.service';
+import { ImprovedTrackService, GenerationMode } from './analysis/improved-track.service';
 import type { AiMode, AiGenerationType } from './ai-provider.interface';
 import { GENERATION_CREDIT_ACTIONS } from './ai-provider.interface';
+
+const VALID_GENERATION_MODES = new Set<GenerationMode>(['soft_improve', 'hit_rebuild', 'alt_vision']);
 
 const VALID_MODES = new Set<AiMode>([
   'chat', 'lyrics', 'ideas', 'reels', 'dnk', 'dnk_full', 'analyze',
@@ -65,6 +68,7 @@ export class AiController {
     private readonly profileSvc: AiProfileService,
     private readonly coverSvc: CoverService,
     private readonly audioAnalysis: AudioAnalysisService,
+    private readonly improvedTrack: ImprovedTrackService,
   ) {}
 
   // ── Text chat ──────────────────────────────────────────────
@@ -523,6 +527,65 @@ export class AiController {
     }
 
     return { ...result, credits: req.creditSpend };
+  }
+
+  // ── Generate improved track ────────────────────────────────
+
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Post('generate-improved-track')
+  async generateImprovedTrack(
+    @Req() req: any,
+    @Body() body: { analysis_id: string; mode?: string },
+  ) {
+    const userId = req.user?.id;
+    if (!userId) throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
+
+    if (!body.analysis_id) {
+      throw new HttpException('analysis_id is required', HttpStatus.BAD_REQUEST);
+    }
+
+    const mode: GenerationMode = VALID_GENERATION_MODES.has(body.mode as GenerationMode)
+      ? (body.mode as GenerationMode)
+      : 'soft_improve';
+
+    // Load analysis from DB
+    const { rows } = await this.pool.query(
+      `SELECT * FROM track_analyses WHERE id = $1 AND user_id = $2`,
+      [body.analysis_id, userId],
+    );
+    if (!rows.length) {
+      throw new HttpException('Analysis not found', HttpStatus.NOT_FOUND);
+    }
+
+    const row = rows[0];
+
+    // Must be new-format analysis
+    const isNewFormat = row.audio_metrics?.bpm?.bpm !== undefined;
+    if (!isNewFormat) {
+      throw new HttpException(
+        'This analysis was created with an older version. Please re-analyze the track first.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const analysis = {
+      measured_data: row.audio_metrics,
+      derived_insights: typeof row.lyrics_analysis === 'string'
+        ? JSON.parse(row.lyrics_analysis)
+        : row.lyrics_analysis,
+      ai_explanation: typeof row.ai_analysis === 'string'
+        ? JSON.parse(row.ai_analysis)
+        : row.ai_analysis,
+    };
+
+    const result = this.improvedTrack.generateImprovedTrackMock(
+      Number(body.analysis_id),
+      row.filename || 'track',
+      analysis,
+      mode,
+    );
+
+    return result;
   }
 
   // ── AI Vocal Processing ────────────────────────────────────
