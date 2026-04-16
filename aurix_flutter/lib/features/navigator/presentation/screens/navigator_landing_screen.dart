@@ -7,6 +7,7 @@ import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/features/navigator/data/navigator_models.dart';
 import 'package:aurix_flutter/features/navigator/presentation/navigator_controller.dart';
 import 'package:aurix_flutter/features/navigator/presentation/widgets/navigator_reveal.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 class NavigatorLandingScreen extends ConsumerWidget {
   const NavigatorLandingScreen({super.key});
@@ -28,6 +29,7 @@ class NavigatorLandingScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              SectionOnboarding(tip: OnboardingTips.navigator),
               // ── Hero ──
               NavigatorReveal(
                 child: _Hero(

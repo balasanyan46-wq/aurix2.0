@@ -35,18 +35,21 @@ export class AiProfileService {
       references_list?: string[];
       goals?: string[];
       style_description?: string;
+      goal?: string;
     },
   ): Promise<AiProfile> {
     const { rows } = await this.pool.query(
-      `INSERT INTO user_ai_profiles (user_id, name, genre, mood, references_list, goals, style_description)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO user_ai_profiles (user_id, name, genre, mood, references_list, goals, style_description, goal)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (user_id) DO UPDATE SET
          name = COALESCE(EXCLUDED.name, user_ai_profiles.name),
          genre = COALESCE(EXCLUDED.genre, user_ai_profiles.genre),
          mood = COALESCE(EXCLUDED.mood, user_ai_profiles.mood),
          references_list = COALESCE(EXCLUDED.references_list, user_ai_profiles.references_list),
          goals = COALESCE(EXCLUDED.goals, user_ai_profiles.goals),
-         style_description = COALESCE(EXCLUDED.style_description, user_ai_profiles.style_description)
+         style_description = COALESCE(EXCLUDED.style_description, user_ai_profiles.style_description),
+         goal = COALESCE(EXCLUDED.goal, user_ai_profiles.goal),
+         updated_at = now()
        RETURNING *`,
       [
         userId,
@@ -56,6 +59,7 @@ export class AiProfileService {
         data.references_list ?? [],
         data.goals ?? [],
         data.style_description ?? '',
+        data.goal ?? '',
       ],
     );
     return rows[0];

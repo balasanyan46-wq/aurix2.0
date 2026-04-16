@@ -87,7 +87,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         });
         return;
       }
-      await ref.read(authRepositoryProvider).signUp(email: email, password: password, phone: phone, name: name);
+      // Extract referral code from URL query params
+      final refCode = GoRouterState.of(context).uri.queryParameters['ref'];
+      await ref.read(authRepositoryProvider).signUp(email: email, password: password, phone: phone, name: name, ref: refCode);
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(

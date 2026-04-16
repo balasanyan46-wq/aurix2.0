@@ -6,6 +6,7 @@ import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/presentation/providers/artist_provider.dart';
 import 'models/artist_profile.dart';
+import 'package:aurix_flutter/presentation/screens/onboarding/artist_onboarding_flow.dart';
 
 /// Artist career screen — XP, level, goal, today's actions, AI recommendation.
 /// Also serves as the profile editor (no onboarding gate).
@@ -21,7 +22,14 @@ class ArtistScreen extends ConsumerWidget {
     if (profile.isEmpty) {
       return _InlineProfileEditor(onSave: (p) async {
         await ref.read(artistProfileProvider.notifier).save(p);
-        _syncToBackend(p);
+        final ok = await _syncToBackend(p);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(ok ? 'Профиль сохранён!' : 'Профиль сохранён локально, синхронизация позже'),
+            backgroundColor: ok ? AurixTokens.positive : AurixTokens.warning,
+            duration: const Duration(seconds: 2),
+          ));
+        }
       });
     }
 
@@ -85,14 +93,7 @@ class ArtistScreen extends ConsumerWidget {
             accent: AurixTokens.muted,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => _InlineProfileEditor(
-                  initial: profile,
-                  onSave: (p) async {
-                    await ref.read(artistProfileProvider.notifier).save(p);
-                    _syncToBackend(p);
-                    if (context.mounted) Navigator.of(context).pop();
-                  },
-                ),
+                builder: (_) => const ArtistOnboardingFlow(),
               ),
             ),
           )),
@@ -101,16 +102,23 @@ class ArtistScreen extends ConsumerWidget {
     );
   }
 
-  /// Fire-and-forget sync to backend (for server-side AI context).
-  static void _syncToBackend(ArtistProfile p) {
-    ApiClient.post('/api/ai/profile', data: {
-      'name': p.name,
-      'genre': p.genre,
-      'mood': p.mood,
-      'references_list': p.references,
-      'goals': p.goals,
-      'style_description': p.styleDescription,
-    }).ignore();
+  /// Sync profile to backend for AI context + cross-device persistence.
+  static Future<bool> _syncToBackend(ArtistProfile p) async {
+    try {
+      await ApiClient.post('/api/ai/profile', data: {
+        'name': p.name,
+        'genre': p.genre,
+        'mood': p.mood,
+        'references_list': p.references,
+        'goals': p.goals,
+        'style_description': p.styleDescription,
+        'goal': p.goal,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[ArtistScreen] Backend sync failed: $e');
+      return false;
+    }
   }
 
   void _editGoal(BuildContext context, WidgetRef ref, ArtistProfile profile) {

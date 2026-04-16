@@ -14,6 +14,17 @@ import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
+/// Checks viewport width WITHOUT BuildContext — safe from initState.
+bool _isDesktopView() {
+  try {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return (view.physicalSize.width / view.devicePixelRatio) >= 700;
+  } catch (_) {
+    return true;
+  }
+}
+
+
 // ── Analysis Result Model ────────────────────────────────────
 
 class TrackAnalysis {
@@ -1347,7 +1358,8 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   @override
-  void initState() { super.initState(); _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(); }
+  void initState() { super.initState(); _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
+ if (_isDesktopView()) _ctrl.repeat(); }
   @override
   void dispose() { _ctrl.dispose(); super.dispose(); }
   @override

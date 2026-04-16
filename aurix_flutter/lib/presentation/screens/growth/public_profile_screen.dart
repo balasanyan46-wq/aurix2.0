@@ -6,6 +6,7 @@ import 'package:aurix_flutter/config/app_config.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/data/providers/growth_providers.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 class PublicProfileScreen extends ConsumerStatefulWidget {
   const PublicProfileScreen({super.key});
@@ -124,6 +125,7 @@ class _PublicProfileScreenState extends ConsumerState<PublicProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                SectionOnboarding(tip: OnboardingTips.publicProfile),
                 // Public toggle
                 Container(
                   padding: const EdgeInsets.all(16),

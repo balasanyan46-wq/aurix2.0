@@ -16,6 +16,7 @@ import { AuthService } from '../auth/auth.service';
 import { MailService } from '../mail/mail.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserEventsService } from '../user-events/user-events.service';
+import { ReferralService } from '../referral/referral.service';
 
 // ═══════════════════════════════════════════════════════
 //  UsersController — /users/*
@@ -28,6 +29,7 @@ export class UsersController {
     private readonly authService: AuthService,
     private readonly mailService: MailService,
     private readonly events: UserEventsService,
+    private readonly referralService: ReferralService,
   ) {}
 
   // ───── POST /users/register ─────
@@ -35,7 +37,7 @@ export class UsersController {
   @Post('register')
   async register(
     @Req() req: any,
-    @Body() body: { email: string; password: string; name?: string; phone?: string },
+    @Body() body: { email: string; password: string; name?: string; phone?: string; ref?: string },
   ) {
     const { email, password, name, phone } = body;
 
@@ -73,11 +75,17 @@ export class UsersController {
 
     const user = await this.usersService.createUser(email, password, name, phone);
 
-    // Send verification email
-    await this.mailService.sendVerifyEmail(
-      user.email,
-      user.verification_token,
-    );
+    // Send verification email (non-blocking — don't fail registration if SMTP is down)
+    this.mailService.sendVerifyEmail(user.email, user.verification_token).catch((err) => {
+      console.error(`[Register] Failed to send verification email to ${email}: ${err.message}`);
+    });
+
+    // Apply referral code if provided
+    if (body.ref && typeof body.ref === 'string' && body.ref.trim()) {
+      this.referralService.applyReferralCode(user.id, body.ref.trim()).catch((err) => {
+        console.error(`[Register] Referral apply failed: ${err.message}`);
+      });
+    }
 
     // Log registration event
     this.events.log({ user_id: user.id, event: 'register', ip: req?.ip, user_agent: req?.headers?.['user-agent'] }).catch(() => {});
@@ -268,6 +276,88 @@ export class AuthController {
       success: true,
       message: 'Если аккаунт существует, письмо отправлено',
     };
+  }
+
+  // ───── GET /auth/reset-password — HTML form ─────
+  @Get('reset-password')
+  @Header('Content-Type', 'text/html')
+  async resetPasswordPage(@Query('token') token: string) {
+    if (!token) {
+      return this.buildResetHtml('', 'Недействительная ссылка. Запросите сброс пароля заново.');
+    }
+
+    const user = await this.usersService.findByResetToken(token);
+    if (!user) {
+      return this.buildResetHtml('', 'Ссылка недействительна или истекла. Запросите новую.');
+    }
+
+    if (new Date() > new Date(user.reset_token_expires)) {
+      return this.buildResetHtml('', 'Ссылка для сброса пароля истекла. Запросите новую.');
+    }
+
+    return this.buildResetHtml(token);
+  }
+
+  private buildResetHtml(token: string, error?: string): string {
+    const appUrl = process.env.APP_URL || 'https://aurixmusic.ru';
+    return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Сброс пароля — AURIX</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0f;color:#e8e6f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#14141f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:40px;max-width:400px;width:100%}
+.logo{text-align:center;margin-bottom:24px;font-size:20px;font-weight:800;letter-spacing:3px;color:#ff8c42}
+h1{font-size:18px;font-weight:600;margin-bottom:8px;text-align:center}
+.sub{color:#8b8a99;font-size:13px;text-align:center;margin-bottom:24px}
+label{display:block;font-size:12px;color:#8b8a99;margin-bottom:4px;font-weight:600}
+input{width:100%;padding:10px 14px;background:#1a1a2e;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e8e6f0;font-size:14px;margin-bottom:16px;outline:none}
+input:focus{border-color:#ff8c42}
+button{width:100%;padding:12px;background:#ff8c42;color:#0a0a0f;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+button:hover{background:#ff9f5a}
+button:disabled{opacity:.5;cursor:not-allowed}
+.error{background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);color:#f87171;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;text-align:center}
+.success{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#4ade80;padding:14px;border-radius:8px;font-size:14px;text-align:center}
+.link{display:block;text-align:center;margin-top:16px;color:#ff8c42;text-decoration:none;font-size:13px}
+</style>
+</head>
+<body>
+<div class="card">
+<div class="logo">AURIX</div>
+${error ? `<div class="error">${error}</div><a href="${appUrl}" class="link">Вернуться в AURIX</a>` : `
+<h1>Новый пароль</h1>
+<p class="sub">Введите новый пароль для вашего аккаунта</p>
+<div id="msg"></div>
+<form id="f" onsubmit="return go(event)">
+<label>Новый пароль</label>
+<input type="password" id="pw" minlength="8" required placeholder="Минимум 8 символов">
+<label>Повторите пароль</label>
+<input type="password" id="pw2" minlength="8" required placeholder="Повторите пароль">
+<button type="submit" id="btn">Сменить пароль</button>
+</form>
+<a href="${appUrl}" class="link">Вернуться в AURIX</a>
+<script>
+async function go(e){
+  e.preventDefault();
+  var pw=document.getElementById('pw').value,pw2=document.getElementById('pw2').value,
+      btn=document.getElementById('btn'),msg=document.getElementById('msg');
+  if(pw!==pw2){msg.innerHTML='<div class="error">Пароли не совпадают</div>';return}
+  if(pw.length<8){msg.innerHTML='<div class="error">Минимум 8 символов</div>';return}
+  btn.disabled=true;btn.textContent='Сохраняем...';
+  try{
+    var r=await fetch('${appUrl}/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:'${token}',password:pw})});
+    var d=await r.json();
+    if(r.ok){msg.innerHTML='<div class="success">✓ Пароль успешно изменён! Войдите в приложение с новым паролем.</div>';document.getElementById('f').style.display='none'}
+    else{msg.innerHTML='<div class="error">'+(d.message||'Ошибка')+'</div>';btn.disabled=false;btn.textContent='Сменить пароль'}
+  }catch(ex){msg.innerHTML='<div class="error">Ошибка сети</div>';btn.disabled=false;btn.textContent='Сменить пароль'}
+}
+</script>
+`}
+</div>
+</body>
+</html>`;
   }
 
   // ───── POST /auth/reset-password ─────

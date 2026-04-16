@@ -3,6 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'landing_shared.dart';
 
+/// Checks viewport width WITHOUT BuildContext — safe to call from initState.
+bool _isDesktopView() {
+  try {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return (view.physicalSize.width / view.devicePixelRatio) >= 700;
+  } catch (_) {
+    return true;
+  }
+}
+
+
 class DnaSection extends StatelessWidget {
   const DnaSection({super.key});
 
@@ -137,7 +148,9 @@ class _DnaVisualState extends State<_DnaVisual> with SingleTickerProviderStateMi
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 8));
+
+    if (_isDesktopView()) _c.repeat();
   }
 
   @override

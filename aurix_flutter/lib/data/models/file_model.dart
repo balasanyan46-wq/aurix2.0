@@ -27,7 +27,7 @@ class FileModel {
       kind: json['kind']?.toString() ?? '',
       path: json['path']?.toString() ?? '',
       mime: json['mime']?.toString(),
-      size: json['size'] as int?,
+      size: json['size'] is num ? (json['size'] as num).toInt() : int.tryParse(json['size']?.toString() ?? ''),
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }

@@ -1,6 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
+import 'package:aurix_flutter/data/providers/notification_providers.dart';
 import 'home_shared.dart';
 
 class AnalyticsViewModel {
@@ -14,7 +17,7 @@ class AnalyticsViewModel {
   const AnalyticsViewModel.empty()
       : hasData = false,
         streams = 0,
-        savesText = '\u041d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445',
+        savesText = 'Нет данных',
         points = const [];
 
   final bool hasData;
@@ -23,6 +26,171 @@ class AnalyticsViewModel {
   final List<double> points;
 }
 
+/// Top KPI metrics row — 3-4 compact cards.
+class KpiMetricsRow extends StatelessWidget {
+  const KpiMetricsRow({
+    super.key,
+    required this.totalReleases,
+    required this.liveReleases,
+    required this.streams,
+    required this.revenue,
+  });
+
+  final int totalReleases;
+  final int liveReleases;
+  final int streams;
+  final double revenue;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final cards = [
+      _KpiCard(
+        icon: Icons.album_rounded,
+        color: AurixTokens.accent,
+        label: 'Релизы',
+        value: '$liveReleases',
+        sub: 'из $totalReleases',
+      ),
+      _KpiCard(
+        icon: Icons.headphones_rounded,
+        color: AurixTokens.aiAccent,
+        label: 'Стримы',
+        value: NumberFormat.compact(locale: 'ru').format(streams),
+        sub: 'за 7 дней',
+      ),
+      _KpiCard(
+        icon: Icons.account_balance_wallet_rounded,
+        color: AurixTokens.positive,
+        label: 'Доход',
+        value: NumberFormat.compactCurrency(locale: 'ru', symbol: '₽', decimalDigits: 0).format(revenue),
+        sub: 'за месяц',
+      ),
+    ];
+
+    if (isMobile) {
+      return Row(
+        children: cards
+            .map((c) => Expanded(child: c))
+            .expand((w) => [w, const SizedBox(width: 10)])
+            .toList()
+          ..removeLast(),
+      );
+    }
+    return Row(
+      children: cards
+          .map((c) => Expanded(child: c))
+          .expand((w) => [w, const SizedBox(width: 12)])
+          .toList()
+        ..removeLast(),
+    );
+  }
+}
+
+class _KpiCard extends StatefulWidget {
+  const _KpiCard({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+    required this.sub,
+  });
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+  final String sub;
+
+  @override
+  State<_KpiCard> createState() => _KpiCardState();
+}
+
+class _KpiCardState extends State<_KpiCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: AurixTokens.dMedium,
+        curve: AurixTokens.cEase,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _hovered ? widget.color.withValues(alpha: 0.08) : AurixTokens.bg1,
+              AurixTokens.bg1.withValues(alpha: 0.95),
+            ],
+          ),
+          border: Border.all(
+            color: _hovered ? widget.color.withValues(alpha: 0.25) : AurixTokens.stroke(0.12),
+          ),
+          boxShadow: _hovered
+              ? [BoxShadow(color: widget.color.withValues(alpha: 0.1), blurRadius: 24, offset: const Offset(0, 8))]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: widget.color.withValues(alpha: 0.15)),
+                  ),
+                  child: Icon(widget.icon, size: 16, color: widget.color),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  widget.label.toUpperCase(),
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontMono,
+                    color: AurixTokens.muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              widget.value,
+              style: TextStyle(
+                fontFamily: AurixTokens.fontMono,
+                color: AurixTokens.text,
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                fontFeatures: const [FontFeature.tabularFigures()],
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.sub,
+              style: TextStyle(
+                fontFamily: AurixTokens.fontBody,
+                color: AurixTokens.micro,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Analytics card with mini chart.
 class AnalyticsBlock extends StatelessWidget {
   const AnalyticsBlock({super.key, required this.analytics, required this.onOpenAnalytics});
 
@@ -35,18 +203,12 @@ class AnalyticsBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const HomeSectionTitle('\u0410\u043d\u0430\u043b\u0438\u0442\u0438\u043a\u0430', icon: Icons.insights_rounded),
-              const Spacer(),
-              _OpenButton(onTap: onOpenAnalytics),
-            ],
-          ),
+          HomeSectionTitle('Динамика', icon: Icons.insights_rounded, trailing: _OpenButton(onTap: onOpenAnalytics)),
           const SizedBox(height: 14),
           if (!analytics.hasData)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               decoration: BoxDecoration(
                 color: AurixTokens.surface1.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
@@ -56,28 +218,13 @@ class AnalyticsBlock extends StatelessWidget {
                 children: [
                   Icon(Icons.bar_chart_rounded, size: 28, color: AurixTokens.micro),
                   const SizedBox(height: 8),
-                  Text(
-                    '\u0414\u0430\u043d\u043d\u044b\u0445 \u043f\u043e \u0434\u0438\u043d\u0430\u043c\u0438\u043a\u0435 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442',
-                    style: TextStyle(
-                      fontFamily: AurixTokens.fontBody,
-                      color: AurixTokens.muted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  Text('Данных пока нет', style: TextStyle(fontFamily: AurixTokens.fontBody, color: AurixTokens.muted, fontSize: 13)),
                   const SizedBox(height: 4),
-                  Text(
-                    '\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u043e\u0442\u0447\u0451\u0442\u044b, \u0447\u0442\u043e\u0431\u044b \u0443\u0432\u0438\u0434\u0435\u0442\u044c \u0442\u0440\u0435\u043d\u0434.',
-                    style: TextStyle(
-                      fontFamily: AurixTokens.fontBody,
-                      color: AurixTokens.micro,
-                      fontSize: 12,
-                    ),
-                  ),
+                  Text('Загрузите отчёты для аналитики', style: TextStyle(fontFamily: AurixTokens.fontBody, color: AurixTokens.micro, fontSize: 12)),
                 ],
               ),
             )
-          else ...[
+          else
             SizedBox(
               height: 80,
               child: CustomPaint(
@@ -85,25 +232,70 @@ class AnalyticsBlock extends StatelessWidget {
                 size: const Size(double.infinity, 80),
               ),
             ),
-            const SizedBox(height: 14),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: HomeMetricTile(
-                  title: '\u041f\u0440\u043e\u0441\u043b\u0443\u0448\u0438\u0432\u0430\u043d\u0438\u044f',
-                  value: NumberFormat.compact(locale: 'ru').format(analytics.streams),
+        ],
+      ),
+    );
+  }
+}
+
+/// Recent notifications block.
+class RecentNotificationsBlock extends ConsumerWidget {
+  const RecentNotificationsBlock({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifs = ref.watch(notificationsProvider).valueOrNull ?? [];
+    final recent = notifs.take(3).toList();
+
+    if (recent.isEmpty) return const SizedBox.shrink();
+
+    return HomeSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const HomeSectionTitle('Уведомления', icon: Icons.notifications_rounded),
+          const SizedBox(height: 12),
+          ...recent.map((n) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(top: 6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: n.isRead ? AurixTokens.micro : AurixTokens.accent,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            n.title,
+                            style: TextStyle(
+                              color: AurixTokens.text,
+                              fontSize: 13,
+                              fontWeight: n.isRead ? FontWeight.w500 : FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            n.message,
+                            style: const TextStyle(color: AurixTokens.muted, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: HomeMetricTile(
-                  title: '\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f',
-                  value: analytics.savesText,
-                ),
-              ),
-            ],
-          ),
+              )),
         ],
       ),
     );
@@ -143,7 +335,7 @@ class _OpenButtonState extends State<_OpenButton> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '\u041e\u0442\u043a\u0440\u044b\u0442\u044c',
+                'Открыть',
                 style: TextStyle(
                   fontFamily: AurixTokens.fontBody,
                   color: _hovered ? AurixTokens.text : AurixTokens.muted,
@@ -152,11 +344,7 @@ class _OpenButtonState extends State<_OpenButton> {
                 ),
               ),
               const SizedBox(width: 4),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 13,
-                color: _hovered ? AurixTokens.text : AurixTokens.muted,
-              ),
+              Icon(Icons.arrow_forward_rounded, size: 13, color: _hovered ? AurixTokens.text : AurixTokens.muted),
             ],
           ),
         ),
@@ -172,11 +360,7 @@ class FinanceBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = NumberFormat.compactCurrency(
-      locale: 'ru',
-      symbol: '\u20bd',
-      decimalDigits: 1,
-    ).format(revenue);
+    final value = NumberFormat.compactCurrency(locale: 'ru', symbol: '₽', decimalDigits: 1).format(revenue);
     return HomeSectionCard(
       child: Row(
         children: [
@@ -195,26 +379,9 @@ class FinanceBlock extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '\u0414\u043e\u0445\u043e\u0434 \u0437\u0430 \u043c\u0435\u0441\u044f\u0446',
-                  style: TextStyle(
-                    fontFamily: AurixTokens.fontBody,
-                    color: AurixTokens.muted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text('Доход за месяц', style: TextStyle(fontFamily: AurixTokens.fontBody, color: AurixTokens.muted, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontFamily: AurixTokens.fontMono,
-                    color: AurixTokens.text,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 24,
-                    fontFeatures: AurixTokens.tabularFigures,
-                  ),
-                ),
+                Text(value, style: TextStyle(fontFamily: AurixTokens.fontMono, color: AurixTokens.text, fontWeight: FontWeight.w700, fontSize: 24, fontFeatures: AurixTokens.tabularFigures)),
               ],
             ),
           ),
@@ -243,7 +410,6 @@ class _MiniChartPainter extends CustomPainter {
       if (i == 0) {
         path.moveTo(x, y);
       } else {
-        // Smooth curve between points
         final prevX = (i - 1) * step;
         final prevY = size.height - ((points[i - 1] / max) * (size.height - 8)) - 4;
         final midX = (prevX + x) / 2;
@@ -251,7 +417,6 @@ class _MiniChartPainter extends CustomPainter {
       }
     }
 
-    // Gradient fill under curve
     final fillPath = Path.from(path)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
@@ -260,14 +425,10 @@ class _MiniChartPainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          AurixTokens.accent.withValues(alpha: 0.12),
-          AurixTokens.accent.withValues(alpha: 0.0),
-        ],
+        colors: [AurixTokens.accent.withValues(alpha: 0.12), AurixTokens.accent.withValues(alpha: 0.0)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
     canvas.drawPath(fillPath, fillPaint);
 
-    // Glow line
     final glow = Paint()
       ..color = AurixTokens.accent.withValues(alpha: 0.15)
       ..style = PaintingStyle.stroke
@@ -275,7 +436,6 @@ class _MiniChartPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
     canvas.drawPath(path, glow);
 
-    // Main line
     final line = Paint()
       ..color = AurixTokens.accent
       ..style = PaintingStyle.stroke
@@ -284,22 +444,11 @@ class _MiniChartPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
     canvas.drawPath(path, line);
 
-    // End dot
     if (points.isNotEmpty) {
       final lastX = (points.length - 1) * step;
       final lastY = size.height - ((points.last / max) * (size.height - 8)) - 4;
-      canvas.drawCircle(
-        Offset(lastX, lastY),
-        3.5,
-        Paint()..color = AurixTokens.accent,
-      );
-      canvas.drawCircle(
-        Offset(lastX, lastY),
-        6,
-        Paint()
-          ..color = AurixTokens.accent.withValues(alpha: 0.2)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
-      );
+      canvas.drawCircle(Offset(lastX, lastY), 3.5, Paint()..color = AurixTokens.accent);
+      canvas.drawCircle(Offset(lastX, lastY), 6, Paint()..color = AurixTokens.accent.withValues(alpha: 0.2)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
     }
   }
 

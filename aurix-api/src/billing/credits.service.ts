@@ -105,6 +105,22 @@ export class CreditsService implements OnModuleInit {
       await client.query('COMMIT');
 
       this.log.log(`User ${userId} spent ${cost} credits (${actionKey}), balance: ${newBalance}`);
+
+      // Notify user when credits drop below 100
+      if (newBalance <= 100 && newBalance + cost > 100) {
+        this.pool.query(
+          `INSERT INTO notifications (user_id, title, message, type, meta) VALUES ($1, $2, $3, $4, $5)`,
+          [userId, 'Кредиты заканчиваются', `Осталось ${newBalance} кредитов. Пополните баланс чтобы продолжить использовать AI.`, 'warning', JSON.stringify({ balance: newBalance })],
+        ).catch(() => {});
+      }
+      // Notify when credits hit zero
+      if (newBalance <= 0 && newBalance + cost > 0) {
+        this.pool.query(
+          `INSERT INTO notifications (user_id, title, message, type, meta) VALUES ($1, $2, $3, $4, $5)`,
+          [userId, 'Кредиты закончились', 'Ваш баланс кредитов исчерпан. Пополните баланс для использования AI функций.', 'warning', JSON.stringify({ balance: 0 })],
+        ).catch(() => {});
+      }
+
       return { ok: true, balance: newBalance, cost, transactionId: txRows[0].id };
     } catch (e) {
       await client.query('ROLLBACK');

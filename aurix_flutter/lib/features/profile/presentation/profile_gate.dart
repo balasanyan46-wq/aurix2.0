@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 
 /// Redirects to /profile?mandatory=1 when user has no profile or empty name.
+/// Then redirects to /onboarding when AI profile is empty.
 class ProfileGate extends ConsumerStatefulWidget {
   final Widget child;
   final String location;
@@ -17,6 +19,22 @@ class ProfileGate extends ConsumerStatefulWidget {
 
 class _ProfileGateState extends ConsumerState<ProfileGate> {
   bool _redirected = false;
+  bool _onboardingChecked = false;
+
+  Future<void> _checkAiProfile() async {
+    try {
+      final res = await ApiClient.get('/api/ai/profile');
+      final data = res.data;
+      // If backend has a profile with a name, onboarding is done
+      if (data is Map && (data['name'] ?? '').toString().trim().isNotEmpty) {
+        return; // Already onboarded
+      }
+      // No AI profile — show onboarding
+      if (mounted) context.go('/onboarding');
+    } catch (_) {
+      // API error — don't block, skip onboarding
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +43,8 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
 
     final isProfileRoute = widget.location.startsWith('/profile');
     final isAuthRoute = widget.location == '/login' || widget.location == '/register';
-    if (isProfileRoute || isAuthRoute) return widget.child;
+    final isOnboarding = widget.location == '/onboarding';
+    if (isProfileRoute || isAuthRoute || isOnboarding) return widget.child;
 
     final needsFill = ref.watch(profileNeedsFillProvider);
     return needsFill.when(
@@ -35,7 +54,27 @@ class _ProfileGateState extends ConsumerState<ProfileGate> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (context.mounted) context.go('/profile?mandatory=1');
           });
+          return widget.child;
         }
+
+        // After basic profile is filled, check AI profile onboarding (once)
+        if (!needs && !_onboardingChecked && widget.location == '/home') {
+          _onboardingChecked = true;
+          _checkAiProfile();
+        }
+
+        // After profile + onboarding, redirect to subscription if no plan
+        if (!needs && widget.location == '/home') {
+          final profile = ref.read(currentProfileProvider).valueOrNull;
+          if (profile != null &&
+              (profile.plan == 'none' || profile.plan.isEmpty) &&
+              (profile.subscriptionStatus == 'none' || profile.subscriptionStatus.isEmpty)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) context.go('/subscription');
+            });
+          }
+        }
+
         return widget.child;
       },
       loading: () => widget.child,

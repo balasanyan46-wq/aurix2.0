@@ -14,6 +14,7 @@ import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/core/services/event_tracker.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 class ReleasesListScreen extends ConsumerStatefulWidget {
   const ReleasesListScreen({super.key});
@@ -61,6 +62,7 @@ class _ReleasesListScreenState extends ConsumerState<ReleasesListScreen> {
                 ),
               ),
         children: [
+          SectionOnboarding(tip: OnboardingTips.releases),
           // Search & filter
           FadeInSlide(delayMs: 60, child: _buildSearchAndFilter()),
           const SizedBox(height: 16),
@@ -217,7 +219,7 @@ class _ReleasesListScreenState extends ConsumerState<ReleasesListScreen> {
 
   Widget _buildEmptyState(BuildContext context) {
     return PremiumSectionCard(
-      padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 32),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       child: Column(
         children: [
           Container(
@@ -478,26 +480,25 @@ class _ReleasesStats extends StatelessWidget {
         ),
         border: Border.all(color: AurixTokens.stroke(0.12)),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 8,
         children: [
           _QuickStat(
             label: '\u0412\u0441\u0435\u0433\u043e',
             value: '${releases.length}',
             color: AurixTokens.text,
           ),
-          const SizedBox(width: 20),
           _QuickStat(
             label: '\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e',
             value: '$live',
             color: AurixTokens.positive,
           ),
-          const SizedBox(width: 20),
           _QuickStat(
             label: '\u041d\u0430 \u043c\u043e\u0434\u0435\u0440\u0430\u0446\u0438\u0438',
             value: '$pending',
             color: AurixTokens.warning,
           ),
-          const SizedBox(width: 20),
           _QuickStat(
             label: '\u0427\u0435\u0440\u043d\u043e\u0432\u0438\u043a\u0438',
             value: '$drafts',
@@ -617,7 +618,8 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                   ]
                 : null,
           ),
-          child: Row(
+          child: Column(children: [
+            Row(
             children: [
               // Cover
               Container(
@@ -806,7 +808,13 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                 ),
               ),
             ],
-          ),
+            ),
+            // Moderation progress bar
+            if (r.status != 'draft') ...[
+              const SizedBox(height: 10),
+              _ModerationProgress(status: r.status),
+            ],
+          ]),
         ),
       ),
     );
@@ -887,5 +895,42 @@ class _ReleaseCardSkeleton extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Moderation progress indicator
+// ═══════════════════════════════════════════════════════════════
+
+class _ModerationProgress extends StatelessWidget {
+  final String status;
+  const _ModerationProgress({required this.status});
+
+  static const _steps = ['submitted', 'approved', 'live'];
+  static const _labels = ['Модерация', 'Одобрен', 'На площадках'];
+
+  @override
+  Widget build(BuildContext context) {
+    final currentIdx = status == 'rejected' ? -1 : _steps.indexOf(status);
+
+    return Row(children: List.generate(_steps.length * 2 - 1, (i) {
+      if (i.isOdd) {
+        final segDone = currentIdx >= (i ~/ 2 + 1);
+        return Expanded(child: Container(height: 2, color: segDone ? AurixTokens.positive : AurixTokens.stroke(0.1)));
+      }
+      final idx = i ~/ 2;
+      final done = currentIdx >= idx;
+      final isRejected = status == 'rejected' && idx == 0;
+      final color = isRejected ? AurixTokens.danger : done ? AurixTokens.positive : AurixTokens.micro;
+
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 8, height: 8,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: done || isRejected ? color : Colors.transparent, border: Border.all(color: color, width: 1.5)),
+        ),
+        const SizedBox(width: 4),
+        Text(_labels[idx], style: TextStyle(color: color, fontSize: 9, fontWeight: done ? FontWeight.w700 : FontWeight.w500)),
+      ]);
+    }));
   }
 }

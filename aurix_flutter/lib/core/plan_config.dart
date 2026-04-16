@@ -21,7 +21,6 @@ class PlanConfig {
     this.studioAiNoteKey,
   });
 
-  /// DB slug for this plan
   String get slug => plan.slug;
 }
 
@@ -55,6 +54,9 @@ const List<PlanConfig> planConfigs = [
       'planStartF2',
       'planStartF3',
       'planStartF4',
+      'planStartF5',
+      'planStartF6',
+      'planStartF7',
       'planStartStudioNo',
     ],
     badgeKey: null,
@@ -72,6 +74,7 @@ const List<PlanConfig> planConfigs = [
       'planBreakthroughF4',
       'planBreakthroughF5',
       'planBreakthroughF6',
+      'planBreakthroughF7',
       'planBreakthroughStudioYes',
       'planBreakthroughStudioLimit',
     ],

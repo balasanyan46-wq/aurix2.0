@@ -372,7 +372,7 @@ class _AdminCrmTabState extends ConsumerState<AdminCrmTab> {
                       deals:
                           deals.where((d) => d.userId == lead.userId).toList(),
                       tasks: tasks
-                          .where((t) => t.assignedTo == lead.assignedTo)
+                          .where((t) => t.leadId == lead.id)
                           .toList(),
                       invoices:
                           invoices.where((inv) => inv.userId == lead.userId).toList(),

@@ -35,10 +35,10 @@ class ProfileModel {
     this.artistName,
     this.role = 'artist',
     this.accountStatus = 'active',
-    this.plan = 'start',
-    this.planId = 'start',
+    this.plan = 'none',
+    this.planId = 'none',
     this.billingPeriod = 'monthly',
-    this.subscriptionStatus = 'trial',
+    this.subscriptionStatus = 'none',
     this.subscriptionEnd,
   });
 
@@ -70,7 +70,7 @@ class ProfileModel {
       plan: _migratePlanSlug((json['plan_id'] ?? json['plan'])?.toString()),
       planId: _migratePlanSlug((json['plan_id'] ?? json['plan'])?.toString()),
       billingPeriod: json['billing_period']?.toString() ?? 'monthly',
-      subscriptionStatus: json['subscription_status']?.toString() ?? 'trial',
+      subscriptionStatus: json['subscription_status']?.toString() ?? 'none',
       subscriptionEnd: json['subscription_end'] != null
           ? DateTime.tryParse(json['subscription_end'].toString())
           : null,
@@ -148,6 +148,7 @@ String _migratePlanSlug(String? raw) {
     case 'base': case 'basic': case 'BASE': return 'start';
     case 'pro': case 'PRO': return 'breakthrough';
     case 'studio': case 'STUDIO': return 'empire';
-    default: return 'start';
+    case null: case '': case 'none': return 'none';
+    default: return 'none';
   }
 }

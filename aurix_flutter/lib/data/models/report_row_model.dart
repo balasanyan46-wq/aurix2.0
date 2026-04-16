@@ -42,14 +42,28 @@ class ReportRowModel {
       isrc: json['isrc']?.toString(),
       platform: json['platform']?.toString(),
       country: json['country']?.toString(),
-      streams: (json['streams'] as num?)?.toInt() ?? 0,
-      revenue: (json['revenue'] as num?)?.toDouble() ?? 0,
+      // Postgres возвращает numeric и bigint как строку для сохранения точности —
+      // поэтому безопаснее парсить и строку, и число.
+      streams: _parseInt(json['streams']),
+      revenue: _parseDouble(json['revenue']),
       currency: json['currency']?.toString() ?? 'USD',
       trackId: json['track_id']?.toString(),
       userId: json['user_id']?.toString(),
       releaseId: json['release_id']?.toString(),
-      rawRowJson: json['raw_row_json'] as Map<String, dynamic>?,
+      rawRowJson: json['raw_row_json'] is Map ? Map<String, dynamic>.from(json['raw_row_json'] as Map) : null,
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
+  }
+
+  static int _parseInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString()) ?? double.tryParse(v.toString())?.toInt() ?? 0;
+  }
+
+  static double _parseDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString().replaceAll(',', '.')) ?? 0;
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/app/auth/auth_gate.dart';
 import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/presentation/screens/auth/login_screen.dart';
@@ -15,6 +16,7 @@ import 'package:aurix_flutter/presentation/screens/admin/admin_panel.dart';
 import 'package:aurix_flutter/presentation/screens/studio/studio_screen.dart';
 import 'package:aurix_flutter/presentation/screens/studio/studio_hub_screen.dart';
 import 'package:aurix_flutter/presentation/screens/studio/artist_screen.dart';
+import 'package:aurix_flutter/presentation/screens/studio_ai/studio_ai_screen.dart';
 import 'package:aurix_flutter/presentation/screens/subscription/subscription_route_screen.dart';
 import 'package:aurix_flutter/presentation/screens/billing/credits_screen.dart';
 import 'package:aurix_flutter/presentation/screens/growth/achievements_screen.dart';
@@ -54,6 +56,16 @@ import 'package:aurix_flutter/features/navigator/presentation/screens/navigator_
 import 'package:aurix_flutter/presentation/widgets/subscription_guard.dart';
 import 'package:aurix_flutter/presentation/screens/promo/promo_video_screen.dart';
 import 'package:aurix_flutter/presentation/screens/payments/payment_result_screen.dart';
+import 'package:aurix_flutter/presentation/screens/beats/beats_catalog_screen.dart';
+import 'package:aurix_flutter/presentation/screens/beats/beat_upload_screen.dart';
+import 'package:aurix_flutter/presentation/screens/referral/referral_screen.dart';
+import 'package:aurix_flutter/presentation/screens/onboarding/artist_onboarding_flow.dart';
+import 'package:aurix_flutter/features/casting/presentation/casting_landing_page.dart';
+import 'package:aurix_flutter/features/casting/presentation/casting_apply_page.dart';
+import 'package:aurix_flutter/features/casting/presentation/casting_success_page.dart';
+import 'package:aurix_flutter/features/mini_studio/presentation/ai_studio_flow.dart';
+import 'package:aurix_flutter/features/mini_studio/presentation/studio_mode_screen.dart';
+import 'package:aurix_flutter/features/mini_studio/presentation/track_result_screen.dart';
 
 /// Fade transition for shell-internal pages (200ms, easeOut).
 class _FadePage<T> extends CustomTransitionPage<T> {
@@ -82,10 +94,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final isAuthPage = loc == '/' || loc == '/login' || loc == '/register';
       final isLegalPublic = loc == '/legal' || loc.startsWith('/legal/');
-      final isPublic = isAuthPage || isLegalPublic;
+      final isCasting = loc.startsWith('/casting');
+      final isPublic = isAuthPage || isLegalPublic || isCasting;
       if (!isReady) {
-        // Never render any user-specific screen until session restore is complete.
-        return loc == '/' ? null : '/';
+        // Session not restored yet — don't redirect, let AuthGate show loading.
+        // This preserves the original URL so after init the user stays on the same page.
+        return null;
       }
       if (!hasUser && !isPublic) return '/';
       if (hasUser && isAuthPage) return '/home';
@@ -94,12 +108,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (_, __) => const AuthGate()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/onboarding', builder: (_, __) => const ArtistOnboardingFlow()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
       GoRoute(path: '/legal', builder: (_, __) => const LegalHubPage()),
       GoRoute(
         path: '/legal/:slug',
         builder: (_, state) => LegalDocumentPage(slug: state.pathParameters['slug']!),
       ),
+      GoRoute(path: '/casting', builder: (_, __) => const CastingLandingPage()),
+      GoRoute(path: '/casting/apply', builder: (_, __) => const CastingApplyPage()),
+      GoRoute(path: '/casting/success', builder: (_, __) => const CastingSuccessPage()),
       ShellRoute(
         builder: (context, state, child) {
           return Consumer(builder: (context, ref, _) {
@@ -137,6 +155,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             redirect: (_, __) => '/releases/create',
           ),
           GoRoute(
+            path: '/beats',
+            pageBuilder: (context, state) => _FadePage(child: const BeatsCatalogScreen()),
+          ),
+          GoRoute(
+            path: '/beats/upload',
+            pageBuilder: (context, state) => _FadePage(child: const BeatUploadScreen()),
+          ),
+          GoRoute(
+            path: '/referral',
+            pageBuilder: (context, state) => _FadePage(child: const ReferralScreen()),
+          ),
+          GoRoute(
             path: '/stats',
             pageBuilder: (context, state) => _FadePage(child: const AnalyticsScreen()),
           ),
@@ -168,6 +198,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/ai',
+            pageBuilder: (context, state) {
+              final prompt = state.uri.queryParameters['prompt'];
+              final mode = state.uri.queryParameters['mode'];
+              return _FadePage(
+                child: SubscriptionGuard(
+                  requiredPlan: 'breakthrough',
+                  child: StudioAiScreen(initialPrompt: prompt, initialMode: mode),
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/ai/hub',
             pageBuilder: (context, state) => _FadePage(
               child: const SubscriptionGuard(
                 requiredPlan: 'breakthrough',
@@ -329,6 +372,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/studio',
+            pageBuilder: (context, state) => _FadePage(
+              child: const SubscriptionGuard(
+                requiredPlan: 'breakthrough',
+                child: StudioModeScreen(),
+                lockedTitle: 'Студия доступна с тарифа Прорыв',
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/studio/result',
+            pageBuilder: (context, state) => _FadePage(
+              child: const SubscriptionGuard(
+                requiredPlan: 'breakthrough',
+                child: TrackResultScreen(),
+              ),
+            ),
+          ),
+          GoRoute(
             path: '/progress',
             pageBuilder: (context, state) => _FadePage(child: const BrainScreen()),
           ),
@@ -376,22 +438,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/admin',
         redirect: (context, state) {
           final container = ProviderScope.containerOf(context);
-          final role = container.read(authStoreProvider).role;
-          if (role != 'admin') return '/home';
+          final store = container.read(authStoreProvider);
+          // Пока сессия не восстановлена — не редиректим, ждём.
+          // Основной redirect() на уровне роутера в это время тоже возвращает null
+          // и AuthGate показывает лоадер. Без этой проверки F5 на /admin выкидывает
+          // на /home, потому что role=null пока токен не подгружен.
+          if (!store.ready) return null;
+          if (store.role != 'admin') return '/home';
           return null;
         },
         pageBuilder: (context, state) {
           return NoTransitionPage(
             child: Consumer(builder: (context, ref, _) {
-              final role = ref.watch(authStoreProvider).role;
-              if (role != 'admin') {
+              final store = ref.watch(authStoreProvider);
+              if (!store.ready) {
+                return const Scaffold(
+                  backgroundColor: AurixTokens.bg0,
+                  body: Center(child: CircularProgressIndicator(color: AurixTokens.accent)),
+                );
+              }
+              if (store.role != 'admin') {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) context.go('/home');
                 });
                 return const SizedBox.shrink();
               }
               final tab = state.uri.queryParameters['tab'];
-              final userKey = ref.watch(authStoreProvider).userId ?? 'anon';
+              final userKey = store.userId ?? 'anon';
               return ProviderScope(
                 key: ValueKey('admin:$userKey'),
                 child: AdminPanel(initialTab: tab),

@@ -3,6 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'landing_shared.dart';
 
+/// Checks viewport width WITHOUT BuildContext — safe to call from initState.
+bool _isDesktopView() {
+  try {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return (view.physicalSize.width / view.devicePixelRatio) >= 700;
+  } catch (_) {
+    return true;
+  }
+}
+
+
 class PotentialSection extends StatelessWidget {
   const PotentialSection({super.key});
 
@@ -78,7 +89,9 @@ class _ScoreVisualState extends State<_ScoreVisual> with SingleTickerProviderSta
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 10))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 10));
+
+    if (_isDesktopView()) _c.repeat();
   }
 
   @override

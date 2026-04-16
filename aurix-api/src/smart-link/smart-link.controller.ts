@@ -164,8 +164,11 @@ export class SmartLinkController {
       .catch(() => {});
     this.svc.recalcAndPersist(releaseId).catch(() => {});
 
-    if (target) {
+    if (target && /^https?:\/\//i.test(target) && !target.includes('javascript:')) {
       res.redirect(302, target);
+    } else if (target) {
+      res.status(400).json({ error: 'invalid redirect URL' });
+      return;
     } else {
       res.json({ ok: true, filtered, session_id: sessionId });
     }

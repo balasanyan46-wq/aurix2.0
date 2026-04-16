@@ -8,6 +8,7 @@ import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/presentation/screens/studio_ai/generate_cover_screen.dart';
 import 'package:aurix_flutter/presentation/screens/studio_ai/studio_ai_screen.dart';
 import 'package:aurix_flutter/core/services/event_tracker.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 /// Content Engine — the creative control system for promotion.
 class PromotionScreen extends StatefulWidget {
@@ -36,6 +37,7 @@ class _PromotionScreenState extends State<PromotionScreen> {
       systemLabel: 'CONTENT ENGINE',
       systemColor: AurixTokens.accent,
       children: [
+        SectionOnboarding(tip: OnboardingTips.promo),
         // Live stats bar
         FadeInSlide(
           delayMs: 60,

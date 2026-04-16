@@ -6,6 +6,17 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'landing_shared.dart';
 import 'instant_analysis_flow.dart';
 
+/// Checks viewport width WITHOUT BuildContext — safe to call from initState.
+bool _isDesktopView() {
+  try {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return (view.physicalSize.width / view.devicePixelRatio) >= 700;
+  } catch (_) {
+    return true;
+  }
+}
+
+
 /// Hero: rotating pain headlines + track idea input + "Проверить потенциал" CTA.
 class NewHeroSection extends StatefulWidget {
   final VoidCallback onRegister;
@@ -32,9 +43,13 @@ class _NewHeroSectionState extends State<NewHeroSection> with TickerProviderStat
   @override
   void initState() {
     super.initState();
-    _waveCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
+    _waveCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 12));
+
+    if (_isDesktopView()) _waveCtrl.repeat();
     _headlineCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600), value: 1.0);
-    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 2));
+
+    if (_isDesktopView()) _pulseCtrl.repeat(reverse: true);
     _headlineTimer = Timer.periodic(const Duration(seconds: 4), (_) => _nextHeadline());
   }
 

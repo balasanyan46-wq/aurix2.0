@@ -1,56 +1,19 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
+import { execSync } from 'child_process';
+import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import FormData = require('form-data');
-import { EdenAiService } from './eden-ai.service';
-
-export interface StructurePoint {
-  time: number;
-  energy: number;
-}
-
-export interface AudioMetrics {
-  bpm: number;
-  duration: number;
-  energy: number;
-  energy_mean: number;
-  energy_max: number;
-  brightness: number;
-  brightness_hz: number;
-  tempo_stability: number;
-  spectral_contrast: number;
-  onset_density: number;
-  dynamic_range: number;
-  estimated_key: string;
-  genre: string;
-  lyrics: string | null;
-  energy_curve: number[];
-  sections: Array<{
-    start: number;
-    end: number;
-    type: string;
-    energy: number;
-  }>;
-  structure: StructurePoint[];
-  hook_time: number;
-  drop_time: number;
-  intro_weak: boolean;
-  // Hit predictor fields
-  energy_variation: number;
-  peak_energy: number;
-  energy_std: number;
-  early_energy: number;
-  hit_score: number;
-}
-
-export interface TrackAnalysisResult {
-  audioMetrics: AudioMetrics;
-  aiAnalysis: string;
-  score: number;
-  hitScore: number;
-  viralProbability: number;
-  genre: string;
-  lyrics: string | null;
-}
+import { AiGatewayService } from './ai-gateway.service';
+import {
+  MeasuredData,
+  DerivedInsights,
+  AiExplanation,
+  TrackAnalysisResponse,
+} from './analysis/analysis.dto';
+import { deriveInsights } from './analysis/analysis-rule-engine';
+import { buildAnalysisPrompt } from './analysis/analysis-prompt-builder';
 
 @Injectable()
 export class AudioAnalysisService {
@@ -58,46 +21,76 @@ export class AudioAnalysisService {
   private readonly pythonUrl =
     process.env.AUDIO_ANALYSIS_URL || 'http://localhost:8001';
 
-  constructor(private readonly ai: EdenAiService) {}
+  constructor(private readonly ai: AiGatewayService) {}
+
+  // ══════════════════════════════════════════════════════════════
+  // MAIN PIPELINE: Python → Rule Engine → Single LLM call
+  // ══════════════════════════════════════════════════════════════
 
   async analyzeTrack(
     file: Express.Multer.File,
-    lyrics?: string,
-  ): Promise<TrackAnalysisResult> {
-    const audioMetrics = await this.extractAudioFeatures(file);
-    const aiAnalysis = await this.getAiAnalysis(audioMetrics, lyrics);
-    const score = this.extractScore(aiAnalysis);
-    const viralProbability = this.extractViralProbability(aiAnalysis, audioMetrics.hit_score);
+    userLyrics?: string,
+  ): Promise<TrackAnalysisResponse> {
+    // Step 1: Extract measured data (Python service)
+    const measured = await this.extractMeasuredData(file);
 
-    // Use AI-refined genre if available, fall back to auto-detected
-    let genre = audioMetrics.genre || 'Unknown';
-    try {
-      const parsed = JSON.parse(aiAnalysis);
-      if (parsed.genre) genre = parsed.genre;
-    } catch { /* keep auto-detected */ }
+    // Resolve effective lyrics
+    const rawLyrics = measured.transcript.text || userLyrics || null;
+    const effectiveLyrics = rawLyrics && this.isLyricsUsable(rawLyrics) ? rawLyrics : null;
+
+    if (rawLyrics && !effectiveLyrics) {
+      this.logger.log('Transcript rejected (low quality / gibberish)');
+    }
+
+    // If user provided lyrics but whisper didn't find any, use user lyrics
+    if (userLyrics && !measured.transcript.text) {
+      const words = effectiveLyrics ? effectiveLyrics.split(/\s+/).length : 0;
+      measured.transcript = {
+        text: effectiveLyrics,
+        language: null,
+        confidence: 0.5,
+        segment_count: 0,
+        word_count: words,
+        repeated_phrase_ratio: 0,
+        language_confidence: 0,
+        reliability_flags: ['user_provided'],
+      };
+    }
+
+    // Step 2: Rule engine → derived insights (deterministic)
+    const derived = deriveInsights(measured);
+
+    this.logger.log(
+      `Analysis: BPM=${measured.bpm.bpm}, key=${measured.key.key}, ` +
+      `genre=${derived.genre}, hit=${derived.hit_score}, ` +
+      `hook=${derived.hook_time}s, lufs=${measured.lufs}, ` +
+      `confidence=${derived.confidence.overall_analysis_confidence}, ` +
+      `insights=${derived.insights.length}`,
+    );
+
+    // Step 3: Single LLM call for explanation
+    const aiExplanation = await this.generateExplanation(measured, derived, effectiveLyrics);
 
     return {
-      audioMetrics,
-      aiAnalysis,
-      score,
-      hitScore: audioMetrics.hit_score,
-      viralProbability,
-      genre,
-      lyrics: audioMetrics.lyrics || null,
+      measured_data: measured,
+      derived_insights: derived,
+      ai_explanation: aiExplanation,
     };
   }
 
-  private async extractAudioFeatures(
+  // ══════════════════════════════════════════════════════════════
+  // STEP 1: Python service → MeasuredData
+  // ══════════════════════════════════════════════════════════════
+
+  private async extractMeasuredData(
     file: Express.Multer.File,
-  ): Promise<AudioMetrics> {
+  ): Promise<MeasuredData> {
+    const { buffer, filename, mimetype } = this.compressIfNeeded(file);
     const form = new FormData();
-    form.append('file', file.buffer, {
-      filename: file.originalname || 'track.mp3',
-      contentType: file.mimetype || 'audio/mpeg',
-    });
+    form.append('file', buffer, { filename, contentType: mimetype });
 
     try {
-      const { data } = await axios.post<AudioMetrics>(
+      const { data } = await axios.post<MeasuredData>(
         `${this.pythonUrl}/analyze`,
         form,
         {
@@ -107,228 +100,218 @@ export class AudioAnalysisService {
           maxBodyLength: 200 * 1024 * 1024,
         },
       );
-
-      this.logger.log(
-        `Audio: BPM=${data.bpm}, key=${data.estimated_key}, ` +
-        `hook=${data.hook_time}s, hit_score=${data.hit_score}, ` +
-        `e_var=${data.energy_variation}, early_e=${data.early_energy}`,
-      );
       return data;
     } catch (error: any) {
       this.logger.error(
         `Python service error: ${error.message}`,
         error.response?.data,
       );
-      return this.fallbackMetrics(file);
+
+      if (error.response?.status && error.response.status < 500) {
+        throw new HttpException(
+          error.response.data?.detail || 'Audio file rejected',
+          error.response.status,
+        );
+      }
+
+      throw new HttpException(
+        'Audio analysis service is temporarily unavailable. Please try again in a few seconds.',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 
-  /**
-   * AI analysis — full producer breakdown + hit prediction.
-   */
-  private async getAiAnalysis(
-    metrics: AudioMetrics,
-    lyrics?: string,
-  ): Promise<string> {
-    const sectionsSummary = metrics.sections
-      .map(
-        (s) =>
-          `${s.type}: ${s.start}s–${s.end}s (energy: ${(s.energy * 100).toFixed(0)}%)`,
-      )
-      .join('\n');
+  // ══════════════════════════════════════════════════════════════
+  // STEP 3: Single LLM call → AiExplanation
+  // ══════════════════════════════════════════════════════════════
 
-    const structureSummary = this.summarizeStructure(metrics.structure);
+  private async generateExplanation(
+    measured: MeasuredData,
+    derived: DerivedInsights,
+    lyrics: string | null,
+  ): Promise<AiExplanation> {
+    const { system, user } = buildAnalysisPrompt(measured, derived, lyrics);
 
-    // Hit verdict label
-    const hitLabel = metrics.hit_score >= 70
-      ? 'ПОТЕНЦИАЛЬНЫЙ ХИТ'
-      : metrics.hit_score >= 40
-        ? 'ЕСТЬ ПОТЕНЦИАЛ'
-        : 'ТРЕК НЕ ЗАЙДЁТ';
-
-    // Use transcribed lyrics if available, otherwise user-provided
-    const effectiveLyrics = metrics.lyrics || lyrics || null;
-
-    const prompt = `Ты — топовый музыкальный продюсер и аналитик. Говоришь как есть, без воды.
-
-Вот данные РЕАЛЬНОГО аудио-анализа трека (librosa + Whisper + наш алгоритм):
-
-═══ ОСНОВНЫЕ МЕТРИКИ ═══
-BPM: ${metrics.bpm}
-Тональность: ${metrics.estimated_key}
-Жанр (авто-определение): ${metrics.genre || 'не определён'}
-Длительность: ${metrics.duration} сек
-Общая энергия (0-1): ${metrics.energy}
-Яркость (0-1): ${metrics.brightness}
-Стабильность темпа: ${metrics.tempo_stability}
-Плотность ударов: ${metrics.onset_density} /сек
-Динамический диапазон: ${metrics.dynamic_range} dB
-
-═══ HIT PREDICTOR ═══
-Hit Score: ${metrics.hit_score}/100 → ${hitLabel}
-Energy Variation (динамика): ${metrics.energy_variation} ${metrics.energy_variation > 0.5 ? '(высокая — хорошо)' : metrics.energy_variation > 0.3 ? '(средняя)' : '(низкая — трек монотонный)'}
-Peak Energy: ${metrics.peak_energy}
-Early Energy (первые 10 сек): ${metrics.early_energy} ${metrics.early_energy < 0.5 ? 'КРИТИЧЕСКИ НИЗКАЯ — слушатель уходит' : metrics.early_energy < 0.7 ? 'ниже нормы' : 'ок'}
-Hook: ${metrics.hook_time}s ${metrics.hook_time < 15 ? 'раннее — хорошо' : metrics.hook_time < 30 ? 'нормально' : 'поздно — слушатель уйдёт'}
-Drop: ${metrics.drop_time > 0 ? `${metrics.drop_time}s` : 'нет'}
-Intro слабое: ${metrics.intro_weak ? 'ДА' : 'НЕТ'}
-
-═══ СТРУКТУРА ═══
-Секции:
-${sectionsSummary}
-
-Энергия по времени:
-${structureSummary}
-
-${effectiveLyrics ? `═══ ТЕКСТ (распознан Whisper) ═══\n${effectiveLyrics}\n` : '═══ ТЕКСТ ═══\nИнструментал или текст не распознан\n'}
-
-═══ ЗАДАЧА ═══
-1. Подтверди или уточни жанр (авто-определение: ${metrics.genre || 'N/A'}). Будь точен — укажи поджанр если можешь
-2. Скажи честно: трек зайдёт или нет
-3. Объясни ПОЧЕМУ (конкретно, с цифрами)
-4. Где главный провал (с секундой)
-5. Что убивает вирусность
-6. Дай 3-5 конкретных правок с таймингами
-7. Скажи, можно ли сделать хит из этого
-${effectiveLyrics ? '8. Оцени текст: подача, рифмы, смысл, запоминаемость' : ''}
-
-Ответ СТРОГО в JSON:
-
-{
-  "score": число от 0 до 10,
-  "verdict": "Одно резкое предложение — главный вывод",
-  "genre": "Точный жанр/поджанр трека",
-  "viral_probability": число от 0 до 100 (процент вирусности),
-  "main_problem": "Главная проблема трека с конкретной секундой",
-  "killer_issue": "Что именно убивает вирусность — одно предложение",
-  "can_be_hit": true/false,
-  "hit_recipe": "Если можно сделать хит — конкретно что изменить (1-2 предложения)",
-  "strengths": ["сильная сторона 1", "сильная сторона 2", "сильная сторона 3"],
-  "problems": ["проблема 1 (с секундой)", "проблема 2 (с секундой)", "проблема 3"],
-  "improvements": [
-    {"time": секунда, "action": "что конкретно сделать"},
-    {"time": секунда, "action": "что конкретно сделать"},
-    {"time": секунда, "action": "что конкретно сделать"}
-  ],
-  "hook_potential": число от 0 до 10,
-  "production_quality": число от 0 до 10,
-  "viral_potential": число от 0 до 10,
-  "playlist_chance": число от 0 до 10,
-  "best_tiktok_segment": "timestamp",
-  "mix_notes": "замечания по миксу",
-  "market_fit": "как вписывается в тренды",
-  "structure_verdict": "оценка структуры",
-  "hook_analysis": "разбор хука на ${metrics.hook_time}s",
-  "drop_analysis": "${metrics.drop_time > 0 ? `разбор дропа на ${metrics.drop_time}s` : 'нет дропа'}",
-  "intro_analysis": "разбор intro",
-  "listener_dropout": "где и почему слушатель уходит (с секундой)",
-  "retention_killer": "что конкретно убивает retention в первые 10 секунд",${effectiveLyrics ? `
-  "lyrics_analysis": "разбор текста: подача, рифмы, смысл, запоминаемость припева",` : ''}
-  "fix_timestamps": [
-    {"time": секунда, "issue": "проблема", "fix": "решение"}
-  ],
-  "final_opinion": "Финальное мнение продюсера — 2-3 предложения, как есть"
-}
-
-Требования:
-— genre — будь точен, укажи поджанр (не просто "рэп", а "мелодик рэп" или "drill" и т.д.)
-— viral_probability основывай на hit_score (${metrics.hit_score}) + своей оценке
-— если hit_score < 40 — будь жёсток, скажи правду
-— если hit_score > 70 — объясни что именно делает трек сильным
-— если early_energy низкая — это ГЛАВНАЯ проблема (68% слушателей уходят до 10 сек)
-— improvements ОБЯЗАТЕЛЬНО с таймингами
-— main_problem — с конкретной секундой
-— final_opinion — без воды, как продюсер говорит артисту в лицо`;
-
-    return this.ai.chat({
-      message: prompt,
-      mode: 'analyze',
+    const raw = await this.ai.simpleChat(system, user, {
+      maxTokens: 2000,
+      temperature: 0.5,
+      timeout: 45_000,
     });
-  }
 
-  private summarizeStructure(structure: StructurePoint[]): string {
-    if (!structure || structure.length === 0) return '(нет данных)';
-    const step = Math.max(1, Math.floor(structure.length / 10));
-    const points: string[] = [];
-    for (let i = 0; i < structure.length; i += step) {
-      const p = structure[i];
-      const bar = '█'.repeat(Math.round(p.energy * 20));
-      points.push(`${p.time.toFixed(1)}s: ${bar} ${(p.energy * 100).toFixed(0)}%`);
-    }
-    return points.join('\n');
-  }
-
-  private extractScore(aiResponse: string): number {
     try {
-      const parsed = JSON.parse(aiResponse);
-      const score = Number(parsed.score);
-      if (!isNaN(score) && score >= 0 && score <= 10) {
-        return Math.round(score * 10) / 10;
+      let cleaned = raw.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```\w*\n?/, '').replace(/\n?```$/, '');
       }
+      const parsed = JSON.parse(cleaned);
+
+      return {
+        verdict: parsed.verdict || '',
+        producer_notes: parsed.producer_notes || '',
+        top_fixes: Array.isArray(parsed.top_fixes) ? parsed.top_fixes.slice(0, 5) : [],
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths.slice(0, 5) : [],
+        score: this.clamp(Number(parsed.score) || 5, 0, 10),
+        viral_probability: this.clamp(Math.round(Number(parsed.viral_probability) || derived.hit_score * 0.9), 0, 100),
+        improvement_prompt: parsed.improvement_prompt || '',
+        tiktok_segment: parsed.tiktok_segment || undefined,
+        lyrics_insight: lyrics ? (parsed.lyrics_insight || undefined) : undefined,
+      };
     } catch {
-      const match = aiResponse.match(/"score"\s*:\s*(\d+(?:\.\d+)?)/);
-      if (match) {
-        return Math.min(10, Math.max(0, parseFloat(match[1])));
-      }
+      this.logger.warn('Failed to parse AI explanation JSON, using fallback');
+      return {
+        verdict: 'Analysis completed. AI explanation unavailable.',
+        producer_notes: '',
+        top_fixes: [],
+        strengths: [],
+        score: 5,
+        viral_probability: Math.round(derived.hit_score * 0.9),
+        improvement_prompt: '',
+      };
     }
-    return 5.0;
   }
 
-  /**
-   * Extract viral probability from AI or estimate from hit_score.
-   */
-  private extractViralProbability(aiResponse: string, hitScore: number): number {
+  // ══════════════════════════════════════════════════════════════
+  // COMPRESSION — large WAV/FLAC → MP3
+  // ══════════════════════════════════════════════════════════════
+
+  private compressIfNeeded(file: Express.Multer.File): { buffer: Buffer; filename: string; mimetype: string } {
+    const name = (file.originalname || '').toLowerCase();
+    const isLarge = file.buffer.length > 15 * 1024 * 1024;
+    const isUncompressed = name.endsWith('.wav') || name.endsWith('.flac') || name.endsWith('.aiff');
+
+    if (!isLarge || !isUncompressed) {
+      return { buffer: file.buffer, filename: file.originalname || 'track.mp3', mimetype: file.mimetype || 'audio/mpeg' };
+    }
+
+    const id = Date.now().toString(36);
+    const ext = name.split('.').pop() || 'wav';
+    const inPath = join(tmpdir(), `aurix_in_${id}.${ext}`);
+    const outPath = join(tmpdir(), `aurix_out_${id}.mp3`);
+
     try {
-      const parsed = JSON.parse(aiResponse);
-      const vp = Number(parsed.viral_probability);
-      if (!isNaN(vp) && vp >= 0 && vp <= 100) {
-        return Math.round(vp);
-      }
-    } catch {
-      const match = aiResponse.match(/"viral_probability"\s*:\s*(\d+(?:\.\d+)?)/);
-      if (match) {
-        return Math.min(100, Math.max(0, Math.round(parseFloat(match[1]))));
-      }
+      writeFileSync(inPath, file.buffer);
+      this.logger.log(`Compressing ${ext.toUpperCase()} ${(file.buffer.length / 1024 / 1024).toFixed(1)}MB → MP3`);
+      execSync(`ffmpeg -i "${inPath}" -codec:a libmp3lame -b:a 192k -y "${outPath}" 2>/dev/null`, { timeout: 30000 });
+      const mp3Buffer = readFileSync(outPath);
+      this.logger.log(`Compressed: ${(mp3Buffer.length / 1024 / 1024).toFixed(1)}MB`);
+      return { buffer: mp3Buffer, filename: 'track.mp3', mimetype: 'audio/mpeg' };
+    } catch (e: any) {
+      this.logger.warn(`Compression failed, using original: ${e.message}`);
+      return { buffer: file.buffer, filename: file.originalname || 'track.wav', mimetype: file.mimetype || 'audio/wav' };
+    } finally {
+      try { if (existsSync(inPath)) unlinkSync(inPath); } catch {}
+      try { if (existsSync(outPath)) unlinkSync(outPath); } catch {}
     }
-    // Fallback: estimate from hit_score
-    return Math.min(100, Math.max(0, Math.round(hitScore * 0.9)));
   }
 
-  private fallbackMetrics(file: Express.Multer.File): AudioMetrics {
-    this.logger.warn('Using fallback metrics — Python service unavailable');
-    const estimatedDuration = file.size / (128 * 1024 / 8);
+  // ══════════════════════════════════════════════════════════════
+  // LYRICS VALIDATION
+  // ══════════════════════════════════════════════════════════════
 
-    return {
-      bpm: 120,
-      duration: Math.round(estimatedDuration),
-      energy: 0.5,
-      energy_mean: 0.08,
-      energy_max: 0.2,
-      brightness: 0.5,
-      brightness_hz: 3500,
-      tempo_stability: 0.8,
-      spectral_contrast: 20,
-      onset_density: 3,
-      dynamic_range: 15,
-      estimated_key: 'C',
-      genre: 'Unknown',
-      lyrics: null,
-      energy_curve: Array(50).fill(0.08),
-      sections: [
-        { start: 0, end: estimatedDuration, type: 'full', energy: 0.5 },
-      ],
-      structure: Array.from({ length: 50 }, (_, i) => ({
-        time: (i / 50) * estimatedDuration,
-        energy: 0.5,
-      })),
-      hook_time: Math.round(estimatedDuration * 0.3),
-      drop_time: 0,
-      intro_weak: false,
-      energy_variation: 0.3,
-      peak_energy: 0.15,
-      energy_std: 0.04,
-      early_energy: 0.7,
-      hit_score: 50,
-    };
+  private isLyricsUsable(text: string): boolean {
+    const t = text.trim();
+    if (t.length < 40) return false;
+
+    const words = t.split(/\s+/);
+    if (words.length < 8) return false;
+
+    const realWords = words.filter(w => w.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, '').length >= 3);
+    if (realWords.length / words.length < 0.3) return false;
+
+    const freq: Record<string, number> = {};
+    for (const w of words) {
+      const lw = w.toLowerCase().replace(/[^a-zA-Zа-яА-ЯёЁ]/g, '');
+      if (lw.length < 2) continue;
+      freq[lw] = (freq[lw] || 0) + 1;
+    }
+    const maxFreq = Math.max(...Object.values(freq), 0);
+    if (maxFreq > words.length * 0.4) return false;
+
+    const hasCyrillic = /[а-яА-ЯёЁ]{3,}/.test(t);
+    const hasLatin = /[a-zA-Z]{3,}/.test(t);
+    if (!hasCyrillic && !hasLatin) return false;
+
+    return true;
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // VOCAL PROCESSING — unchanged
+  // ══════════════════════════════════════════════════════════════
+
+  async processVocal(
+    file: Express.Multer.File,
+    preset = 'hit',
+    autotune = 'off',
+    strength = 0.5,
+    key = 'C_major',
+    style = 'none',
+  ): Promise<Buffer> {
+    const form = new FormData();
+    form.append('file', file.buffer, {
+      filename: file.originalname || 'vocal.wav',
+      contentType: file.mimetype || 'audio/wav',
+    });
+
+    const params = new URLSearchParams({
+      preset, autotune, strength: String(strength), key, style,
+    });
+
+    try {
+      const { data } = await axios.post(
+        `${this.pythonUrl}/process-vocal?${params}`,
+        form,
+        {
+          headers: form.getHeaders(),
+          timeout: 60_000,
+          maxContentLength: 100 * 1024 * 1024,
+          maxBodyLength: 100 * 1024 * 1024,
+          responseType: 'arraybuffer',
+        },
+      );
+      this.logger.log(`Vocal processed: ${(data.length / 1024).toFixed(0)}KB, preset=${preset}`);
+      return Buffer.from(data);
+    } catch (e: any) {
+      this.logger.error(`Vocal processing failed: ${e.message}`);
+      throw new HttpException(
+        'Vocal processing failed',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  async fullPipeline(
+    beatFile: Express.Multer.File,
+    vocalFile: Express.Multer.File,
+    opts: { preset?: string; style?: string; autotune?: string; strength?: number; key?: string; target?: string },
+  ): Promise<Buffer> {
+    const form = new FormData();
+    form.append('beat', beatFile.buffer, { filename: beatFile.originalname || 'beat.mp3', contentType: beatFile.mimetype || 'audio/mpeg' });
+    form.append('vocal', vocalFile.buffer, { filename: vocalFile.originalname || 'vocal.webm', contentType: vocalFile.mimetype || 'audio/webm' });
+
+    const params = new URLSearchParams({
+      preset: opts.preset || 'hit',
+      style: opts.style || 'wide_star',
+      autotune: opts.autotune || 'on',
+      strength: String(opts.strength || 0.5),
+      key: opts.key || 'C_major',
+      target: opts.target || 'spotify',
+    });
+
+    try {
+      const { data } = await axios.post(
+        `${this.pythonUrl}/full-pipeline?${params}`,
+        form,
+        { headers: form.getHeaders(), timeout: 120_000, maxContentLength: 200 * 1024 * 1024, maxBodyLength: 200 * 1024 * 1024, responseType: 'arraybuffer' },
+      );
+      this.logger.log(`Full pipeline done: ${(data.length / 1024).toFixed(0)}KB`);
+      return Buffer.from(data);
+    } catch (e: any) {
+      this.logger.error(`Full pipeline failed: ${e.message}`);
+      throw new HttpException('Processing failed', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
+  private clamp(v: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, v));
   }
 }

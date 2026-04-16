@@ -6,6 +6,7 @@ import { AdminGuard } from '../auth/roles.guard';
 import { SupportService } from './support.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../mail/mail.service';
+import { TelegramService } from '../telegram/telegram.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller()
@@ -14,6 +15,7 @@ export class SupportController {
     private readonly svc: SupportService,
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
+    private readonly telegram: TelegramService,
     @Inject(PG_POOL) private readonly pool: Pool,
   ) {}
 
@@ -45,7 +47,13 @@ export class SupportController {
   @Post('support-tickets')
   async createTicket(@Req() req: any, @Body() body: Record<string, any>) {
     if (!body.subject) throw new HttpException('subject required', HttpStatus.BAD_REQUEST);
-    return this.svc.createTicket({ ...body, user_id: req.user.id });
+    const ticket = await this.svc.createTicket({ ...body, user_id: req.user.id });
+
+    // Notify admin via Telegram
+    const userName = req.user.email || req.user.name || `User #${req.user.id}`;
+    this.telegram.notifySupportTicket(body.subject, userName).catch(() => {});
+
+    return ticket;
   }
 
   // Update ticket — admin can update anything, owner can bump updated_at / reopen

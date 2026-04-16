@@ -1,6 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/premium_ui.dart';
+import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
 
 /// Wraps a section in a hover-lift premium card.
 class HomeSectionCard extends StatelessWidget {
@@ -23,14 +27,14 @@ class HomeSectionCard extends StatelessWidget {
 }
 
 class HomeSectionTitle extends StatelessWidget {
-  const HomeSectionTitle(this.title, {super.key, this.icon});
+  const HomeSectionTitle(this.title, {super.key, this.icon, this.trailing});
   final String title;
   final IconData? icon;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
           Icon(icon, size: 16, color: AurixTokens.accent),
@@ -46,6 +50,10 @@ class HomeSectionTitle extends StatelessWidget {
             letterSpacing: -0.1,
           ),
         ),
+        if (trailing != null) ...[
+          const Spacer(),
+          trailing!,
+        ],
       ],
     );
   }
@@ -62,102 +70,202 @@ class HomeMetricTile extends StatelessWidget {
   }
 }
 
-class HomeDashboardHeader extends StatelessWidget {
+/// Hero greeting with user avatar, name, plan badge and date.
+class HomeDashboardHeader extends ConsumerWidget {
   const HomeDashboardHeader({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final profile = ref.watch(currentProfileProvider).valueOrNull;
+    final plan = ref.watch(effectivePlanProvider);
     final isMobile = MediaQuery.sizeOf(context).width < 900;
+
+    final artistName = profile?.artistName;
+    final userName = profile?.name ?? user?.name;
+    final displayName = (artistName != null && artistName.length > 1)
+        ? artistName
+        : (userName != null && userName.length > 1)
+            ? userName
+            : null;
+    final greeting = _greeting();
+    final dateStr = _dateString();
+
     return Container(
-      padding: EdgeInsets.all(isMobile ? 20 : 28),
+      padding: EdgeInsets.all(isMobile ? 18 : 28),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AurixTokens.radiusHero),
+        borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AurixTokens.bg1,
-            AurixTokens.surface2.withValues(alpha: 0.8),
+            AurixTokens.accent.withValues(alpha: 0.08),
             AurixTokens.bg1.withValues(alpha: 0.95),
+            AurixTokens.aiAccent.withValues(alpha: 0.04),
           ],
         ),
-        border: Border.all(color: AurixTokens.stroke(0.18)),
-        boxShadow: AurixTokens.elevatedShadow,
+        border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: AurixTokens.accent.withValues(alpha: 0.06),
+            blurRadius: 40,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // System label
+          // Avatar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            width: isMobile ? 48 : 56,
+            height: isMobile ? 48 : 56,
             decoration: BoxDecoration(
-              color: AurixTokens.accent.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.2)),
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AurixTokens.accent, AurixTokens.accentWarm],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AurixTokens.accent.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            child: Center(
+              child: Text(
+                _initials(displayName),
+                style: TextStyle(
+                  fontFamily: AurixTokens.fontHeading,
+                  color: Colors.white,
+                  fontSize: isMobile ? 18 : 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: AurixTokens.positive,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AurixTokens.positive.withValues(alpha: 0.5),
-                        blurRadius: 6,
-                        spreadRadius: 1,
-                      ),
-                    ],
+                Text(
+                  greeting,
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontBody,
+                    color: AurixTokens.muted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(height: 2),
                 Text(
-                  'ARTIST CONTROL SYSTEM',
+                  displayName ?? 'Добро пожаловать',
                   style: TextStyle(
-                    fontFamily: AurixTokens.fontMono,
-                    color: AurixTokens.accentWarm,
-                    fontSize: 10,
+                    fontFamily: AurixTokens.fontHeading,
+                    color: AurixTokens.text,
+                    fontSize: isMobile ? 20 : 26,
+                    height: 1.15,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  dateStr,
+                  style: TextStyle(
+                    fontFamily: AurixTokens.fontBody,
+                    color: AurixTokens.micro,
+                    fontSize: 12,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          _PlanBadge(plan: plan),
+        ],
+      ),
+    );
+  }
+
+  static String _initials(String? name) {
+    if (name == null || name.isEmpty) return 'A';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return name[0].toUpperCase();
+  }
+
+  static String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 6) return 'Доброй ночи';
+    if (h < 12) return 'Доброе утро';
+    if (h < 18) return 'Добрый день';
+    return 'Добрый вечер';
+  }
+
+  static String _dateString() {
+    final now = DateTime.now();
+    const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+    const days = ['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'];
+    return '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
+  }
+}
+
+class _PlanBadge extends StatelessWidget {
+  const _PlanBadge({required this.plan});
+  final String plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (plan) {
+      'empire' => 'EMPIRE',
+      'breakthrough' => 'BREAKTHROUGH',
+      'start' => 'START',
+      _ => 'FREE',
+    };
+    final color = switch (plan) {
+      'empire' => AurixTokens.warning,
+      'breakthrough' => AurixTokens.accent,
+      'start' => AurixTokens.positive,
+      _ => AurixTokens.muted,
+    };
+    final isTop = plan == 'empire' || plan == 'breakthrough';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: isTop
+            ? LinearGradient(
+                colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0.06)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : null,
+        color: isTop ? null : color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+        boxShadow: isTop
+            ? [BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 4))]
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isTop) ...[
+            Icon(Icons.diamond_rounded, size: 16, color: color),
+            const SizedBox(height: 4),
+          ],
           Text(
-            '\u0426\u0435\u043d\u0442\u0440 \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f',
+            label,
             style: TextStyle(
-              fontFamily: AurixTokens.fontHeading,
-              color: AurixTokens.text,
-              fontSize: isMobile ? 24 : 30,
-              height: 1.1,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
+              fontFamily: AurixTokens.fontMono,
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '\u041a\u043b\u044e\u0447\u0435\u0432\u044b\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f, \u0442\u0435\u043a\u0443\u0449\u0438\u0439 \u0444\u043e\u043a\u0443\u0441 \u0438 \u043f\u0440\u043e\u0433\u0440\u0435\u0441\u0441 \u043a\u0430\u043c\u043f\u0430\u043d\u0438\u0438.',
-            style: TextStyle(
-              fontFamily: AurixTokens.fontBody,
-              color: AurixTokens.muted,
-              height: 1.5,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              PremiumChip(label: 'Release OS', icon: Icons.album_rounded, selected: true),
-              PremiumChip(label: '\u0424\u043e\u043a\u0443\u0441 \u043d\u0435\u0434\u0435\u043b\u0438', icon: Icons.track_changes_rounded),
-              PremiumChip(label: '\u0420\u043e\u0441\u0442 \u0438 \u0430\u043d\u0430\u043b\u0438\u0442\u0438\u043a\u0430', icon: Icons.insights_rounded),
-            ],
           ),
         ],
       ),
@@ -176,42 +284,24 @@ class HomeLoadingSkeleton extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PremiumSkeletonBox(height: 18, width: 260),
-              SizedBox(height: 8),
-              PremiumSkeletonBox(height: 12, width: 340),
+              PremiumSkeletonBox(height: 14, width: 100),
+              SizedBox(height: 6),
+              PremiumSkeletonBox(height: 24, width: 220),
             ],
           ),
         ),
         SizedBox(height: 16),
-        PremiumSectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PremiumSkeletonBox(height: 22, width: 200),
-              SizedBox(height: 12),
-              PremiumSkeletonBox(height: 10),
-              SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(child: PremiumSkeletonBox(height: 44)),
-                  SizedBox(width: 10),
-                  Expanded(child: PremiumSkeletonBox(height: 44)),
-                ],
-              ),
-            ],
-          ),
+        Row(
+          children: [
+            Expanded(child: PremiumSectionCard(child: PremiumSkeletonBox(height: 72))),
+            SizedBox(width: 12),
+            Expanded(child: PremiumSectionCard(child: PremiumSkeletonBox(height: 72))),
+            SizedBox(width: 12),
+            Expanded(child: PremiumSectionCard(child: PremiumSkeletonBox(height: 72))),
+          ],
         ),
         SizedBox(height: 16),
-        PremiumSectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PremiumSkeletonBox(height: 16, width: 180),
-              SizedBox(height: 12),
-              PremiumSkeletonBox(height: 96),
-            ],
-          ),
-        ),
+        PremiumSectionCard(child: PremiumSkeletonBox(height: 160)),
       ],
     );
   }
@@ -225,7 +315,6 @@ class HomeAppear extends StatefulWidget {
     required this.delayMs,
     required this.reduceMotion,
   });
-
   final Widget child;
   final int delayMs;
   final bool reduceMotion;

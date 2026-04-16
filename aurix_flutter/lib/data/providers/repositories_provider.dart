@@ -31,6 +31,7 @@ import 'package:aurix_flutter/data/services/tool_service.dart';
 import 'package:aurix_flutter/ai/ai_studio_history_repository.dart';
 import 'package:aurix_flutter/ai/ai_tool_results_repository.dart';
 import 'package:aurix_flutter/features/production/data/production_service.dart';
+import 'package:aurix_flutter/data/repositories/beat_repository.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 final growthPlanServiceProvider = Provider<GrowthPlanService>((ref) => GrowthPlanService());
@@ -67,6 +68,7 @@ final legalRepositoryProvider = Provider<LegalRepository>((ref) => LegalReposito
 final aiStudioHistoryRepositoryProvider = Provider<AiStudioHistoryRepository>((ref) => AiStudioHistoryRepository());
 final aiToolResultsRepositoryProvider = Provider<AiToolResultsRepository>((ref) => AiToolResultsRepository());
 final productionServiceProvider = Provider<ProductionService>((ref) => ProductionService());
+final beatRepositoryProvider = Provider<BeatRepository>((ref) => BeatRepository());
 
 final indexEngineRepositoryProvider = Provider<engine.MockIndexEngineRepository>((ref) =>
     engine.MockIndexEngineRepository());

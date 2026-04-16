@@ -15,6 +15,7 @@ import { AdminGuard } from '../auth/roles.guard';
 import { ProfilesService } from './profiles.service';
 import { UsersService } from '../users/users.service';
 import { CreditsService } from '../billing/credits.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('profiles')
@@ -23,6 +24,7 @@ export class ProfilesController {
     private readonly profilesService: ProfilesService,
     private readonly usersService: UsersService,
     private readonly creditsService: CreditsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get('me')
@@ -89,8 +91,9 @@ export class ProfilesController {
     @Param('userId') userId: string,
     @Body('role') role: string,
   ) {
-    if (!role) {
-      throw new HttpException('role is required', HttpStatus.BAD_REQUEST);
+    const allowedRoles = ['artist', 'admin', 'moderator'];
+    if (!role || !allowedRoles.includes(role)) {
+      throw new HttpException(`role must be one of: ${allowedRoles.join(', ')}`, HttpStatus.BAD_REQUEST);
     }
 
     const profile = await this.profilesService.updateRole(userId, role);
@@ -130,6 +133,27 @@ export class ProfilesController {
     if (subscription_status === 'active') {
       const grant = await this.creditsService.grantPlanCredits(+userId, plan_id);
       creditsGranted = grant.granted;
+    }
+
+    // Notify user about plan change
+    const planLabels: Record<string, string> = { start: 'Старт', breakthrough: 'Прорыв', empire: 'Империя' };
+    const planLabel = planLabels[plan_id] || plan_id;
+    if (subscription_status === 'active') {
+      this.notifications.send({
+        user_id: +userId,
+        title: 'Тариф обновлён',
+        message: `Ваш тариф изменён на «${planLabel}». ${creditsGranted > 0 ? `Начислено ${creditsGranted} кредитов.` : ''}`,
+        type: 'success',
+        meta: { plan: plan_id, credits_granted: creditsGranted },
+      }).catch(() => {});
+    } else if (subscription_status === 'canceled') {
+      this.notifications.send({
+        user_id: +userId,
+        title: 'Подписка отменена',
+        message: `Ваша подписка «${planLabel}» была отменена администратором.`,
+        type: 'warning',
+        meta: { plan: plan_id },
+      }).catch(() => {});
     }
 
     return { success: true, profile, credits_granted: creditsGranted };

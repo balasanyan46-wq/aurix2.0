@@ -106,7 +106,28 @@ export class ProfilesService {
 
   async getAll() {
     const { rows } = await this.pool.query(
-      `SELECT * FROM profiles ORDER BY created_at DESC`,
+      `SELECT
+         COALESCE(p.user_id, u.id) as user_id,
+         COALESCE(p.display_name, p.name, u.email) as display_name,
+         p.name,
+         p.artist_name,
+         u.email,
+         u.phone,
+         COALESCE(p.role, u.role, 'artist') as role,
+         COALESCE(p.plan, 'none') as plan,
+         p.city,
+         p.bio,
+         p.avatar_url,
+         p.account_status,
+         p.plan_id,
+         p.subscription_status,
+         p.subscription_end,
+         u.email_verified,
+         COALESCE(p.created_at, u.created_at) as created_at,
+         COALESCE(p.updated_at, p.created_at, u.created_at) as updated_at
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       ORDER BY u.created_at DESC`,
     );
     return rows;
   }

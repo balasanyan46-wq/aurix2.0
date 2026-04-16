@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/providers/billing_providers.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 class CreditsScreen extends ConsumerStatefulWidget {
   const CreditsScreen({super.key});
@@ -91,6 +92,7 @@ class _CreditsScreenState extends ConsumerState<CreditsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              SectionOnboarding(tip: OnboardingTips.credits),
               // ── Balance card ────────────────────────────
               balanceAsync.when(
                 data: (balance) => _BalanceCard(balance: balance),

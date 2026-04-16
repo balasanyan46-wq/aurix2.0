@@ -73,7 +73,7 @@ export class AiContextService {
           artist_name: p.artist_name || '',
           city: p.city || '',
           bio: p.bio || '',
-          plan: p.plan || 'start',
+          plan: p.plan || 'none',
         };
       }
 
@@ -262,33 +262,102 @@ export class AiContextService {
       const dnk = ctx.dnk as Record<string, unknown>;
       const profTests = dnk.professional_tests;
 
-      // Main DNK profile
-      const mainDnk = { ...dnk };
-      delete mainDnk.professional_tests;
-      if (Object.keys(mainDnk).length > 0) {
-        parts.push('DNK ПРОФИЛЬ (результаты теста уникальности):');
-        parts.push(JSON.stringify(mainDnk, null, 0));
-        parts.push('');
-      }
+      parts.push('═══ DNK ПРОФИЛЬ АРТИСТА (его уникальная ДНК — используй АКТИВНО) ═══');
+      parts.push('');
 
-      // Professional tests
-      if (Array.isArray(profTests) && profTests.length > 0) {
-        parts.push(`ПРОФЕССИОНАЛЬНЫЕ ТЕСТЫ DNK (${profTests.length} из 6 пройдено):`);
-        for (const t of profTests as Array<Record<string, unknown>>) {
-          parts.push(`— ${t.test}: ${t.summary || 'нет описания'}`);
-          if (Array.isArray(t.strengths) && t.strengths.length > 0) {
-            parts.push(`  Сильные: ${(t.strengths as string[]).join(', ')}`);
-          }
-          if (Array.isArray(t.risks) && t.risks.length > 0) {
-            parts.push(`  Риски: ${(t.risks as string[]).join(', ')}`);
+      // Main DNK axes — human readable
+      const axes = dnk.axes as Record<string, number> | undefined;
+      if (axes && typeof axes === 'object') {
+        const axisLabels: Record<string, [string, string, string]> = {
+          energy: ['Энергия', 'спокойный', 'взрывной'],
+          novelty: ['Новизна', 'традиционный', 'экспериментатор'],
+          darkness: ['Темнота', 'светлый', 'тёмный/драматичный'],
+          lyric_focus: ['Лирика', 'подача/флоу', 'глубокий смысл'],
+          structure: ['Структура', 'импульс/поток', 'план/контроль'],
+          conflict_style: ['Конфликт', 'дипломат', 'прямой/резкий'],
+          publicness: ['Публичность', 'закрытый', 'открытый'],
+          commercial_focus: ['Коммерция', 'чистый арт', 'рынок'],
+        };
+        parts.push('ХАРАКТЕР (0-100):');
+        for (const [key, val] of Object.entries(axes)) {
+          const v = typeof val === 'number' ? val : 0;
+          const info = axisLabels[key];
+          if (info) {
+            const [label, low, high] = info;
+            const desc = v >= 70 ? high : v <= 30 ? low : `между ${low} и ${high}`;
+            parts.push(`  ${label}: ${v}/100 → ${desc}`);
+          } else {
+            parts.push(`  ${key}: ${v}/100`);
           }
         }
         parts.push('');
       }
 
-      parts.push(
-        'Используй DNK для точных рекомендаций — учитывай сильные и слабые стороны артиста.',
-      );
+      // Social axes
+      const socialAxes = dnk.social_axes as Record<string, number> | undefined;
+      if (socialAxes && typeof socialAxes === 'object') {
+        parts.push('СОЦИАЛЬНЫЙ ПРОФИЛЬ:');
+        const socialLabels: Record<string, string> = {
+          warmth: 'Теплота', power: 'Власть/авторитет', edge: 'Провокативность', clarity: 'Прозрачность',
+        };
+        for (const [key, val] of Object.entries(socialAxes)) {
+          parts.push(`  ${socialLabels[key] || key}: ${val}/100`);
+        }
+        parts.push('');
+      }
+
+      // Passport hero
+      const passport = dnk.passport as Record<string, unknown> | undefined;
+      if (passport) {
+        if (passport.hook) parts.push(`СУТЬ АРТИСТА: ${passport.hook}`);
+        if (passport.how_people_feel_you) parts.push(`КАК ВОСПРИНИМАЮТ: ${passport.how_people_feel_you}`);
+        if (Array.isArray(passport.magnet) && passport.magnet.length > 0) {
+          parts.push(`ПРИТЯГИВАЕТ: ${passport.magnet.join(', ')}`);
+        }
+        if (passport.shadow) parts.push(`ТЕНЬ (слабое место): ${passport.shadow}`);
+        parts.push('');
+      }
+
+      // Recommendations
+      const recs = dnk.recommendations as Record<string, unknown> | undefined;
+      if (recs && typeof recs === 'object') {
+        parts.push('РЕКОМЕНДАЦИИ ИЗ DNK:');
+        for (const [area, content] of Object.entries(recs)) {
+          if (typeof content === 'string') {
+            parts.push(`  ${area}: ${content}`);
+          } else if (content && typeof content === 'object') {
+            parts.push(`  ${area}: ${JSON.stringify(content)}`);
+          }
+        }
+        parts.push('');
+      }
+
+      // Professional tests — readable format
+      if (Array.isArray(profTests) && profTests.length > 0) {
+        parts.push(`ПРОЙДЕННЫЕ ТЕСТЫ DNK (${profTests.length}/6):`);
+        const testNames: Record<string, string> = {
+          artist_archetype: 'Архетип артиста',
+          tone_communication: 'Тон коммуникации',
+          story_core: 'Сюжетное ядро',
+          growth_profile: 'Профиль роста',
+          discipline_index: 'Индекс дисциплины',
+          career_risk: 'Риск-профиль',
+        };
+        for (const t of profTests as Array<Record<string, unknown>>) {
+          const name = testNames[t.test as string] || t.test;
+          parts.push(`\n▸ ${name}`);
+          if (t.summary) parts.push(`  Вывод: ${t.summary}`);
+          if (Array.isArray(t.strengths) && t.strengths.length > 0) {
+            parts.push(`  Сильные стороны: ${(t.strengths as string[]).join('; ')}`);
+          }
+          if (Array.isArray(t.risks) && t.risks.length > 0) {
+            parts.push(`  Зоны риска: ${(t.risks as string[]).join('; ')}`);
+          }
+        }
+        parts.push('');
+      }
+
+      parts.push('ВАЖНО: Ты ЗНАЕШЬ этого артиста через его DNK. Обращайся к его сильным сторонам, учитывай слабые. Не давай generic советы — всё должно быть через призму его уникального профиля. Если артист спрашивает совет — привязывай к его осям и архетипу.');
     }
 
     return parts.join('\n');

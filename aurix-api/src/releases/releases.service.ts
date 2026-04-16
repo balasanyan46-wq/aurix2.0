@@ -11,8 +11,10 @@ export class ReleasesService {
     const { rows } = await this.pool.query(
       `INSERT INTO releases
         (artist_id, title, artist, release_type, cover_url, cover_path,
-         release_date, status, genre, language, explicit, upc, label, copyright_year)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         release_date, status, genre, language, explicit, upc, label, copyright_year,
+         description, lyrics, copyright_holders, platform_links, services, total_price,
+         bpm, mood, target_audience, reference_tracks, tiktok_clip, ai_generated, wizard_step)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        RETURNING *`,
       [
         artistId,
@@ -29,6 +31,19 @@ export class ReleasesService {
         dto.upc || null,
         dto.label || null,
         dto.copyright_year || null,
+        dto.description || null,
+        dto.lyrics || null,
+        dto.copyright_holders || null,
+        dto.platform_links ? JSON.stringify(dto.platform_links) : '{}',
+        dto.services ? JSON.stringify(dto.services) : '[]',
+        dto.total_price || 0,
+        dto.bpm || null,
+        dto.mood || null,
+        dto.target_audience || null,
+        dto.reference_tracks || null,
+        dto.tiktok_clip ?? false,
+        dto.ai_generated ? JSON.stringify(dto.ai_generated) : '{}',
+        dto.wizard_step || 0,
       ],
     );
     return rows[0];
@@ -40,14 +55,21 @@ export class ReleasesService {
       'title', 'artist', 'release_type', 'cover_url', 'cover_path',
       'release_date', 'genre', 'language', 'explicit', 'upc',
       'label', 'copyright_year',
+      // Extended fields (v2)
+      'description', 'lyrics', 'copyright_holders', 'platform_links',
+      'services', 'total_price', 'bpm', 'mood', 'target_audience',
+      'reference_tracks', 'tiktok_clip', 'ai_generated', 'wizard_step',
+      'needs_revision', 'revision_reason',
     ];
+    const jsonFields = ['platform_links', 'services', 'ai_generated'];
     const sets: string[] = [];
     const vals: any[] = [];
     let idx = 1;
     for (const key of allowed) {
       if (key in fields) {
         sets.push(`${key} = $${idx}`);
-        vals.push(fields[key]);
+        const val = fields[key];
+        vals.push(jsonFields.includes(key) && typeof val === 'object' ? JSON.stringify(val) : val);
         idx++;
       }
     }
@@ -62,7 +84,10 @@ export class ReleasesService {
 
   async findById(id: number) {
     const { rows } = await this.pool.query(
-      `SELECT * FROM releases WHERE id = $1`,
+      `SELECT r.*, a.user_id AS owner_id
+       FROM releases r
+       LEFT JOIN artists a ON a.id = r.artist_id
+       WHERE r.id = $1`,
       [id],
     );
     return rows[0] || null;
@@ -70,7 +95,11 @@ export class ReleasesService {
 
   async findByArtistId(artistId: number) {
     const { rows } = await this.pool.query(
-      `SELECT * FROM releases WHERE artist_id = $1 ORDER BY created_at DESC`,
+      `SELECT r.*, a.user_id AS owner_id
+       FROM releases r
+       LEFT JOIN artists a ON a.id = r.artist_id
+       WHERE r.artist_id = $1
+       ORDER BY r.created_at DESC`,
       [artistId],
     );
     return rows;
@@ -78,7 +107,7 @@ export class ReleasesService {
 
   async findByStatus(status: string) {
     const { rows } = await this.pool.query(
-      `SELECT r.*, a.artist_name
+      `SELECT r.*, a.artist_name, a.user_id AS owner_id
        FROM releases r
        JOIN artists a ON a.id = r.artist_id
        WHERE r.status = $1
@@ -90,7 +119,7 @@ export class ReleasesService {
 
   async findAll() {
     const { rows } = await this.pool.query(
-      `SELECT r.*, a.artist_name
+      `SELECT r.*, a.artist_name, a.user_id AS owner_id
        FROM releases r
        JOIN artists a ON a.id = r.artist_id
        ORDER BY r.created_at DESC`,
@@ -113,7 +142,7 @@ export class ReleasesService {
     const { rows } = await this.pool.query(
       `UPDATE releases
        SET status = 'approved', approved_at = NOW()
-       WHERE id = $1 AND status = 'review'
+       WHERE id = $1 AND status IN ('review', 'submitted', 'in_review')
        RETURNING *`,
       [id],
     );
@@ -135,7 +164,7 @@ export class ReleasesService {
     const { rows } = await this.pool.query(
       `UPDATE releases
        SET status = 'rejected', reject_reason = $2
-       WHERE id = $1 AND status = 'review'
+       WHERE id = $1 AND status IN ('review', 'submitted', 'in_review')
        RETURNING *`,
       [id, reason || null],
     );

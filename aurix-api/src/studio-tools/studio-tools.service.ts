@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { EdenAiService } from '../ai/eden-ai.service';
+import { AiGatewayService } from '../ai/ai-gateway.service';
 
 // ── System prompts ────────
 
@@ -112,7 +112,7 @@ function cacheCleanup() {
 export class StudioToolsService {
   private readonly logger = new Logger(StudioToolsService.name);
 
-  constructor(private readonly ai: EdenAiService) {}
+  constructor(private readonly ai: AiGatewayService) {}
 
   private buildUserPrompt(inputs: Record<string, any>): string {
     const parts: string[] = [];

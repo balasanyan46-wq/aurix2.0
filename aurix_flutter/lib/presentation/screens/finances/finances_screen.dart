@@ -7,6 +7,7 @@ import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/data/models/report_row_model.dart';
 import 'package:aurix_flutter/data/providers/reports_provider.dart';
 import 'package:aurix_flutter/config/responsive.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 enum _Period { all, year, quarter, month }
 
@@ -65,6 +66,7 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              SectionOnboarding(tip: OnboardingTips.finance),
               FadeInSlide(child: _buildPeriodSelector()),
               const SizedBox(height: 20),
               FadeInSlide(
@@ -169,6 +171,19 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
         ? _compactInt(totalStreams)
         : NumberFormat('#,##0', 'en_US').format(totalStreams);
 
+    // Aggregate by track title
+    final byTrack = <String, ({double revenue, int streams, String? isrc})>{};
+    for (final r in rows) {
+      final key = r.trackTitle ?? (r.isrc ?? '—');
+      final prev = byTrack[key];
+      byTrack[key] = (
+        revenue: (prev?.revenue ?? 0) + r.revenue,
+        streams: (prev?.streams ?? 0) + r.streams,
+        isrc: r.isrc ?? prev?.isrc,
+      );
+    }
+    final tracks = byTrack.entries.toList()..sort((a, b) => b.value.revenue.compareTo(a.value.revenue));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -178,10 +193,61 @@ class _FinancesScreenState extends ConsumerState<FinancesScreen> {
           children: [
             _StatCard(label: 'Общий доход', value: revenueStr, icon: Icons.attach_money, color: AurixTokens.orange),
             _StatCard(label: 'Стримы', value: streamsStr, icon: Icons.headphones_rounded, color: AurixTokens.coolUndertone),
+            _StatCard(label: 'Треков', value: '${tracks.length}', icon: Icons.music_note_rounded, color: AurixTokens.positive),
             _StatCard(label: 'Платформы', value: '${platforms.length}', icon: Icons.apps_rounded, color: AurixTokens.aiAccent),
           ],
         ),
         const SizedBox(height: 24),
+
+        // ── ДОХОД ПО ТРЕКАМ ─────────────────────────────────
+        if (tracks.isNotEmpty) ...[
+          AurixGlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Доход по трекам', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 16),
+                ...tracks.take(15).map((e) {
+                  final pct = totalRevenue > 0 ? e.value.revenue / totalRevenue : 0.0;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Expanded(child: Text(e.key, style: const TextStyle(color: AurixTokens.text, fontSize: 14, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                          const SizedBox(width: 8),
+                          Text('$currSymbol${_compactNumber(e.value.revenue)}', style: const TextStyle(color: AurixTokens.text, fontSize: 13, fontWeight: FontWeight.w600)),
+                        ]),
+                        const SizedBox(height: 2),
+                        Row(children: [
+                          Text('${_compactInt(e.value.streams)} стримов', style: TextStyle(color: AurixTokens.muted, fontSize: 11)),
+                          if (e.value.isrc != null && e.value.isrc!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text('· ISRC: ${e.value.isrc}', style: TextStyle(color: AurixTokens.muted.withValues(alpha: 0.7), fontSize: 11, fontFeatures: AurixTokens.tabularFigures)),
+                          ],
+                        ]),
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: pct.clamp(0.0, 1.0),
+                            minHeight: 6,
+                            backgroundColor: AurixTokens.glass(0.1),
+                            valueColor: const AlwaysStoppedAnimation(AurixTokens.positive),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
         AurixGlassCard(
           padding: const EdgeInsets.all(20),
           child: Column(

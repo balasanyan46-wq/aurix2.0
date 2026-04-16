@@ -5,21 +5,24 @@ import {
   Query,
   Body,
   Req,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
   HttpException,
   HttpStatus,
   Inject,
+  Param,
 } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreditGuard, CreditAction } from '../billing/credit.guard';
 import { CreditsService } from '../billing/credits.service';
-import { EdenAiService } from './eden-ai.service';
+import { AiGatewayService } from './ai-gateway.service';
 import { DnkService } from './dnk.service';
 import { DnkTestsService } from './dnk-tests.service';
 import { AiContextService, ContextMode } from './ai-context.service';
@@ -37,7 +40,7 @@ const VALID_CONTEXT_MODES = new Set<ContextMode>(['full', 'no_dnk', 'clean']);
 const VALID_GEN_TYPES = new Set<AiGenerationType>(['text', 'image', 'video', 'audio']);
 
 const MAX_HISTORY_LENGTH = 20;
-const MAX_MESSAGE_LENGTH = 4000;
+const MAX_MESSAGE_LENGTH = 8000;
 
 interface ChatBody {
   message: string;
@@ -54,7 +57,7 @@ interface ChatBody {
 export class AiController {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly ai: EdenAiService,
+    private readonly ai: AiGatewayService,
     private readonly credits: CreditsService,
     private readonly dnkSvc: DnkService,
     private readonly dnkTestsSvc: DnkTestsService,
@@ -116,9 +119,9 @@ export class AiController {
 
   // ── Unified generate (image / video / audio / text) ────────
 
-  @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('generate')
-  async generate(
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  async generateMedia(
     @Req() req: any,
     @Body() body: {
       type?: string;
@@ -370,6 +373,97 @@ export class AiController {
     return this.coverSvc.generateFromIdea(idea);
   }
 
+  // ── Analytics insights (free — not credit-gated) ───────────
+  // Получает сводку по статистике артиста и возвращает советы от AI.
+
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('analyze-stats')
+  async analyzeStats(
+    @Req() req: any,
+    @Body() body: {
+      total_streams?: number;
+      total_revenue?: number;
+      currency?: string;
+      total_releases?: number;
+      period_days?: number;
+      top_platforms?: Array<{ name: string; streams: number; revenue: number }>;
+      top_countries?: Array<{ name: string; streams: number; revenue: number }>;
+      top_tracks?: Array<{ title: string; streams: number; revenue: number }>;
+      usage_types?: Array<{ name: string; revenue: number }>;
+    },
+  ): Promise<{ insights: string }> {
+    const userId = req.user?.id;
+
+    const system = `Ты — продюсер-аналитик. Твоя задача — посмотреть статистику релизов артиста и дать короткие, конкретные, применимые советы.
+
+Стиль:
+— Без воды и банальностей
+— Максимум конкретики (названия платформ, стран, треков, % цифры)
+— Говори как наставник артисту, который смотрит его цифры впервые
+— На русском
+
+Ответ СТРОГО в JSON:
+{
+  "summary": "1–2 предложения — что в цифрах главное",
+  "strengths": ["2–3 сильных стороны с конкретикой: '82% дохода — Яндекс Музыка, это твоя опора'"],
+  "issues": ["2–3 проблемы или упущенных возможности"],
+  "actions": ["3–5 конкретных действий: 'Запости превью в TikTok для трека X, он даёт 40% дохода'"],
+  "next_step": "Одно главное следующее действие"
+}`;
+
+    const lines: string[] = ['СТАТИСТИКА АРТИСТА:'];
+    const cs = body.currency === 'RUB' ? '₽' : '$';
+    if (body.total_streams != null) lines.push(`Всего стримов: ${body.total_streams}`);
+    if (body.total_revenue != null) lines.push(`Общий доход: ${cs}${body.total_revenue.toFixed(2)}`);
+    if (body.total_releases != null) lines.push(`Релизов: ${body.total_releases}`);
+    if (body.period_days != null) lines.push(`Период данных: ${body.period_days} дней`);
+
+    if (body.top_platforms?.length) {
+      lines.push('', 'ТОП ПЛАТФОРМ:');
+      for (const p of body.top_platforms.slice(0, 8)) {
+        lines.push(`  • ${p.name}: ${p.streams} стримов, ${cs}${p.revenue.toFixed(2)}`);
+      }
+    }
+    if (body.top_countries?.length) {
+      lines.push('', 'ТОП СТРАН:');
+      for (const c of body.top_countries.slice(0, 8)) {
+        lines.push(`  • ${c.name}: ${c.streams} стримов, ${cs}${c.revenue.toFixed(2)}`);
+      }
+    }
+    if (body.top_tracks?.length) {
+      lines.push('', 'ТОП ТРЕКОВ:');
+      for (const t of body.top_tracks.slice(0, 8)) {
+        lines.push(`  • "${t.title}": ${t.streams} стримов, ${cs}${t.revenue.toFixed(2)}`);
+      }
+    }
+    if (body.usage_types?.length) {
+      lines.push('', 'ТИПЫ ИСПОЛЬЗОВАНИЯ:');
+      for (const u of body.usage_types.slice(0, 6)) {
+        lines.push(`  • ${u.name}: ${cs}${u.revenue.toFixed(2)}`);
+      }
+    }
+
+    // Добавим контекст профиля (DNK / персональные данные)
+    try {
+      if (userId) {
+        const ctx = await this.ctx.buildContext(userId, 'full');
+        const ctxPrompt = this.ctx.contextToPrompt(ctx);
+        if (ctxPrompt) lines.push('', 'КОНТЕКСТ АРТИСТА:', ctxPrompt);
+      }
+    } catch {}
+
+    const userMessage = lines.join('\n');
+
+    const reply = await this.ai.simpleChat(system, userMessage, {
+      maxTokens: 1200,
+      temperature: 0.6,
+      timeout: 60_000,
+    });
+
+    // Парсер JSON вынимает структуру, клиент дальше её рендерит
+    return { insights: reply };
+  }
+
   // ── Track analysis ─────────────────────────────────────────
 
   @Throttle({ default: { ttl: 60000, limit: 5 } })
@@ -399,7 +493,155 @@ export class AiController {
       throw new HttpException('audio file is required', HttpStatus.BAD_REQUEST);
     }
     const result = await this.audioAnalysis.analyzeTrack(file, body.lyrics?.trim() || undefined);
+
+    // Save to history
+    const userId = req.user?.id;
+    if (userId) {
+      try {
+        await this.pool.query(
+          `INSERT INTO track_analyses (user_id, filename, genre, bpm, key, duration, hit_score, score, viral_probability, audio_metrics, lyrics_analysis, ai_analysis, lyrics)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [
+            userId,
+            file.originalname || 'track',
+            result.derived_insights.genre,
+            result.measured_data.bpm.bpm,
+            result.measured_data.key.key,
+            result.measured_data.duration,
+            result.derived_insights.hit_score,
+            result.ai_explanation.score,
+            result.ai_explanation.viral_probability,
+            JSON.stringify(result.measured_data),
+            JSON.stringify(result.derived_insights),
+            JSON.stringify(result.ai_explanation),
+            result.measured_data.transcript.text,
+          ],
+        );
+      } catch (e: any) {
+        // Non-fatal — don't fail the response
+      }
+    }
+
     return { ...result, credits: req.creditSpend };
+  }
+
+  // ── AI Vocal Processing ────────────────────────────────────
+
+  @Post('process-vocal')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 100 * 1024 * 1024 },
+    }),
+  )
+  async processVocal(
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Res() res: any,
+    @Query('preset') qPreset?: string,
+    @Query('autotune') qAutotune?: string,
+    @Query('strength') qStrength?: string,
+    @Query('key') qKey?: string,
+    @Query('style') qStyle?: string,
+  ) {
+    if (!file) {
+      throw new HttpException('audio file is required', HttpStatus.BAD_REQUEST);
+    }
+    const preset = qPreset || 'hit';
+    const autotune = qAutotune || 'off';
+    const strength = parseFloat(qStrength || '0.5');
+    const key = qKey || 'C_major';
+    const style = qStyle || 'none';
+    const processed = await this.audioAnalysis.processVocal(file, preset, autotune, strength, key, style);
+    res.set({
+      'Content-Type': 'audio/wav',
+      'Content-Disposition': 'attachment; filename="processed.wav"',
+      'Content-Length': processed.length,
+    });
+    res.send(processed);
+  }
+
+  // ── Full Pipeline (vocal + beat → processed + mixed + mastered) ───
+
+  @Post('full-pipeline')
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'beat', maxCount: 1 },
+    { name: 'vocal', maxCount: 1 },
+  ], { limits: { fileSize: 100 * 1024 * 1024 } }))
+  async fullPipeline(
+    @Req() req: any,
+    @UploadedFiles() files: { beat?: Express.Multer.File[]; vocal?: Express.Multer.File[] },
+    @Res() res: any,
+    @Query('style') style?: string,
+    @Query('autotune') autotune?: string,
+    @Query('strength') strength?: string,
+    @Query('key') key?: string,
+    @Query('target') target?: string,
+  ) {
+    const beat = files.beat?.[0];
+    const vocal = files.vocal?.[0];
+    if (!beat || !vocal) throw new HttpException('beat and vocal files required', HttpStatus.BAD_REQUEST);
+
+    const processed = await this.audioAnalysis.fullPipeline(beat, vocal, {
+      style: style || 'wide_star',
+      autotune: autotune || 'on',
+      strength: parseFloat(strength || '0.5'),
+      key: key || 'C_major',
+      target: target || 'spotify',
+    });
+    res.set({ 'Content-Type': 'audio/wav', 'Content-Disposition': 'attachment; filename="final.wav"', 'Content-Length': processed.length });
+    res.send(processed);
+  }
+
+  // ── Track analysis history ────────────────────────────────
+
+  @Get('analyses')
+  async listAnalyses(@Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+    const { rows } = await this.pool.query(
+      `SELECT id, filename, genre, bpm, key, duration, hit_score, score, viral_probability, created_at
+       FROM track_analyses WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [userId],
+    );
+    return rows;
+  }
+
+  @Get('analyses/:id')
+  async getAnalysis(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user?.id;
+    if (!userId) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+    const { rows } = await this.pool.query(
+      `SELECT * FROM track_analyses WHERE id = $1 AND user_id = $2`,
+      [id, userId],
+    );
+    if (!rows.length) throw new HttpException('Not found', HttpStatus.NOT_FOUND);
+    const row = rows[0];
+
+    // Support both old and new format
+    const isNewFormat = row.audio_metrics?.bpm?.bpm !== undefined;
+    if (isNewFormat) {
+      return {
+        measured_data: row.audio_metrics,
+        derived_insights: row.lyrics_analysis,
+        ai_explanation: typeof row.ai_analysis === 'string' ? JSON.parse(row.ai_analysis) : row.ai_analysis,
+        filename: row.filename,
+        createdAt: row.created_at,
+      };
+    }
+
+    // Legacy format fallback
+    return {
+      audioMetrics: row.audio_metrics,
+      lyricsAnalysis: row.lyrics_analysis,
+      aiAnalysis: typeof row.ai_analysis === 'string' ? row.ai_analysis : JSON.stringify(row.ai_analysis),
+      score: row.score,
+      hitScore: row.hit_score,
+      viralProbability: row.viral_probability,
+      genre: row.genre,
+      lyrics: row.lyrics,
+      filename: row.filename,
+      createdAt: row.created_at,
+    };
   }
 
   // ── AI Profile ─────────────────────────────────────────────
@@ -423,6 +665,7 @@ export class AiController {
       references_list?: string[];
       goals?: string[];
       style_description?: string;
+      goal?: string;
     },
   ) {
     const userId = req.user?.id;
@@ -436,6 +679,7 @@ export class AiController {
       references_list: body.references_list,
       goals: body.goals,
       style_description: body.style_description?.trim(),
+      goal: body.goal?.trim(),
     });
   }
 }

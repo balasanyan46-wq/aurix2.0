@@ -134,8 +134,8 @@ class _AnimatedStatBadgeState extends State<_AnimatedStatBadge> with SingleTicke
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 4000));
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutQuart);
     // Start animation after a small delay
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) _ctrl.forward();

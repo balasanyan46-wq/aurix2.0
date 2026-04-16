@@ -10,6 +10,17 @@ import 'package:aurix_flutter/data/providers/crm_providers.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
+import 'package:aurix_flutter/presentation/screens/admin/admin_user_detail_screen.dart';
+
+String _userNameById(dynamic profiles, String id) {
+  if (profiles is! List) return 'User #$id';
+  for (final p in profiles) {
+    if (p.userId == id) {
+      return p.displayNameOrName ?? p.email ?? 'User #$id';
+    }
+  }
+  return 'User #$id';
+}
 
 class AdminSupportTab extends ConsumerStatefulWidget {
   const AdminSupportTab({super.key});
@@ -54,6 +65,7 @@ class _AdminSupportTabState extends ConsumerState<AdminSupportTab> {
     }
 
     final ticketsAsync = ref.watch(allTicketsProvider);
+    final profiles = ref.watch(allProfilesProvider).valueOrNull ?? [];
 
     return Column(
       children: [
@@ -149,6 +161,7 @@ class _AdminSupportTabState extends ConsumerState<AdminSupportTab> {
                       return _TicketCard(
                         ticket: t,
                         statusColor: _statusColor(t.status),
+                        userName: _userNameById(profiles, t.userId),
                         onTap: () => setState(() => _openedTicket = t),
                       );
                     },
@@ -193,10 +206,11 @@ class _AdminSupportTabState extends ConsumerState<AdminSupportTab> {
 // ─── Ticket card ───
 
 class _TicketCard extends StatelessWidget {
-  const _TicketCard({required this.ticket, required this.statusColor, required this.onTap});
+  const _TicketCard({required this.ticket, required this.statusColor, required this.onTap, required this.userName});
   final SupportTicketModel ticket;
   final Color statusColor;
   final VoidCallback onTap;
+  final String userName;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +256,9 @@ class _TicketCard extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                Text('ID: ${ticket.userId.length > 8 ? '${ticket.userId.substring(0, 8)}...' : ticket.userId}', style: const TextStyle(color: AurixTokens.muted, fontSize: 10, fontFamily: 'monospace')),
+                Icon(Icons.person_rounded, size: 12, color: AurixTokens.muted),
+                const SizedBox(width: 4),
+                Text(userName, style: const TextStyle(color: AurixTokens.textSecondary, fontSize: 11)),
                 const Spacer(),
                 Text(DateFormat('dd.MM.yy HH:mm').format(ticket.updatedAt), style: const TextStyle(color: AurixTokens.muted, fontSize: 10)),
               ],
@@ -329,7 +345,6 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
         targetId: widget.ticket.id,
         details: {'message_len': body.length},
       );
-      // Mark as in_progress if it was open
       if (widget.ticket.status == 'open') {
         await ref.read(supportTicketRepositoryProvider).updateStatus(widget.ticket.id, 'in_progress');
       }
@@ -364,7 +379,6 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
   }
 
   Future<void> _notifyByEmail() async {
-    // Get the last admin message to include in email
     final lastAdminMsg = _messages.lastWhere(
       (m) => m.isAdmin,
       orElse: () => _messages.last,
@@ -419,6 +433,13 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
 
   @override
   Widget build(BuildContext context) {
+    final profiles = ref.watch(allProfilesProvider).valueOrNull ?? [];
+    // Find profile for this ticket's user
+    final userProfile = profiles.cast<dynamic>().where((p) => p.userId == widget.ticket.userId).firstOrNull;
+    final userName = userProfile?.displayNameOrName ?? 'User #${widget.ticket.userId}';
+    final userEmail = userProfile?.email as String?;
+    final userPlan = userProfile?.planId as String?;
+
     return Column(
       children: [
         // Header
@@ -437,7 +458,7 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(widget.ticket.subject, style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w600, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text('User: ${widget.ticket.userId.length > 8 ? '${widget.ticket.userId.substring(0, 8)}...' : widget.ticket.userId}', style: const TextStyle(color: AurixTokens.muted, fontSize: 11, fontFamily: 'monospace')),
+                    Text(userName, style: const TextStyle(color: AurixTokens.textSecondary, fontSize: 11)),
                   ],
                 ),
               ),
@@ -455,6 +476,14 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
               ),
             ],
           ),
+        ),
+        // User info card
+        _UserInfoCard(
+          userId: widget.ticket.userId,
+          userName: userName,
+          email: userEmail,
+          plan: userPlan,
+          ticketCreatedAt: widget.ticket.createdAt,
         ),
         // Messages
         Expanded(
@@ -479,8 +508,11 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
                       itemCount: _messages.length,
                       itemBuilder: (context, i) {
                         final msg = _messages[i];
-                        final isAdmin = msg.isAdmin;
-                        return _AdminMessageBubble(message: msg, isMe: isAdmin);
+                        return _AdminMessageBubble(
+                          message: msg,
+                          isMe: msg.isAdmin,
+                          senderLabel: msg.isAdmin ? 'Вы (поддержка)' : userName,
+                        );
                       },
                     ),
         ),
@@ -531,10 +563,104 @@ class _AdminChatViewState extends ConsumerState<_AdminChatView> {
   }
 }
 
+// ─── User info card (shown at top of admin chat) ───
+
+class _UserInfoCard extends StatelessWidget {
+  const _UserInfoCard({
+    required this.userId,
+    required this.userName,
+    this.email,
+    this.plan,
+    required this.ticketCreatedAt,
+  });
+  final String userId;
+  final String userName;
+  final String? email;
+  final String? plan;
+  final DateTime ticketCreatedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AurixTokens.bg2.withValues(alpha: 0.5),
+        border: Border(bottom: BorderSide(color: AurixTokens.border)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: AurixTokens.accent.withValues(alpha: 0.15),
+            child: const Icon(Icons.person_rounded, size: 20, color: AurixTokens.accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(userName, style: const TextStyle(color: AurixTokens.text, fontWeight: FontWeight.w600, fontSize: 13)),
+                Row(
+                  children: [
+                    if (email != null) ...[
+                      Flexible(
+                        child: Text(email!, style: const TextStyle(color: AurixTokens.muted, fontSize: 11), overflow: TextOverflow.ellipsis),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (plan != null && plan!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AurixTokens.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(plan!.toUpperCase(), style: TextStyle(color: AurixTokens.accent, fontSize: 9, fontWeight: FontWeight.w700)),
+                      ),
+                    const SizedBox(width: 8),
+                    Text('ID: $userId', style: const TextStyle(color: AurixTokens.muted, fontSize: 10)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AdminUserDetailScreen(
+                    userId: int.tryParse(userId) ?? 0,
+                    userName: userName,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.open_in_new_rounded, size: 14),
+            label: const Text('Профиль'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AurixTokens.accent,
+              side: BorderSide(color: AurixTokens.accent.withValues(alpha: 0.3)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Message bubble for admin chat ───
+
 class _AdminMessageBubble extends StatelessWidget {
-  const _AdminMessageBubble({required this.message, required this.isMe});
+  const _AdminMessageBubble({required this.message, required this.isMe, required this.senderLabel});
   final SupportMessageModel message;
   final bool isMe;
+  final String senderLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -547,8 +673,8 @@ class _AdminMessageBubble extends StatelessWidget {
           if (!isMe) ...[
             CircleAvatar(
               radius: 14,
-              backgroundColor: AurixTokens.bg2,
-              child: const Icon(Icons.person, size: 16, color: AurixTokens.muted),
+              backgroundColor: AurixTokens.coolUndertone.withValues(alpha: 0.15),
+              child: const Icon(Icons.person, size: 16, color: AurixTokens.coolUndertone),
             ),
             const SizedBox(width: 8),
           ],
@@ -556,7 +682,7 @@ class _AdminMessageBubble extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isMe ? AurixTokens.orange.withValues(alpha: 0.15) : AurixTokens.bg2,
+                color: isMe ? AurixTokens.orange.withValues(alpha: 0.12) : AurixTokens.bg2,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -568,16 +694,17 @@ class _AdminMessageBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
-                  if (!isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text('Пользователь', style: TextStyle(color: AurixTokens.muted, fontSize: 10, fontWeight: FontWeight.w600)),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      senderLabel,
+                      style: TextStyle(
+                        color: isMe ? AurixTokens.orange : AurixTokens.coolUndertone,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  if (isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text('Поддержка', style: TextStyle(color: AurixTokens.orange, fontSize: 10, fontWeight: FontWeight.w600)),
-                    ),
+                  ),
                   Text(message.body, style: const TextStyle(color: AurixTokens.text, fontSize: 14, height: 1.4)),
                   const SizedBox(height: 4),
                   Text(DateFormat('HH:mm').format(message.createdAt), style: TextStyle(color: AurixTokens.muted, fontSize: 10)),

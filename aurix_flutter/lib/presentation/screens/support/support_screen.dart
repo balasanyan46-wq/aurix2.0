@@ -9,6 +9,23 @@ import 'package:aurix_flutter/data/models/support_ticket_model.dart';
 import 'package:aurix_flutter/data/models/support_message_model.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
+
+String _humanError(Object e) {
+  final s = e.toString();
+  // DioException — extract just the status code and meaning
+  if (s.contains('status code of')) {
+    final m = RegExp(r'status code of (\d+)').firstMatch(s);
+    final code = m?.group(1) ?? '?';
+    if (code == '400') return 'Ошибка запроса. Попробуйте ещё раз.';
+    if (code == '403') return 'Нет доступа.';
+    if (code == '404') return 'Не найдено.';
+    if (code == '500') return 'Ошибка сервера. Попробуйте позже.';
+    return 'Ошибка $code. Попробуйте позже.';
+  }
+  if (s.length > 120) return 'Произошла ошибка. Попробуйте позже.';
+  return s;
+}
 
 class SupportScreen extends ConsumerStatefulWidget {
   const SupportScreen({super.key});
@@ -100,17 +117,29 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
         subject: subjectCtrl.text.trim(),
         message: msgCtrl.text.trim(),
       );
-      // Also create the first message
-      await ref.read(supportTicketRepositoryProvider).sendMessage(
-        ticketId: ticket.id,
-        senderId: userId,
-        senderRole: 'user',
-        body: msgCtrl.text.trim(),
-      );
+      // Try to also create the first message (non-critical — ticket already saved)
+      if (ticket.id.isNotEmpty) {
+        try {
+          await ref.read(supportTicketRepositoryProvider).sendMessage(
+            ticketId: ticket.id,
+            senderId: userId,
+            senderRole: 'user',
+            body: msgCtrl.text.trim(),
+          );
+        } catch (_) {
+          // Message creation failed but ticket exists — user can retry from chat
+        }
+      }
       await _loadTickets();
       if (mounted) setState(() => _activeTicket = ticket);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_humanError(e)),
+          backgroundColor: AurixTokens.danger,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
   }
 
@@ -139,6 +168,10 @@ class _SupportScreenState extends ConsumerState<SupportScreen> {
 
     return Column(
       children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: pad),
+          child: SectionOnboarding(tip: OnboardingTips.support),
+        ),
         Padding(
           padding: EdgeInsets.fromLTRB(pad, pad, pad, 0),
           child: Row(
@@ -320,7 +353,7 @@ class _ChatViewState extends ConsumerState<_ChatView> {
     final body = _msgCtrl.text.trim();
     if (body.isEmpty) return;
     final userId = ref.read(currentUserProvider)?.id;
-    if (userId == null) return;
+    if (userId == null || widget.ticket.id.isEmpty) return;
 
     setState(() => _sending = true);
     _msgCtrl.clear();
@@ -333,7 +366,13 @@ class _ChatViewState extends ConsumerState<_ChatView> {
       );
       await _loadMessages();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_humanError(e)),
+          backgroundColor: AurixTokens.danger,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     }
     if (mounted) setState(() => _sending = false);
   }

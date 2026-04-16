@@ -1192,8 +1192,8 @@ $draft
       'category': category,
       'difficulty': (ai['difficulty'] ?? 'средний').toString(),
       'reading_time_minutes':
-          (ai['reading_time_minutes'] as num?)?.toInt() ?? 10,
-      'priority_score': (ai['priority_score'] as num?)?.toDouble() ?? 0.75,
+          ai['reading_time_minutes'] is num ? (ai['reading_time_minutes'] as num).toInt() : int.tryParse(ai['reading_time_minutes']?.toString() ?? '') ?? 10,
+      'priority_score': ai['priority_score'] is num ? (ai['priority_score'] as num).toDouble() : double.tryParse(ai['priority_score']?.toString() ?? '') ?? 0.75,
       'tags': asStrings(ai['tags']),
       'platforms': asStrings(ai['platforms']),
       'stages': asStrings(ai['stages']),

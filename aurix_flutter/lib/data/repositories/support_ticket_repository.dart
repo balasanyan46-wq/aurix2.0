@@ -21,10 +21,8 @@ class SupportTicketRepository {
   }
 
   Future<List<SupportTicketModel>> getMyTickets(String userId) async {
-    final res = await ApiClient.get('/support-tickets', query: {
-      'user_id': userId,
-      'order': 'updated_at.desc',
-    });
+    // Backend gets user_id from JWT, order is hardcoded DESC
+    final res = await ApiClient.get('/support-tickets');
     final list = asList(res.data);
     return list
         .map((e) => SupportTicketModel.fromJson(e as Map<String, dynamic>))
@@ -104,11 +102,15 @@ class SupportTicketRepository {
     });
     final msgBody = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
 
-    // Bump ticket updated_at so it floats to top
-    await ApiClient.put('/support-tickets/$ticketId', data: {
-      'updated_at': DateTime.now().toIso8601String(),
-      if (senderRole == 'user') 'status': 'open',
-    });
+    // Bump ticket updated_at so it floats to top (non-critical)
+    try {
+      await ApiClient.put('/support-tickets/$ticketId', data: {
+        'updated_at': DateTime.now().toIso8601String(),
+        if (senderRole == 'user') 'status': 'open',
+      });
+    } catch (_) {
+      // Not critical — message was already sent
+    }
 
     return SupportMessageModel.fromJson(msgBody);
   }

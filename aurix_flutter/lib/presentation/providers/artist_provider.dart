@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/presentation/screens/studio/models/artist_profile.dart';
 import 'package:aurix_flutter/presentation/screens/studio/models/ai_memory.dart';
 
@@ -27,6 +29,27 @@ class ArtistProfileNotifier extends StateNotifier<ArtistProfile> {
     final raw = prefs.getString(_profileKey(_uid));
     if (raw != null && raw.isNotEmpty) {
       state = ArtistProfile.decode(raw);
+      return;
+    }
+    // Fallback: try loading from backend (cross-device sync)
+    try {
+      final res = await ApiClient.get('/api/ai/profile');
+      final data = res.data;
+      if (data is Map<String, dynamic> && (data['name'] ?? '').toString().isNotEmpty) {
+        final profile = ArtistProfile(
+          name: (data['name'] ?? '').toString(),
+          genre: (data['genre'] ?? '').toString(),
+          mood: (data['mood'] ?? '').toString(),
+          references: (data['references_list'] is List) ? List<String>.from(data['references_list']) : [],
+          goals: (data['goals'] is List) ? List<String>.from(data['goals']) : [],
+          styleDescription: (data['style_description'] ?? '').toString(),
+          goal: (data['goal'] ?? '').toString(),
+        );
+        state = profile;
+        await prefs.setString(_profileKey(_uid), profile.encode());
+      }
+    } catch (e) {
+      debugPrint('[ArtistProfile] Backend load failed: $e');
     }
   }
 

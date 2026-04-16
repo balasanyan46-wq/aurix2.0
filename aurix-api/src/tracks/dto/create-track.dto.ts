@@ -1,6 +1,8 @@
 import { IsString, IsOptional, IsBoolean, IsInt, IsNumber, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateTrackDto {
+  @Type(() => Number)
   @IsInt()
   release_id: number;
 

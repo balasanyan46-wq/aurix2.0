@@ -139,6 +139,54 @@ export class BillingController {
     return { ok: true, balance: result.balance, transactionId: result.transactionId };
   }
 
+  /** Admin: deduct credits from user. */
+  @Post('admin/billing/deduct')
+  @UseGuards(AdminGuard)
+  async adminDeduct(@Req() req: any, @Body() body: { user_id: number; amount: number; reason?: string }) {
+    if (!body.user_id || !body.amount || body.amount <= 0) {
+      throw new HttpException('user_id and positive amount required', HttpStatus.BAD_REQUEST);
+    }
+    // Direct DB deduct for admin — bypass action-key-based spend
+    const client = await this.credits['pool'].connect();
+    let balance = 0;
+    try {
+      await client.query('BEGIN');
+      await client.query('INSERT INTO user_balance (user_id, credits) VALUES ($1, 0) ON CONFLICT DO NOTHING', [body.user_id]);
+      const { rows } = await client.query(
+        'UPDATE user_balance SET credits = GREATEST(credits - $2, 0), updated_at = now() WHERE user_id = $1 RETURNING credits',
+        [body.user_id, body.amount],
+      );
+      balance = rows[0]?.credits ?? 0;
+      await client.query(
+        `INSERT INTO credit_transactions (user_id, amount, type, reason, balance_after) VALUES ($1, $2, 'spend', $3, $4)`,
+        [body.user_id, -body.amount, body.reason || 'Списание администратором', balance],
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    const result = { balance };
+
+    await this.credits['pool'].query(
+      `INSERT INTO admin_logs (admin_id, action, target_type, target_id, details)
+       VALUES ($1, 'credit_deduct', 'user', $2, $3)`,
+      [req.user.id, String(body.user_id), JSON.stringify({ amount: body.amount, reason: body.reason })],
+    );
+
+    this.notifications.send({
+      user_id: body.user_id,
+      title: 'Списание кредитов',
+      message: `Списано ${body.amount} кредитов${body.reason ? `: ${body.reason}` : ''}`,
+      type: 'system',
+      meta: { amount: body.amount, reason: body.reason },
+    }).catch(() => {});
+
+    return { ok: true, balance: result.balance };
+  }
+
   /** Admin: grant plan credits manually. */
   @Post('admin/billing/grant-plan')
   @UseGuards(AdminGuard)

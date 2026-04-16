@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
+import 'package:aurix_flutter/data/providers/crm_providers.dart';
 import 'package:aurix_flutter/data/providers/promo_providers.dart';
+import 'package:aurix_flutter/features/casting/data/casting_providers.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_dashboard_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_users_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_releases_tab.dart';
@@ -20,6 +22,10 @@ import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_logs_tab.dar
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_support_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_billing_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_system_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_services_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_errors_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_beats_tab.dart';
+import 'package:aurix_flutter/features/casting/presentation/admin_casting_tab.dart';
 
 const _kDesktopBreak = 800.0;
 
@@ -45,7 +51,11 @@ const _tabs = [
   _TabDef('logs', 'Логи', Icons.receipt_long_rounded),
   _TabDef('support', 'Поддержка', Icons.support_agent_rounded),
   _TabDef('billing', 'Биллинг', Icons.payments_rounded),
+  _TabDef('services', 'Услуги', Icons.sell_rounded),
+  _TabDef('errors', 'Ошибки', Icons.bug_report_rounded),
   _TabDef('system', 'Система', Icons.settings_rounded),
+  _TabDef('beats', 'Биты', Icons.graphic_eq_rounded),
+  _TabDef('casting', 'Код Артиста', Icons.mic_external_on_rounded),
 ];
 
 class AdminPanel extends ConsumerStatefulWidget {
@@ -130,6 +140,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
     ref.invalidate(allReleaseDeleteRequestsProvider);
     ref.invalidate(allProfilesProvider);
     ref.invalidate(allReportRowsProvider);
+    ref.invalidate(adminReportsProvider);
     ref.invalidate(adminLogsProvider);
     ref.invalidate(allTicketsProvider);
     ref.invalidate(adminBillingSubscriptionsProvider);
@@ -138,6 +149,12 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
     ref.invalidate(adminBillingStatsProvider);
     ref.invalidate(adminBillingTransactionsProvider);
     ref.invalidate(adminSignalsProvider);
+    ref.invalidate(adminCastingApplicationsProvider);
+    ref.invalidate(adminCastingStatsProvider);
+    ref.invalidate(adminCrmLeadsProvider);
+    ref.invalidate(adminCrmDealsProvider);
+    ref.invalidate(adminCrmInvoicesProvider);
+    ref.invalidate(adminCrmTasksProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Данные обновлены'),
@@ -163,7 +180,11 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
         const AdminLogsTab(),
         const AdminSupportTab(),
         const AdminBillingTab(),
+        const AdminServicesTab(),
+        const AdminErrorsTab(),
         const AdminSystemTab(),
+        const AdminBeatsTab(),
+        const AdminCastingTab(),
       ];
 
   Widget _buildDesktop(BuildContext context) {
@@ -176,14 +197,28 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
           icon: const Icon(Icons.arrow_back, color: AurixTokens.text),
           onPressed: () { if (context.canPop()) context.pop(); else context.go('/home'); },
         ),
-        title: const Text(
-          'ПАНЕЛЬ УПРАВЛЕНИЯ',
-          style: TextStyle(
-            color: AurixTokens.text,
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-            letterSpacing: 1.5,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                gradient: LinearGradient(colors: [AurixTokens.accent, AurixTokens.accent.withValues(alpha: 0.6)]),
+              ),
+              child: const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 15),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'AURIX ADMIN',
+              style: TextStyle(
+                color: AurixTokens.text,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
@@ -202,9 +237,12 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
               isScrollable: true,
               indicatorSize: TabBarIndicatorSize.tab,
               indicator: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                color: AurixTokens.accent.withValues(alpha: 0.2),
-                border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.36)),
+                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(colors: [
+                  AurixTokens.accent.withValues(alpha: 0.2),
+                  AurixTokens.accent.withValues(alpha: 0.08),
+                ]),
+                border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.3)),
               ),
               labelColor: AurixTokens.text,
               unselectedLabelColor: AurixTokens.muted,

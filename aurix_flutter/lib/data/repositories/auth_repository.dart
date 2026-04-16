@@ -15,6 +15,7 @@ class AuthRepository {
     required String password,
     required String phone,
     String? name,
+    String? ref,
   }) async {
     try {
       await AuthApi.register(
@@ -22,6 +23,7 @@ class AuthRepository {
         password: password,
         name: name?.trim(),
         phone: phone.trim(),
+        ref: ref,
       );
     } on DioException catch (e) {
       final msg = _extractError(e);

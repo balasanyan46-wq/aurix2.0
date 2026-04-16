@@ -38,6 +38,10 @@ import { SmartLinkModule } from './smart-link/smart-link.module';
 import { StudioToolsModule } from './studio-tools/studio-tools.module';
 import { BrainModule } from './brain/brain.module';
 import { PaymentsModule } from './payments/payments.module';
+import { BeatsModule } from './beats/beats.module';
+import { ReferralModule } from './referral/referral.module';
+import { TelegramModule } from './telegram/telegram.module';
+import { CastingModule } from './casting/casting.module';
 
 @Module({
   imports: [
@@ -81,6 +85,10 @@ import { PaymentsModule } from './payments/payments.module';
     StudioToolsModule,
     BrainModule,
     PaymentsModule,
+    CastingModule,
+    BeatsModule,
+    ReferralModule,
+    TelegramModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -28,23 +28,43 @@ export class AiToolsService {
   }
 
   // AI Studio Messages
-  async getMessages(userId: number, limit = 50) {
+  async getMessages(userId: number, limit = 50, generativeType?: string) {
+    if (generativeType) {
+      // Filter by tool type; 'chat' also matches messages with no generativeType
+      const isChat = generativeType === 'chat';
+      const { rows } = await this.pool.query(
+        `SELECT * FROM ai_studio_messages WHERE user_id=$1
+         AND (meta->>'generativeType' = $3${isChat ? " OR meta->>'generativeType' IS NULL OR meta IS NULL" : ''})
+         ORDER BY created_at ASC LIMIT $2`,
+        [userId, limit, generativeType],
+      );
+      return rows;
+    }
     const { rows } = await this.pool.query(
       'SELECT * FROM ai_studio_messages WHERE user_id=$1 ORDER BY created_at ASC LIMIT $2', [userId, limit],
     );
     return rows;
   }
 
-  async addMessage(userId: number, role: string, content: string) {
+  async addMessage(userId: number, role: string, content: string, meta?: Record<string, unknown>) {
     const { rows } = await this.pool.query(
-      'INSERT INTO ai_studio_messages (user_id, role, content) VALUES ($1,$2,$3) RETURNING *',
-      [userId, role, content],
+      'INSERT INTO ai_studio_messages (user_id, role, content, meta) VALUES ($1,$2,$3,$4) RETURNING *',
+      [userId, role, content, meta ? JSON.stringify(meta) : null],
     );
     return rows[0];
   }
 
-  async clearMessages(userId: number) {
-    await this.pool.query('DELETE FROM ai_studio_messages WHERE user_id=$1', [userId]);
+  async clearMessages(userId: number, generativeType?: string) {
+    if (generativeType) {
+      const isChat = generativeType === 'chat';
+      await this.pool.query(
+        `DELETE FROM ai_studio_messages WHERE user_id=$1
+         AND (meta->>'generativeType' = $2${isChat ? " OR meta->>'generativeType' IS NULL OR meta IS NULL" : ''})`,
+        [userId, generativeType],
+      );
+    } else {
+      await this.pool.query('DELETE FROM ai_studio_messages WHERE user_id=$1', [userId]);
+    }
   }
 
   // Release Tools

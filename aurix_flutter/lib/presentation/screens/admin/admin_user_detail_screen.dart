@@ -24,6 +24,7 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
     ref.invalidate(adminUserEventsProvider(widget.userId));
     ref.invalidate(adminUserSessionsProvider(widget.userId));
     ref.invalidate(adminUserBalanceProvider(widget.userId));
+    ref.invalidate(adminUserAiMessagesProvider(widget.userId));
   }
 
   @override
@@ -104,8 +105,32 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Event timeline ───────────────────────
-            const Text('ИСТОРИЯ ДЕЙСТВИЙ', style: TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+            // ── AI Studio messages ──────────────────
+            _buildAiMessagesSection(),
+
+            const SizedBox(height: 24),
+
+            // ── Recent actions (from detail) ─────────
+            detailAsync.when(
+              data: (data) {
+                final actions = (data['recent_actions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                if (actions.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ПОСЛЕДНИЕ ДЕЙСТВИЯ (${actions.length})', style: const TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                    const SizedBox(height: 12),
+                    _buildTimeline(actions),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+
+            // ── Event timeline (full) ───────────────
+            const Text('ПОЛНАЯ ИСТОРИЯ', style: TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
             const SizedBox(height: 12),
             eventsAsync.when(
               data: (events) => _buildTimeline(events),
@@ -115,6 +140,159 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // ── AI Studio messages section ───────────────────────────
+
+  Widget _buildAiMessagesSection() {
+    final aiAsync = ref.watch(adminUserAiMessagesProvider(widget.userId));
+
+    return aiAsync.when(
+      data: (messages) {
+        if (messages.isEmpty) return const SizedBox.shrink();
+
+        // Group messages by generativeType
+        final grouped = <String, List<Map<String, dynamic>>>{};
+        for (final m in messages) {
+          final meta = m['meta'] is Map ? Map<String, dynamic>.from(m['meta'] as Map) : <String, dynamic>{};
+          final type = meta['generativeType']?.toString() ?? 'chat';
+          (grouped[type] ??= []).add(m);
+        }
+
+        final typeLabels = {
+          'chat': 'Чат',
+          'lyrics': 'Текст',
+          'ideas': 'Идеи',
+          'reels': 'Reels',
+          'dnk': 'DNK',
+          'image': 'Обложка',
+          'analyze': 'Анализ',
+        };
+
+        final typeColors = {
+          'chat': AurixTokens.accent,
+          'lyrics': const Color(0xFF8B5CF6),
+          'ideas': AurixTokens.warning,
+          'reels': const Color(0xFFEC4899),
+          'dnk': AurixTokens.positive,
+          'image': AurixTokens.aiAccent,
+          'analyze': AurixTokens.coolUndertone,
+        };
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('AI STUDIO (${messages.length} сообщений)', style: const TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+            const SizedBox(height: 8),
+
+            // Tool type chips
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: grouped.entries.map((e) {
+                final color = typeColors[e.key] ?? AurixTokens.muted;
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: color.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    '${typeLabels[e.key] ?? e.key}: ${e.value.length}',
+                    style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+
+            // Message list
+            _card(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 500),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: messages.length,
+                  separatorBuilder: (_, __) => Divider(color: AurixTokens.stroke(0.08), height: 1),
+                  itemBuilder: (ctx, i) {
+                    final m = messages[i];
+                    final role = m['role']?.toString() ?? '';
+                    final content = m['content']?.toString() ?? '';
+                    final created = DateTime.tryParse(m['created_at']?.toString() ?? '');
+                    final meta = m['meta'] is Map ? Map<String, dynamic>.from(m['meta'] as Map) : <String, dynamic>{};
+                    final type = meta['generativeType']?.toString() ?? 'chat';
+                    final isUser = role == 'user';
+                    final color = typeColors[type] ?? AurixTokens.muted;
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 28, height: 28,
+                            decoration: BoxDecoration(
+                              color: isUser ? AurixTokens.accent.withValues(alpha: 0.12) : color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              isUser ? Icons.person_rounded : Icons.smart_toy_rounded,
+                              size: 14,
+                              color: isUser ? AurixTokens.accent : color,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      isUser ? 'Пользователь' : 'AI',
+                                      style: TextStyle(color: isUser ? AurixTokens.accent : color, fontSize: 11, fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: color.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(typeLabels[type] ?? type, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w600)),
+                                    ),
+                                    const Spacer(),
+                                    if (created != null)
+                                      Text(DateFormat('dd.MM HH:mm').format(created), style: const TextStyle(color: AurixTokens.muted, fontSize: 10)),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  content.length > 500 ? '${content.substring(0, 500)}...' : content,
+                                  style: TextStyle(
+                                    color: isUser ? AurixTokens.text : AurixTokens.textSecondary,
+                                    fontSize: 12,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      loading: () => _loading(),
+      error: (e, _) => const SizedBox.shrink(),
     );
   }
 
@@ -157,6 +335,21 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
                   label: const Text('Начислить', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AurixTokens.orange.withValues(alpha: 0.8),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 30,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showDeductCreditsDialog(),
+                  icon: const Icon(Icons.remove_rounded, size: 16),
+                  label: const Text('Списать', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AurixTokens.danger.withValues(alpha: 0.8),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -222,6 +415,45 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
               });
             },
             child: const Text('Начислить', style: TextStyle(color: AurixTokens.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeductCreditsDialog() {
+    final amountCtrl = TextEditingController(text: '50');
+    final reasonCtrl = TextEditingController(text: 'Списание администратором');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AurixTokens.bg1,
+        title: const Text('Списать кредиты', style: TextStyle(color: AurixTokens.text, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _dialogField(amountCtrl, 'Количество'),
+            const SizedBox(height: 10),
+            _dialogField(reasonCtrl, 'Причина'),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final amount = int.tryParse(amountCtrl.text.trim()) ?? 0;
+              if (amount <= 0) return;
+              await _doAction('-$amount кредитов списано', () async {
+                await ApiClient.post('/admin/billing/deduct', data: {
+                  'user_id': widget.userId,
+                  'amount': amount,
+                  'reason': reasonCtrl.text.trim(),
+                });
+              });
+            },
+            child: const Text('Списать', style: TextStyle(color: AurixTokens.danger)),
           ),
         ],
       ),
@@ -553,9 +785,10 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
 
     final email = user['email']?.toString() ?? '';
     final created = DateTime.tryParse(user['created_at']?.toString() ?? '');
+    final lastLogin = DateTime.tryParse(user['last_login']?.toString() ?? '');
     final verified = user['email_verified'] == true;
     final role = profile?['role']?.toString() ?? 'artist';
-    final plan = profile?['plan']?.toString() ?? 'start';
+    final plan = profile?['plan']?.toString() ?? 'none';
     final status = profile?['account_status']?.toString() ?? 'active';
     final displayName = profile?['display_name']?.toString() ?? profile?['name']?.toString() ?? '';
     final phone = profile?['phone']?.toString() ?? '';
@@ -604,6 +837,8 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
             if (phone.isNotEmpty) _infoRow(Icons.phone_outlined, phone),
             if (city.isNotEmpty) _infoRow(Icons.location_on_outlined, city),
             if (created != null) _infoRow(Icons.calendar_today, 'Регистрация: ${DateFormat('dd.MM.yyyy HH:mm').format(created)}'),
+            if (lastLogin != null) _infoRow(Icons.login_rounded, 'Последний вход: ${_timeAgo(lastLogin)}')
+            else _infoRow(Icons.login_rounded, 'Последний вход: не заходил'),
             _infoRow(Icons.tag, 'ID: ${widget.userId}'),
           ],
         ),
@@ -745,11 +980,21 @@ class _AdminUserDetailScreenState extends ConsumerState<AdminUserDetailScreen> {
   };
 
   static String _planLabel(String plan) => switch (plan) {
+    'none' => 'НЕТ ПЛАНА',
     'start' => 'СТАРТ',
     'breakthrough' => 'ПРОРЫВ',
     'empire' => 'ИМПЕРИЯ',
     _ => plan.toUpperCase(),
   };
+
+  static String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'только что';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} мин назад';
+    if (diff.inHours < 24) return '${diff.inHours} ч назад';
+    if (diff.inDays < 7) return '${diff.inDays} дн назад';
+    return DateFormat('dd.MM.yyyy HH:mm').format(dt);
+  }
 
   static Widget _badge(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

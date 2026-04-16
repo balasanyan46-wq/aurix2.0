@@ -11,6 +11,7 @@ import 'package:aurix_flutter/design/widgets/premium_ui.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 class SubscriptionScreen extends ConsumerStatefulWidget {
   const SubscriptionScreen({super.key});
@@ -76,50 +77,30 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              SectionOnboarding(tip: OnboardingTips.subscription),
               const SizedBox(height: 8),
 
               // ── Header ──────────────────────────────────────
               FadeInSlide(
-                child: Row(
-                  mainAxisAlignment: isDesktop ? MainAxisAlignment.center : MainAxisAlignment.start,
+                child: Column(
+                  crossAxisAlignment: isDesktop ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AurixTokens.accent.withValues(alpha: 0.15),
-                            AurixTokens.aiAccent.withValues(alpha: 0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AurixTokens.stroke(0.18)),
+                    Text(
+                      'Твоя музыка заслуживает большего.',
+                      style: TextStyle(
+                        color: AurixTokens.text,
+                        fontSize: isDesktop ? 28 : 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        height: 1.2,
                       ),
-                      child: const Icon(Icons.workspace_premium_rounded, size: 22, color: AurixTokens.accent),
+                      textAlign: isDesktop ? TextAlign.center : TextAlign.start,
                     ),
-                    const SizedBox(width: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isDesktop
-                              ? 'Выбери масштаб, на котором ты собираешься играть.'
-                              : 'Выбери свой масштаб.',
-                          style: TextStyle(
-                            color: AurixTokens.text,
-                            fontSize: isDesktop ? 24 : 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '7 дней trial с доступом уровня ПРОРЫВ, затем выбери тариф.',
-                          style: const TextStyle(color: AurixTokens.muted, fontSize: 13),
-                        ),
-                      ],
+                    const SizedBox(height: 8),
+                    Text(
+                      'Каждый день без правильного плана — потерянные стримы.\n7 дней бесплатно на тарифе ПРОРЫВ. Отменить можно в любой момент.',
+                      style: const TextStyle(color: AurixTokens.muted, fontSize: 14, height: 1.5),
+                      textAlign: isDesktop ? TextAlign.center : TextAlign.start,
                     ),
                   ],
                 ),
@@ -360,6 +341,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
   Widget _buildWhyBreakthroughSection(BuildContext context) {
     return PremiumSectionCard(
       padding: const EdgeInsets.all(28),
+      glowColor: AurixTokens.accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -369,44 +351,58 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AurixTokens.accent.withValues(alpha: 0.15),
-                      AurixTokens.accent.withValues(alpha: 0.05),
-                    ],
+                    colors: [AurixTokens.accent, AurixTokens.accentWarm],
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.2)),
+                  boxShadow: [BoxShadow(color: AurixTokens.accent.withValues(alpha: 0.3), blurRadius: 12)],
                 ),
-                child: const Icon(Icons.rocket_launch_rounded, size: 20, color: AurixTokens.accent),
+                child: const Icon(Icons.rocket_launch_rounded, size: 20, color: Colors.white),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
-                  'Почему артисты выбирают ПРОРЫВ?',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  'Почему 80% артистов на ПРОРЫВ?',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 24),
           _benefitRow(
-            Icons.trending_up_rounded,
-            'Инструменты роста',
-            'Безлимит релизов, AI-генерации и расширенная аналитика — всё для масштабирования.',
-          ),
-          const SizedBox(height: 16),
-          _benefitRow(
-            Icons.speed_rounded,
-            'Приоритет в системе',
-            'Релизы проверяются быстрее, поддержка отвечает в первую очередь.',
+            Icons.all_inclusive_rounded,
+            'Без ограничений на релизы',
+            'Выпускай столько треков, сколько хочешь. Никаких лимитов — только музыка.',
           ),
           const SizedBox(height: 16),
           _benefitRow(
             Icons.auto_awesome_rounded,
-            'AI-стратег под каждый релиз',
-            '300 персональных AI-генераций: контент-планы, бюджеты, питчи.',
+            'AI делает за тебя рутину',
+            '200 кредитов в месяц: тексты, обложки, стратегии продвижения, контент-планы. Ты создаёшь — AI масштабирует.',
+          ),
+          const SizedBox(height: 16),
+          _benefitRow(
+            Icons.speed_rounded,
+            'Релиз на платформах за 24 часа',
+            'Приоритетная проверка. Пока другие ждут неделю — ты уже собираешь стримы.',
+          ),
+          const SizedBox(height: 16),
+          _benefitRow(
+            Icons.fingerprint,
+            'AURIX DNK — знай свои сильные стороны',
+            'Творческий профиль на основе тестов. AI использует твой DNK для персональных рекомендаций.',
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Text(
+              '\"Я выпустил 4 релиза за месяц и вырос с 200 до 3 000 стримов.\nПРОРЫВ окупился за первую неделю.\"',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AurixTokens.muted,
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                height: 1.5,
+              ),
+            ),
           ),
         ],
       ),
@@ -564,13 +560,21 @@ class _PlanCardState extends State<_PlanCard> {
               if (_isStart)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text('Для теста платформы', style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                  child: Text('Попробуй платформу. Первый шаг.', style: TextStyle(color: AurixTokens.muted, fontSize: 12)),
+                ),
+              if (_isBreakthrough)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Всё для роста. AI, промо, аналитика.',
+                    style: TextStyle(color: AurixTokens.accent.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
                 ),
               if (_isEmpire)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    'Для тех, кто строит систему',
+                    'Для лейблов и продюсеров.',
                     style: TextStyle(color: AurixTokens.aiAccent.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w500),
                   ),
                 ),
@@ -621,13 +625,23 @@ class _PlanCardState extends State<_PlanCard> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AurixTokens.accent.withValues(alpha: 0.06),
+                    gradient: LinearGradient(
+                      colors: [AurixTokens.accent.withValues(alpha: 0.08), AurixTokens.accent.withValues(alpha: 0.03)],
+                    ),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.15)),
+                    border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.18)),
                   ),
-                  child: const Text(
-                    '+37% больше инструментов роста\nпо сравнению со СТАРТ',
-                    style: TextStyle(color: AurixTokens.text, fontSize: 12, fontWeight: FontWeight.w500, height: 1.4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.trending_up_rounded, size: 16, color: AurixTokens.accent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'В 3 раза больше возможностей роста, чем СТАРТ',
+                          style: TextStyle(color: AurixTokens.text, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -638,13 +652,23 @@ class _PlanCardState extends State<_PlanCard> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AurixTokens.aiAccent.withValues(alpha: 0.06),
+                    gradient: LinearGradient(
+                      colors: [AurixTokens.aiAccent.withValues(alpha: 0.08), AurixTokens.aiAccent.withValues(alpha: 0.03)],
+                    ),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AurixTokens.aiAccent.withValues(alpha: 0.15)),
+                    border: Border.all(color: AurixTokens.aiAccent.withValues(alpha: 0.18)),
                   ),
-                  child: const Text(
-                    'Максимальный приоритет внутри AURIX',
-                    style: TextStyle(color: AurixTokens.text, fontSize: 12, fontWeight: FontWeight.w500),
+                  child: Row(
+                    children: [
+                      Icon(Icons.diamond_rounded, size: 16, color: AurixTokens.aiAccent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Максимальный приоритет. Персональный менеджер.',
+                          style: TextStyle(color: AurixTokens.text, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

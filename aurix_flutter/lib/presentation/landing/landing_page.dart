@@ -8,6 +8,19 @@ import 'package:go_router/go_router.dart';
 // AURIX — Premium Landing v8  ·  cinematic · futuristic · high-conversion
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Мобильная оптимизация — проверяем ширину вью БЕЗ context.
+/// Используется в initState (где context ещё нет) чтобы не запускать
+/// бесконечные 60fps анимации на мобильных устройствах.
+bool _isDesktopView() {
+  try {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final w = view.physicalSize.width / view.devicePixelRatio;
+    return w >= 700;
+  } catch (_) {
+    return true;
+  }
+}
+
 /* ── Design tokens ────────────────────────────────────────────────────────── */
 
 class _T {
@@ -95,18 +108,33 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
       body: MouseRegion(
         onHover: (e) => _mouse.value = e.localPosition,
         child: Stack(children: [
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: Listenable.merge([_sy, _mouse]),
-              builder: (_, __) => _WaveBackground(sy: _sy.value, mouse: _mouse.value, sz: sz),
+          // Heavy painters only on desktop; mobile gets static gradient
+          if (sz.width >= 1024) ...[
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_sy, _mouse]),
+                builder: (_, __) => _WaveBackground(sy: _sy.value, mouse: _mouse.value, sz: sz),
+              ),
             ),
-          ),
-          Positioned.fill(
-            child: ValueListenableBuilder<double>(
-              valueListenable: _sy,
-              builder: (_, sy, __) => _ParticleField(sy: sy, mouse: _mouse.value, sz: sz),
+            Positioned.fill(
+              child: ValueListenableBuilder<double>(
+                valueListenable: _sy,
+                builder: (_, sy, __) => _ParticleField(sy: sy, mouse: _mouse.value, sz: sz),
+              ),
             ),
-          ),
+          ] else
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0, -.5),
+                    radius: 1.4,
+                    colors: [_T.accent.withValues(alpha: .04), _T.bg, _T.bg],
+                    stops: const [0, .4, 1],
+                  ),
+                ),
+              ),
+            ),
           CustomScrollView(
             controller: _sc,
             physics: const BouncingScrollPhysics(),
@@ -124,6 +152,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                 ),
               ),
               SliverToBoxAdapter(child: _Rv(sc: _sc, child: const _MetricsStrip())),
+              SliverToBoxAdapter(child: _Rv(sc: _sc, child: const _DeviceShowcase())),
               SliverToBoxAdapter(child: _Rv(sc: _sc, child: const _LiveDemoBlock())),
               SliverToBoxAdapter(child: _Rv(sc: _sc, child: const _ProblemSection())),
               SliverToBoxAdapter(child: _Rv(sc: _sc, child: const _SolutionSection())),
@@ -161,7 +190,9 @@ class _WaveBackgroundState extends State<_WaveBackground> with SingleTickerProvi
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 20))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 20));
+
+    if (_isDesktopView()) _c.repeat();
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -257,7 +288,7 @@ class _WavePainter extends CustomPainter {
       final alpha = (.04 - layer * .012) * fade;
 
       path.moveTo(baseX + side * spread, 0);
-      for (var y = 0.0; y <= h; y += 4) {
+      for (var y = 0.0; y <= h; y += 8) {
         final wave1 = math.sin(y * .003 + layerPhase) * amplitude;
         final wave2 = math.sin(y * .006 - layerPhase * .7) * amplitude * .4;
         final wave3 = math.sin(y * .001 + layerPhase * .3) * amplitude * .6;
@@ -304,7 +335,9 @@ class _ParticleFieldState extends State<_ParticleField> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 30))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 30));
+
+    if (_isDesktopView()) _c.repeat();
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -333,7 +366,7 @@ class _ParticlePainter extends CustomPainter {
     final phase = t * math.pi * 2;
     final fade = (1.0 - sy / (sz.height * 3)).clamp(0.0, 1.0);
 
-    for (var i = 0; i < 40; i++) {
+    for (var i = 0; i < 20; i++) {
       final bx = rng.nextDouble() * size.width;
       final by = rng.nextDouble() * size.height * 2;
       final speed = .3 + rng.nextDouble() * .7;
@@ -401,32 +434,99 @@ class _NavBarState extends State<_NavBar> {
       floating: false,
       backgroundColor: scrolled ? _T.bg.withValues(alpha: .92) : Colors.transparent,
       surfaceTintColor: Colors.transparent,
-      toolbarHeight: 64,
+      toolbarHeight: nr ? 56 : 64,
       automaticallyImplyLeading: false,
       elevation: 0,
+      titleSpacing: 0,
       title: Container(
-        padding: EdgeInsets.symmetric(horizontal: nr ? 0 : 24),
-        child: Row(children: [
-          Text(
-            'AURIX',
+        padding: EdgeInsets.symmetric(horizontal: nr ? 10 : 24),
+        child: nr
+          // ═══ MOBILE: «Код Артиста» слева · AURIX по центру · кнопки справа ═══
+          ? Row(children: [
+              // Слева — pill «Код Артиста»
+              _CastingNavBtn(
+                compact: true,
+                onTap: () => GoRouter.of(context).go('/casting'),
+              ),
+              // Распорка → лого ляжет по центру между pill и кнопками
+              const Spacer(),
+              // Центр — AURIX
+              Text(
+                'AURIX',
+                style: TextStyle(
+                  fontFamily: _T.hd,
+                  color: _T.accent,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 3,
+                ),
+              ),
+              const Spacer(),
+              // Справа — «Войти» + «Создать»
+              _NavTextLink('Войти', onTap: widget.onLogin),
+              const SizedBox(width: 6),
+              _NavBtn('Создать', onTap: widget.onReg, compact: true),
+            ])
+          // ═══ DESKTOP: AURIX слева · nav · spacer · pill · кнопки справа ═══
+          : Row(children: [
+              Text(
+                'AURIX',
+                style: TextStyle(
+                  fontFamily: _T.hd,
+                  color: _T.accent,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 4,
+                ),
+              ),
+              if (dk) ...[
+                const SizedBox(width: 32),
+                for (final item in widget.navItems)
+                  _NavLink(item.$1, onTap: item.$2),
+              ],
+              const SizedBox(width: 10),
+              _CastingNavBtn(onTap: () => GoRouter.of(context).go('/casting')),
+              const Spacer(),
+              _NavBtn('Войти', onTap: widget.onLogin, ghost: true),
+              const SizedBox(width: 10),
+              _NavBtn('Создать аккаунт', onTap: widget.onReg),
+            ]),
+      ),
+    );
+  }
+}
+
+// Простой текст-линк для «Войти» в компактной версии хедера.
+class _NavTextLink extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _NavTextLink(this.label, {required this.onTap});
+  @override
+  State<_NavTextLink> createState() => _NavTextLinkState();
+}
+
+class _NavTextLinkState extends State<_NavTextLink> {
+  bool _h = false;
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _h = true),
+        onExit: (_) => setState(() => _h = false),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+          child: Text(
+            widget.label,
             style: TextStyle(
-              fontFamily: _T.hd,
-              color: _T.accent,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 4,
+              fontFamily: _T.bd,
+              color: _h ? _T.text : _T.sub,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          if (dk) ...[
-            const SizedBox(width: 32),
-            for (final item in widget.navItems)
-              _NavLink(item.$1, onTap: item.$2),
-          ],
-          const Spacer(),
-          _NavBtn('Войти', onTap: widget.onLogin, ghost: true),
-          const SizedBox(width: 10),
-          _NavBtn('Создать аккаунт', onTap: widget.onReg),
-        ]),
+        ),
       ),
     );
   }
@@ -700,7 +800,9 @@ class _LiveSocialProofState extends State<_LiveSocialProof> with SingleTickerPro
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 40))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 40));
+
+    if (_isDesktopView()) _c.repeat();
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -745,7 +847,9 @@ class _MetricsStripState extends State<_MetricsStrip> with SingleTickerProviderS
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 40));
+
+    if (_isDesktopView()) _c.repeat();
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -763,10 +867,10 @@ class _MetricsStripState extends State<_MetricsStrip> with SingleTickerProviderS
         animation: _c,
         builder: (_, __) {
           final t = _c.value;
-          final streams = 142800 + (t * 2400).toInt();
-          final revenue = 84600 + (t * 800).toInt();
-          final growth = 24.3 + t * 3.2;
-          final listeners = 38400 + (t * 600).toInt();
+          final streams = 143022 + (t * 380).toInt();
+          final revenue = 84674 + (t * 120).toInt();
+          final growth = 24.6 + t * 0.4;
+          final listeners = 38455 + (t * 85).toInt();
 
           return Container(
             padding: EdgeInsets.all(dk ? 28 : 20),
@@ -849,7 +953,9 @@ class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderState
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+
+    if (_isDesktopView()) _c.repeat(reverse: true);
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -891,7 +997,9 @@ class _LiveDemoBlockState extends State<_LiveDemoBlock> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 8));
+
+    if (_isDesktopView()) _c.repeat();
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -1320,7 +1428,9 @@ class _DistributionSectionState extends State<_DistributionSection> with SingleT
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+
+    if (_isDesktopView()) _c.repeat();
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -1574,7 +1684,9 @@ class _AIStudioSectionState extends State<_AIStudioSection> with SingleTickerPro
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
+
+    if (_isDesktopView()) _pulse.repeat(reverse: true);
   }
 
   void _startAnalysis() {
@@ -1876,7 +1988,9 @@ class _AnalyticsSectionState extends State<_AnalyticsSection> with SingleTickerP
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(seconds: 5))..repeat();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 5));
+
+    if (_isDesktopView()) _c.repeat();
   }
   @override
   void dispose() { _c.dispose(); super.dispose(); }
@@ -2383,6 +2497,585 @@ class _StepCardState extends State<_StepCard> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DEVICE SHOWCASE — iPhone + Web animated mockups with 3D perspective
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DeviceShowcase extends StatefulWidget {
+  const _DeviceShowcase();
+  @override
+  State<_DeviceShowcase> createState() => _DeviceShowcaseState();
+}
+
+class _DeviceShowcaseState extends State<_DeviceShowcase> with TickerProviderStateMixin {
+  late final AnimationController _anim;   // continuous 8s loop for live data
+  late final AnimationController _fade;   // crossfade between screens
+  int _page = 0;
+  int _prevPage = 0;
+  Timer? _timer;
+
+  // Real AURIX feature names
+  static const _screens = [
+    _SD('Релизы',       'Дистрибуция на 50+ площадок',          _T.accent, Icons.album_rounded),
+    _SD('Aurix AI',     'AI-продюсер для каждого трека',        _T.purple, Icons.auto_awesome_rounded),
+    _SD('Студия',       'Запись и обработка в браузере',         _T.cyan,   Icons.headphones_rounded),
+    _SD('Статистика',   'Аналитика стримов в реальном времени', _T.green,  Icons.insights_rounded),
+    _SD('Aurix DNK',    'Глубинный анализ стиля артиста',       _T.blue,   Icons.fingerprint_rounded),
+  ];
+
+  bool _isMobile = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Slow loop for live numbers — desktop 8s, mobile 20s (less repaints)
+    _anim = AnimationController(vsync: this, duration: const Duration(seconds: 20));
+
+    if (_isDesktopView()) _anim.repeat();
+    _fade = AnimationController(vsync: this, duration: const Duration(milliseconds: 500))
+      ..value = 1.0;
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _next());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final mobile = MediaQuery.sizeOf(context).width < 1024;
+    if (mobile != _isMobile) {
+      _isMobile = mobile;
+      // On mobile: slow down to 20s, on desktop: speed up to 8s
+      _anim.duration = Duration(seconds: mobile ? 20 : 8);
+    }
+  }
+
+  void _next() {
+    if (!mounted) return;
+    _fade.reverse().then((_) {
+      if (!mounted) return;
+      setState(() { _prevPage = _page; _page = (_page + 1) % _screens.length; });
+      _fade.forward();
+    });
+  }
+
+  void _goTo(int i) {
+    if (i == _page || !mounted) return;
+    _timer?.cancel();
+    _fade.reverse().then((_) {
+      if (!mounted) return;
+      setState(() { _prevPage = _page; _page = i; });
+      _fade.forward();
+    });
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _next());
+  }
+
+  @override
+  void dispose() { _timer?.cancel(); _anim.dispose(); _fade.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final dk = _isDesktop(context);
+    final nr = _isNarrow(context);
+    final s = _screens[_page];
+
+    return _SectionGlow(
+      color: s.color,
+      child: _Section(
+        padding: EdgeInsets.symmetric(
+          horizontal: dk ? 60 : (nr ? 16 : 32),
+          vertical: dk ? 100 : 60,
+        ),
+        child: Column(children: [
+          _SectionTag('Платформа'),
+          SizedBox(height: dk ? 20 : 12),
+          Text(
+            'Всё для артиста. Одна система.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: _T.hd, color: _T.text,
+              fontSize: dk ? 44 : (nr ? 24 : 32),
+              fontWeight: FontWeight.w700, height: 1.1,
+              letterSpacing: dk ? -1.5 : -.5,
+            ),
+          ),
+          SizedBox(height: dk ? 40 : 24),
+
+          // ── Feature tabs ──
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              for (int i = 0; i < _screens.length; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                _featureTab(i, _screens[i]),
+              ],
+            ]),
+          ),
+          SizedBox(height: dk ? 48 : 28),
+
+          // ── Devices ──
+          AnimatedBuilder(
+            animation: Listenable.merge([_anim, _fade]),
+            builder: (_, __) {
+              final opacity = _fade.value.clamp(0.0, 1.0);
+              final slide = (1 - _fade.value) * 20;
+              final scale = .94 + _fade.value * .06;
+              return Opacity(
+                opacity: opacity,
+                child: Transform.translate(
+                  offset: Offset(0, slide),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: dk
+                      ? _desktopLayout(s, _anim.value)
+                      : _mobileLayout(s, _anim.value, nr),
+                  ),
+                ),
+              );
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ── Feature tab button ──
+  Widget _featureTab(int i, _SD s) {
+    final active = _page == i;
+    return GestureDetector(
+      onTap: () => _goTo(i),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: EdgeInsets.symmetric(horizontal: active ? 20 : 14, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: active ? s.color.withValues(alpha: .12) : _T.w(.03),
+          border: Border.all(color: active ? s.color.withValues(alpha: .3) : _T.w(.06)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(s.icon, size: 14, color: active ? s.color : _T.muted),
+          const SizedBox(width: 8),
+          Text(s.title, style: TextStyle(
+            fontFamily: _T.hd, fontSize: 12, fontWeight: FontWeight.w600,
+            color: active ? s.color : _T.muted)),
+        ]),
+      ),
+    );
+  }
+
+  // ── Desktop: iPhone left, Web right, spaced apart ──
+  Widget _desktopLayout(_SD s, double t) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 1000),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // iPhone — slight 3D perspective tilt
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(0.06),
+            child: _iPhoneFrame(s, 260, 520, t),
+          ),
+          const SizedBox(width: 40),
+          // Web browser
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(-0.03),
+            child: _webFrame(s, 580, 400, t),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Mobile: just iPhone centered ──
+  Widget _mobileLayout(_SD s, double t, bool nr) {
+    return Center(child: _iPhoneFrame(s, nr ? 240 : 280, nr ? 480 : 560, t));
+  }
+
+  // ── iPhone Frame ──
+  Widget _iPhoneFrame(_SD s, double w, double h, double t) {
+    return Container(
+      width: w, height: h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(40),
+        color: const Color(0xFF0A0A0F),
+        border: Border.all(color: _T.w(.1), width: 3),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: .7), blurRadius: 50, offset: const Offset(0, 20)),
+          BoxShadow(color: s.color.withValues(alpha: .1), blurRadius: 80, spreadRadius: -10),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(37),
+        child: Stack(children: [
+          Positioned.fill(child: _screenContent(s, t, true)),
+          // Dynamic Island
+          Positioned(top: 10, left: 0, right: 0,
+            child: Center(child: Container(
+              width: 90, height: 26,
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), color: Colors.black),
+            ))),
+          // Status bar
+          Positioned(top: 14, left: 28, right: 28,
+            child: Row(children: [
+              Text('9:41', style: TextStyle(fontFamily: _T.hd, fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
+              const Spacer(),
+              Icon(Icons.signal_cellular_alt, size: 10, color: _T.w(.7)),
+              const SizedBox(width: 3),
+              Icon(Icons.wifi, size: 10, color: _T.w(.7)),
+              const SizedBox(width: 3),
+              Icon(Icons.battery_full, size: 10, color: _T.w(.7)),
+            ])),
+          // Home indicator
+          Positioned(bottom: 6, left: 0, right: 0,
+            child: Center(child: Container(
+              width: 100, height: 4,
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: _T.w(.2)),
+            ))),
+        ]),
+      ),
+    );
+  }
+
+  // ── Web Browser Frame ──
+  Widget _webFrame(_SD s, double w, double h, double t) {
+    return Container(
+      width: w, height: h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: const Color(0xFF0A0A0F),
+        border: Border.all(color: _T.w(.08), width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: .6), blurRadius: 60, offset: const Offset(0, 24)),
+          BoxShadow(color: s.color.withValues(alpha: .08), blurRadius: 100, spreadRadius: -20),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(children: [
+          // Chrome bar
+          Container(
+            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: _T.bg2, border: Border(bottom: BorderSide(color: _T.w(.06)))),
+            child: Row(children: [
+              for (final c in [const Color(0xFFFF5F57), const Color(0xFFFFBD2E), const Color(0xFF28CA41)]) ...[
+                Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: c.withValues(alpha: .7))),
+                const SizedBox(width: 5),
+              ],
+              const SizedBox(width: 10),
+              Expanded(child: Container(
+                height: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(5),
+                  color: _T.w(.04), border: Border.all(color: _T.w(.06))),
+                child: Row(children: [
+                  Icon(Icons.lock_rounded, size: 9, color: _T.green.withValues(alpha: .6)),
+                  const SizedBox(width: 5),
+                  Text('aurixmusic.ru', style: TextStyle(fontFamily: _T.bd, fontSize: 9, color: _T.muted)),
+                ]),
+              )),
+              const SizedBox(width: 30),
+            ]),
+          ),
+          Expanded(child: _screenContent(s, t, false)),
+        ]),
+      ),
+    );
+  }
+
+  // ── Animated screen content ──
+  Widget _screenContent(_SD s, double t, bool isPhone) {
+    return Container(
+      color: _T.bg,
+      child: switch (s.title) {
+        'Релизы'     => _screenReleases(s, t, isPhone),
+        'Aurix AI'   => _screenAI(s, t, isPhone),
+        'Студия'     => _screenStudio(s, t, isPhone),
+        'Статистика' => _screenStats(s, t, isPhone),
+        _            => _screenDNK(s, t, isPhone),
+      },
+    );
+  }
+
+  // ── Screen: Релизы ──
+  Widget _screenReleases(_SD s, double t, bool isPhone) {
+    final platforms = ['Spotify', 'Apple Music', 'Яндекс Музыка', 'VK Музыка', 'YouTube Music'];
+    final statuses  = ['Live', 'Live', 'Live', 'Обработка', 'Черновик'];
+    final colors    = [_T.green, _T.green, _T.green, _T.accent, _T.muted];
+    return Padding(
+      padding: EdgeInsets.only(top: isPhone ? 50 : 10, left: 12, right: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _header(s, isPhone),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: s.color.withValues(alpha: .06),
+            border: Border.all(color: s.color.withValues(alpha: .12))),
+          child: Row(children: [
+            Container(width: 36, height: 36, decoration: BoxDecoration(borderRadius: BorderRadius.circular(8),
+              color: s.color.withValues(alpha: .1)),
+              child: Icon(Icons.cloud_upload_rounded, size: 18, color: s.color)),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Новый релиз', style: TextStyle(fontFamily: _T.hd, fontSize: 10, fontWeight: FontWeight.w700, color: _T.text)),
+              const SizedBox(height: 3),
+              ClipRRect(borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(value: ((t * 2) % 1.0), minHeight: 3,
+                  backgroundColor: _T.w(.06), valueColor: AlwaysStoppedAnimation(s.color))),
+            ])),
+          ]),
+        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < (isPhone ? 5 : 4); i++) ...[
+          _plRow(platforms[i], statuses[i], colors[i], t, i),
+          if (i < 4) const SizedBox(height: 4),
+        ],
+      ]),
+    );
+  }
+
+  Widget _plRow(String n, String st, Color c, double t, int i) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), color: _T.w(.02), border: Border.all(color: _T.w(.04))),
+      child: Row(children: [
+        Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: c,
+          boxShadow: [BoxShadow(color: c.withValues(alpha: ((t + i * .15) % 1 > .5) ? .5 : .15), blurRadius: 4)])),
+        const SizedBox(width: 8),
+        Expanded(child: Text(n, style: TextStyle(fontFamily: _T.bd, fontSize: 10, color: _T.text))),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4), color: c.withValues(alpha: .08)),
+          child: Text(st, style: TextStyle(fontFamily: _T.hd, fontSize: 7, fontWeight: FontWeight.w700, color: c))),
+      ]),
+    );
+  }
+
+  // ── Screen: Aurix AI ──
+  Widget _screenAI(_SD s, double t, bool isPhone) {
+    return Padding(
+      padding: EdgeInsets.only(top: isPhone ? 50 : 10, left: 12, right: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _header(s, isPhone),
+        const SizedBox(height: 12),
+        _bubble('Проанализируй мой новый трек', true, s),
+        const SizedBox(height: 6),
+        _bubble('Анализирую структуру, BPM, частоты...', false, s),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10),
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [s.color.withValues(alpha: .08), _T.card]),
+            border: Border.all(color: s.color.withValues(alpha: .15))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.auto_awesome, size: 11, color: s.color),
+              const SizedBox(width: 5),
+              Text('AI Score', style: TextStyle(fontFamily: _T.hd, fontSize: 9, fontWeight: FontWeight.w700, color: s.color)),
+              const Spacer(),
+              Text('${(72 + t * 10).toInt()}/100', style: TextStyle(fontFamily: _T.hd, fontSize: 13, fontWeight: FontWeight.w700, color: _T.text)),
+            ]),
+            const SizedBox(height: 8),
+            _bar('Хук', .82 + t * .05, _T.accent),
+            const SizedBox(height: 4),
+            _bar('Энергия', .65 + t * .08, _T.green),
+            const SizedBox(height: 4),
+            _bar('Оригинальность', .73, _T.blue),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _bubble(String text, bool user, _SD s) => Align(
+    alignment: user ? Alignment.centerRight : Alignment.centerLeft,
+    child: Container(constraints: const BoxConstraints(maxWidth: 220),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10),
+        color: user ? s.color.withValues(alpha: .12) : _T.w(.04),
+        border: Border.all(color: user ? s.color.withValues(alpha: .2) : _T.w(.06))),
+      child: Text(text, style: TextStyle(fontFamily: _T.bd, fontSize: 9, color: _T.text, height: 1.3))));
+
+  // ── Screen: Студия ──
+  Widget _screenStudio(_SD s, double t, bool isPhone) {
+    return Padding(
+      padding: EdgeInsets.only(top: isPhone ? 50 : 10, left: 6, right: 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: _header(s, isPhone)),
+        const SizedBox(height: 8),
+        for (final tr in [('Beat', _T.accent, 0.85), ('Vocal 1', _T.green, 0.7), ('Vocal 2', _T.purple, 0.5)]) ...[
+          _track(tr.$1, tr.$2, tr.$3, t, isPhone),
+          const SizedBox(height: 3),
+        ],
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), color: _T.w(.03), border: Border.all(color: _T.w(.06))),
+          child: Row(children: [
+            Icon(Icons.skip_previous_rounded, size: 12, color: _T.muted),
+            const SizedBox(width: 6),
+            Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle,
+              color: _T.accent.withValues(alpha: .15), border: Border.all(color: _T.accent.withValues(alpha: .3))),
+              child: Icon(Icons.play_arrow_rounded, size: 12, color: _T.accent)),
+            const SizedBox(width: 6),
+            Container(width: 18, height: 18, decoration: BoxDecoration(shape: BoxShape.circle,
+              color: const Color(0xFFFF4444).withValues(alpha: .12), border: Border.all(color: const Color(0xFFFF4444).withValues(alpha: .3))),
+              child: Icon(Icons.fiber_manual_record_rounded, size: 8, color: const Color(0xFFFF4444))),
+            const SizedBox(width: 10),
+            Text('00:${((t * 30) % 60).toInt().toString().padLeft(2, '0')}.${((t * 30 % 1) * 1000).toInt().toString().padLeft(3, '0')}',
+              style: TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 12, fontWeight: FontWeight.w700, color: _T.text, letterSpacing: 1)),
+            const Spacer(),
+            Text('120 BPM', style: TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 8, color: _T.muted, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _track(String name, Color color, double fill, double t, bool isPhone) {
+    return Container(height: isPhone ? 38 : 32, decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(5), color: _T.w(.02), border: Border.all(color: _T.w(.04))),
+      child: Row(children: [
+        Container(width: isPhone ? 54 : 60, padding: const EdgeInsets.symmetric(horizontal: 5),
+          decoration: BoxDecoration(border: Border(right: BorderSide(color: _T.w(.06)))),
+          child: Row(children: [
+            Container(width: 5, height: 5, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
+            const SizedBox(width: 3),
+            Expanded(child: Text(name, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontFamily: _T.bd, fontSize: 8, fontWeight: FontWeight.w600, color: _T.text))),
+          ])),
+        Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+          child: RepaintBoundary(child: CustomPaint(painter: _MiniWavePainter(color: color, fill: fill, phase: t),
+            size: const Size(double.infinity, double.infinity))))),
+      ]),
+    );
+  }
+
+  // ── Screen: Статистика ──
+  Widget _screenStats(_SD s, double t, bool isPhone) {
+    return Padding(
+      padding: EdgeInsets.only(top: isPhone ? 50 : 10, left: 12, right: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _header(s, isPhone),
+        const SizedBox(height: 12),
+        Row(children: [
+          _stat('Стримы', '${(124 + t * 20).toInt()}K', _T.accent),
+          const SizedBox(width: 6),
+          _stat('Доход', '₽${(22.1 + t * 5).toStringAsFixed(1)}K', _T.green),
+        ]),
+        const SizedBox(height: 6),
+        Row(children: [
+          _stat('Рост', '+${(18 + t * 8).toInt()}%', _T.blue),
+          const SizedBox(width: 6),
+          _stat('Слушатели', '${(8.4 + t * 3).toStringAsFixed(1)}K', _T.purple),
+        ]),
+        const SizedBox(height: 10),
+        Container(height: isPhone ? 80 : 60, decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8), color: _T.w(.02), border: Border.all(color: _T.w(.04))),
+          child: ClipRRect(borderRadius: BorderRadius.circular(8),
+            child: CustomPaint(painter: _MiniChartPainter(t: t, color: s.color),
+              size: const Size(double.infinity, double.infinity)))),
+      ]),
+    );
+  }
+
+  Widget _stat(String l, String v, Color c) => Expanded(child: Container(
+    padding: const EdgeInsets.all(8), decoration: BoxDecoration(borderRadius: BorderRadius.circular(8),
+      color: c.withValues(alpha: .06), border: Border.all(color: c.withValues(alpha: .1))),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(l, style: TextStyle(fontFamily: _T.bd, fontSize: 8, color: _T.muted)),
+      const SizedBox(height: 3),
+      Text(v, style: TextStyle(fontFamily: _T.hd, fontSize: 14, fontWeight: FontWeight.w700, color: _T.text)),
+    ])));
+
+  // ── Screen: Aurix DNK ──
+  Widget _screenDNK(_SD s, double t, bool isPhone) {
+    final tr = [('Мелодичность', .82, _T.accent), ('Эмоциональность', .91, _T.purple),
+      ('Ритмичность', .67, _T.green), ('Экспериментальность', .45, _T.cyan), ('Лиричность', .78, _T.blue)];
+    return Padding(
+      padding: EdgeInsets.only(top: isPhone ? 50 : 10, left: 12, right: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _header(s, isPhone),
+        const SizedBox(height: 12),
+        Center(child: Container(width: 70, height: 70, decoration: BoxDecoration(shape: BoxShape.circle,
+          gradient: RadialGradient(colors: [s.color.withValues(alpha: .15), Colors.transparent]),
+          border: Border.all(color: s.color.withValues(alpha: .2), width: 2)),
+          child: Center(child: Text('${(85 + t * 5).toInt()}', style: TextStyle(
+            fontFamily: _T.hd, fontSize: 22, fontWeight: FontWeight.w700, color: _T.text))))),
+        const SizedBox(height: 10),
+        for (final x in tr) ...[_bar(x.$1, x.$2 + t * .03, x.$3), const SizedBox(height: 5)],
+      ]),
+    );
+  }
+
+  // ── Shared helpers ──
+  Widget _header(_SD s, bool isPhone) => Row(children: [
+    Container(padding: const EdgeInsets.all(5), decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(7), color: s.color.withValues(alpha: .1)),
+      child: Icon(s.icon, size: 14, color: s.color)),
+    const SizedBox(width: 8),
+    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(s.title, style: TextStyle(fontFamily: _T.hd, fontSize: 11, fontWeight: FontWeight.w700, color: _T.text)),
+      Text(s.sub, style: TextStyle(fontFamily: _T.bd, fontSize: 8, color: _T.muted)),
+    ]),
+  ]);
+
+  Widget _bar(String l, double v, Color c) => Row(children: [
+    SizedBox(width: 72, child: Text(l, overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontFamily: _T.bd, fontSize: 8, color: _T.sub))),
+    Expanded(child: Container(height: 4, decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(2), color: _T.w(.04)),
+      child: FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: v.clamp(0.0, 1.0),
+        child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: c,
+          boxShadow: [BoxShadow(color: c.withValues(alpha: .3), blurRadius: 4)]))))),
+    const SizedBox(width: 6),
+    Text('${(v * 100).toInt()}%', style: TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 8, fontWeight: FontWeight.w600, color: _T.muted)),
+  ]);
+}
+
+class _SD {
+  final String title, sub;
+  final Color color;
+  final IconData icon;
+  const _SD(this.title, this.sub, this.color, this.icon);
+}
+
+class _MiniWavePainter extends CustomPainter {
+  final Color color;
+  final double fill, phase;
+  _MiniWavePainter({required this.color, required this.fill, required this.phase});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = 60;
+    final mid = size.height / 2;
+    final clipW = size.width * fill;
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 2, clipW, size.height - 4), const Radius.circular(4)),
+      Paint()..color = color.withValues(alpha: 0.08));
+    for (int i = 0; i < n; i++) {
+      final x = i * size.width / n;
+      if (x > clipW) break;
+      final amp = (math.sin(i * 0.7 + phase * math.pi * 6) * 0.5 + 0.5) * fill;
+      final h = amp * (size.height - 6) * 0.45;
+      canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, mid), width: 2, height: h.clamp(2, size.height)), const Radius.circular(1)),
+        Paint()..color = color.withValues(alpha: 0.5));
+    }
+    final px = (phase * 3 % 1.0) * clipW;
+    canvas.drawLine(Offset(px, 2), Offset(px, size.height - 2),
+      Paint()..color = const Color(0xFFFF6A1A)..strokeWidth = 1.5);
+  }
+
+  @override
+  bool shouldRepaint(_MiniWavePainter o) => o.phase != phase;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PRODUCT PREVIEW — tabbed interface
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2399,7 +3092,9 @@ class _ProductPreviewState extends State<_ProductPreview> with SingleTickerProvi
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat();
+    _anim = AnimationController(vsync: this, duration: const Duration(seconds: 6));
+
+    if (_isDesktopView()) _anim.repeat();
   }
   @override
   void dispose() { _anim.dispose(); super.dispose(); }
@@ -3012,7 +3707,8 @@ class _NavBtn extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final bool ghost;
-  const _NavBtn(this.label, {required this.onTap, this.ghost = false});
+  final bool compact;
+  const _NavBtn(this.label, {required this.onTap, this.ghost = false, this.compact = false});
   @override
   State<_NavBtn> createState() => _NavBtnState();
 }
@@ -3021,6 +3717,7 @@ class _NavBtnState extends State<_NavBtn> {
   bool _h = false;
   @override
   Widget build(BuildContext context) {
+    final c = widget.compact;
     return MouseRegion(
       onEnter: (_) => setState(() => _h = true),
       onExit: (_) => setState(() => _h = false),
@@ -3028,9 +3725,12 @@ class _NavBtnState extends State<_NavBtn> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: c ? 12 : 20,
+            vertical: c ? 7 : 10,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(c ? 10 : 12),
             color: widget.ghost ? Colors.transparent : (_h ? _T.accentHi : _T.accent),
             border: widget.ghost ? Border.all(color: _T.w(_h ? .15 : .08)) : null,
           ),
@@ -3039,8 +3739,8 @@ class _NavBtnState extends State<_NavBtn> {
             style: TextStyle(
               fontFamily: _T.bd,
               color: widget.ghost ? (_h ? _T.text : _T.sub) : Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontSize: c ? 12 : 13,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -3155,6 +3855,75 @@ class _RvState extends State<_Rv> with SingleTickerProviderStateMixin {
         return Opacity(opacity: t, child: Transform.translate(offset: Offset(0, 36 * (1 - t)), child: child));
       },
       child: widget.child,
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CASTING NAV BUTTON — «Код Артиста» in navbar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CastingNavBtn extends StatefulWidget {
+  final VoidCallback onTap;
+  final bool compact;
+  const _CastingNavBtn({required this.onTap, this.compact = false});
+  @override
+  State<_CastingNavBtn> createState() => _CastingNavBtnState();
+}
+
+class _CastingNavBtnState extends State<_CastingNavBtn> {
+  bool _h = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.compact;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _h = true),
+      onExit: (_) => setState(() => _h = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: EdgeInsets.symmetric(
+            horizontal: c ? 9 : 16,
+            vertical: c ? 5 : 10,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(c ? 999 : 12),
+            gradient: LinearGradient(
+              colors: [
+                _T.accent.withValues(alpha: _h ? 0.22 : 0.12),
+                const Color(0xFF7B5CFF).withValues(alpha: _h ? 0.14 : 0.06),
+              ],
+            ),
+            border: Border.all(color: _T.accent.withValues(alpha: _h ? 0.5 : 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: c ? 5 : 6, height: c ? 5 : 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _T.accent,
+                  boxShadow: c ? [] : [BoxShadow(color: _T.accent.withValues(alpha: 0.6), blurRadius: 6)],
+                ),
+              ),
+              SizedBox(width: c ? 6 : 8),
+              Text(
+                'Код Артиста',
+                style: TextStyle(
+                  fontFamily: _T.hd,
+                  color: _T.accent,
+                  fontSize: c ? 10 : 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: c ? 0.3 : 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

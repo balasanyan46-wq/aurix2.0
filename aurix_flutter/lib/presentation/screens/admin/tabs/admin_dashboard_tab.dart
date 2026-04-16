@@ -45,16 +45,33 @@ class AdminDashboardTab extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'ОБЗОР',
-              style: TextStyle(
-                color: AurixTokens.text,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(colors: [AurixTokens.accent, AurixTokens.accent.withValues(alpha: 0.6)]),
+                  ),
+                  child: const Icon(Icons.dashboard_rounded, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Панель управления', style: TextStyle(
+                      fontFamily: AurixTokens.fontHeading,
+                      color: AurixTokens.text,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    )),
+                    Text('Обзор платформы в реальном времени', style: TextStyle(
+                      color: AurixTokens.muted, fontSize: 12)),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
             // ── SIGNALS — "Что происходит сейчас" ────────
             signalsAsync.when(
@@ -603,21 +620,20 @@ class AdminDashboardTab extends ConsumerWidget {
   static Widget _emptyCard(String text) => Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: AurixTokens.bg1.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AurixTokens.stroke(0.24)),
+          borderRadius: BorderRadius.circular(AurixTokens.radiusCard),
+          gradient: AurixTokens.cardGradient,
+          border: Border.all(color: AurixTokens.stroke(0.18)),
+          boxShadow: AurixTokens.subtleShadow,
         ),
         child: Center(child: Text(text, style: const TextStyle(color: AurixTokens.muted, fontSize: 13))),
       );
 
   static Widget _buildCard({required Widget child}) => Container(
         decoration: BoxDecoration(
-          color: AurixTokens.bg1.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AurixTokens.stroke(0.24)),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12, spreadRadius: -10, offset: const Offset(0, 8)),
-          ],
+          borderRadius: BorderRadius.circular(AurixTokens.radiusCard),
+          gradient: AurixTokens.cardGradient,
+          border: Border.all(color: AurixTokens.stroke(0.18)),
+          boxShadow: AurixTokens.subtleShadow,
         ),
         child: child,
       );
@@ -628,9 +644,19 @@ class _SectionHeader extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Text(
-        text,
-        style: const TextStyle(color: AurixTokens.muted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.5),
+  Widget build(BuildContext context) => Row(
+        children: [
+          Container(width: 3, height: 14, decoration: BoxDecoration(
+            color: AurixTokens.accent, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text(text, style: TextStyle(
+            fontFamily: AurixTokens.fontHeading,
+            color: AurixTokens.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+          )),
+        ],
       );
 }
 
@@ -645,27 +671,50 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = accentColor ?? AurixTokens.text;
+    final color = accentColor ?? AurixTokens.accent;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AurixTokens.bg1.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AurixTokens.stroke(0.24)),
+        borderRadius: BorderRadius.circular(AurixTokens.radiusCard),
+        gradient: AurixTokens.cardGradient,
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+        boxShadow: [
+          ...AurixTokens.subtleShadow,
+          BoxShadow(color: color.withValues(alpha: 0.06), blurRadius: 16, spreadRadius: -6),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(icon, size: 16, color: AurixTokens.muted),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: AurixTokens.muted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+            Container(
+              width: 32, height: 32,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: color.withValues(alpha: 0.1),
+              ),
+              child: Icon(icon, size: 16, color: color),
+            ),
+            const SizedBox(width: 10),
+            Text(label, style: TextStyle(
+              fontFamily: AurixTokens.fontHeading,
+              color: AurixTokens.muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+            )),
           ]),
-          const SizedBox(height: 10),
-          Text(value, style: TextStyle(color: color, fontSize: 28, fontWeight: FontWeight.w800, fontFeatures: AurixTokens.tabularFigures)),
+          const SizedBox(height: 14),
+          Text(value, style: TextStyle(
+            fontFamily: AurixTokens.fontHeading,
+            color: AurixTokens.text,
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            fontFeatures: AurixTokens.tabularFigures,
+          )),
           if (subtitle.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(color: AurixTokens.muted, fontSize: 12)),
+            Text(subtitle, style: TextStyle(color: color.withValues(alpha: 0.7), fontSize: 12, fontWeight: FontWeight.w500)),
           ],
         ],
       ),
@@ -682,18 +731,30 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AurixTokens.bg1,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AurixTokens.border),
+        borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+        gradient: AurixTokens.cardGradient,
+        border: Border.all(color: AurixTokens.stroke(0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: AurixTokens.muted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+          Text(label, style: TextStyle(
+            fontFamily: AurixTokens.fontHeading,
+            color: AurixTokens.muted,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+          )),
           const SizedBox(height: 8),
-          Text(count.toString(), style: const TextStyle(color: AurixTokens.text, fontSize: 20, fontWeight: FontWeight.w800, fontFeatures: AurixTokens.tabularFigures)),
+          Text(count.toString(), style: TextStyle(
+            fontFamily: AurixTokens.fontHeading,
+            color: AurixTokens.text,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            fontFeatures: AurixTokens.tabularFigures,
+          )),
         ],
       ),
     );

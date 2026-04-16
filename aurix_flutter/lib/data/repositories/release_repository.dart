@@ -71,7 +71,16 @@ class ReleaseRepository {
     return ReleaseModel.fromJson(_asMap(releaseData));
   }
 
-  Future<void> updateRelease(
+  /// Update release with any combination of fields.
+  /// Pass a flat map of field_name → value for maximum flexibility.
+  Future<void> updateRelease(String id, Map<String, dynamic> updates) async {
+    if (updates.isNotEmpty) {
+      await ApiClient.put('/releases/$id', data: updates);
+    }
+  }
+
+  /// Legacy convenience wrapper for backward compatibility.
+  Future<void> updateReleaseFields(
     String id, {
     String? title,
     String? artist,
@@ -101,9 +110,7 @@ class ReleaseRepository {
     if (status != null) updates['status'] = status;
     if (coverUrl != null) updates['cover_url'] = coverUrl;
     if (coverPath != null) updates['cover_path'] = coverPath;
-    if (updates.isNotEmpty) {
-      await ApiClient.put('/releases/$id', data: updates);
-    }
+    await updateRelease(id, updates);
   }
 
   Future<void> submitRelease(String id) async {
@@ -153,7 +160,8 @@ class ReleaseRepository {
         if (reason != null) 'reason': reason,
       });
       final body = _asMap(res.data);
-      return body['updated'] as int? ?? body['count'] as int? ?? ids.length;
+      final u = body['updated']; final c = body['count'];
+      return u is num ? u.toInt() : c is num ? c.toInt() : int.tryParse(u?.toString() ?? '') ?? ids.length;
     } catch (e) {
       debugPrint('[ReleaseRepository] bulkUpdateStatuses failed: $e');
       return 0;

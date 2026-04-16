@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/models/profile_model.dart';
@@ -207,6 +208,17 @@ final adminUserDetailProvider = FutureProvider.family<Map<String, dynamic>, int>
   }
 });
 
+// ── User AI Studio messages (admin) ───────────────────────
+
+final adminUserAiMessagesProvider = FutureProvider.family<List<Map<String, dynamic>>, int>((ref, userId) async {
+  try {
+    final res = await ApiClient.get('/admin/users/$userId/ai-messages', query: {'limit': '200'});
+    return (res.data as List?)?.cast<Map<String, dynamic>>() ?? [];
+  } catch (e) {
+    return [];
+  }
+});
+
 // ── DAU / MAU stats ────────────────────────────────────────
 
 final adminDauProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
@@ -237,14 +249,15 @@ class AiInsightsData {
 
 final adminAiInsightsProvider = FutureProvider<AiInsightsData>((ref) async {
   try {
-    final res = await ApiClient.get('/admin/ai-insights');
+    final res = await ApiClient.dio.get('/admin/ai-insights',
+        options: Options(receiveTimeout: const Duration(seconds: 60)));
     final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     return AiInsightsData(
       insights: d['insights']?.toString() ?? '',
       stats: d['stats']?.toString() ?? '',
     );
-  } catch (e) {
-    return AiInsightsData(insights: 'Ошибка: ${humanizeApiError(e)}');
+  } catch (_) {
+    return AiInsightsData(insights: 'AI анализ временно недоступен. Нажмите обновить.');
   }
 });
 
@@ -259,15 +272,16 @@ class AiActionsData {
 
 final adminAiActionsProvider = FutureProvider<AiActionsData>((ref) async {
   try {
-    final res = await ApiClient.get('/admin/ai-actions');
+    final res = await ApiClient.dio.get('/admin/ai-actions',
+        options: Options(receiveTimeout: const Duration(seconds: 60)));
     final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     return AiActionsData(
       actions: (d['actions'] as List?)?.cast<Map<String, dynamic>>() ?? [],
       context: d['context']?.toString() ?? '',
       error: d['error']?.toString(),
     );
-  } catch (e) {
-    return AiActionsData(error: humanizeApiError(e));
+  } catch (_) {
+    return AiActionsData(error: 'AI оператор временно недоступен');
   }
 });
 

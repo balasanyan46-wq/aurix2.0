@@ -7,6 +7,8 @@ import { buildResetPasswordTemplate } from './templates/reset-password.template'
 import { buildReleaseApprovedTemplate } from './templates/release-approved.template';
 import { buildReleaseLiveTemplate } from './templates/release-live.template';
 import { buildTicketReplyTemplate } from './templates/ticket-reply.template';
+import { buildReleaseRevisionTemplate } from './templates/release-revision.template';
+import { buildReleaseRejectedTemplate } from './templates/release-rejected.template';
 
 @Injectable()
 export class MailService {
@@ -150,6 +152,44 @@ export class MailService {
       this.logger.error(`[ticket-reply] Failed for ${email}: ${result.error}`);
     }
     this.logger.log(`[ticket-reply] ticket #${ticketId} → ${email}`);
+  }
+
+  // ───── 7. Release revision (needs fixes) ─────
+
+  async sendReleaseRevision(
+    email: string,
+    artistName: string,
+    releaseTitle: string,
+    reason: string,
+  ): Promise<void> {
+    const result = await this.send(
+      email,
+      `Релиз «${releaseTitle}» — нужны исправления — AURIX`,
+      buildReleaseRevisionTemplate({ artistName, releaseTitle, reason }),
+    );
+    if (!result.success) {
+      this.logger.error(`[release-revision] Failed for ${email}: ${result.error}`);
+    }
+    this.logger.log(`[release-revision] "${releaseTitle}" → ${email}`);
+  }
+
+  // ───── 8. Release rejected ─────
+
+  async sendReleaseRejected(
+    email: string,
+    artistName: string,
+    releaseTitle: string,
+    reason?: string,
+  ): Promise<void> {
+    const result = await this.send(
+      email,
+      `Релиз «${releaseTitle}» отклонён — AURIX`,
+      buildReleaseRejectedTemplate({ artistName, releaseTitle, reason }),
+    );
+    if (!result.success) {
+      this.logger.error(`[release-rejected] Failed for ${email}: ${result.error}`);
+    }
+    this.logger.log(`[release-rejected] "${releaseTitle}" → ${email}`);
   }
 
   // ───── Test: verify SMTP connection ─────

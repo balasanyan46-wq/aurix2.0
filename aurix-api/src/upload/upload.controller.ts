@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   Req,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -14,9 +15,11 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/roles.guard';
 import { UploadService } from './upload.service';
 
 const MAX_COVER = 10 * 1024 * 1024;
@@ -182,6 +185,33 @@ export class UploadController {
     this.svc.checkDownloadAbuse(userId, ip).catch(() => {});
 
     return result;
+  }
+
+  // ── Admin download ──────────────────────────────────────
+  // Стримит файл через API с принудительным Content-Disposition и Content-Type,
+  // чтобы браузер сохранял как нормальный медиафайл (mp3/wav/png), а не как binary doc.
+
+  @Get('admin/download')
+  @UseGuards(AdminGuard)
+  async adminDownload(
+    @Req() req: any,
+    @Res({ passthrough: false }) res: Response,
+    @Query('key') key: string,
+    @Query('filename') filename?: string,
+  ) {
+    const userId = req.user?.id;
+    if (!userId) throw new HttpException('auth required', HttpStatus.UNAUTHORIZED);
+
+    if (!key || !this.svc.validateKey(key)) {
+      throw new BadRequestException('Invalid file key');
+    }
+
+    const safeName = this.svc.sanitizeDownloadFilename(filename, key);
+    await this.svc.streamDownload(key, safeName, res, {
+      ip: clientIp(req),
+      userAgent: userAgent(req),
+      adminId: userId,
+    });
   }
 
   // ── Delete file ─────────────────────────────────────────

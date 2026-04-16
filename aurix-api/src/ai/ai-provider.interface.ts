@@ -2,21 +2,6 @@
 
 export type AiGenerationType = 'text' | 'image' | 'video' | 'audio';
 
-/** Centralized provider configuration — single source of truth */
-export const EDEN_PROVIDERS: Record<AiGenerationType, string> = {
-  text: 'deepseek,qwen,google',
-  image: 'stability,google',
-  video: 'runway',
-  audio: 'google,amazon',
-};
-
-export const EDEN_ENDPOINTS: Record<AiGenerationType, string> = {
-  text: 'https://api.edenai.run/v2/text/chat',
-  image: 'https://api.edenai.run/v2/image/generation',
-  video: 'https://api.edenai.run/v2/video/generation',
-  audio: 'https://api.edenai.run/v2/audio/text_to_speech',
-};
-
 /** Credit cost per generation type */
 export const GENERATION_CREDIT_ACTIONS: Record<AiGenerationType, string> = {
   text: 'ai_chat',

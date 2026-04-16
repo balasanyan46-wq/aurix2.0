@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
@@ -13,7 +11,8 @@ class CoverAiServiceException implements Exception {
 }
 
 class CoverAiService {
-  static Future<({Uint8List bytes, Map<String, dynamic> meta})> generate({
+  /// Returns image URL and metadata from /api/ai/cover
+  static Future<({String url, Map<String, dynamic> meta})> generate({
     required String prompt,
     bool strictPrompt = true,
     String? negativePrompt,
@@ -21,7 +20,6 @@ class CoverAiService {
     bool safeZoneGuide = true,
     String? stylePreset,
     String? colorProfile,
-    String size = '1024x1024',
     String quality = 'high',
     String outputFormat = 'png',
     String background = 'opaque',
@@ -37,7 +35,6 @@ class CoverAiService {
       'safe_zone_guide': safeZoneGuide,
       'style_preset': stylePreset,
       'color_profile': colorProfile,
-      'size': size,
       'quality': quality,
       'output_format': outputFormat,
       'background': background,
@@ -50,7 +47,7 @@ class CoverAiService {
       final resp = await ApiClient.post(
         '/api/ai/cover',
         data: body,
-        receiveTimeout: const Duration(minutes: 3),
+        receiveTimeout: const Duration(minutes: 5),
       );
 
       final data = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : <String, dynamic>{};
@@ -62,21 +59,19 @@ class CoverAiService {
         );
       }
 
-      final b64 = data['b64_png'] as String?;
-      if (b64 == null || b64.isEmpty) {
+      final url = data['url'] as String?;
+      if (url == null || url.isEmpty) {
         throw CoverAiServiceException('Пустой результат');
       }
 
-      final bytes = base64Decode(b64);
       final meta = (data['meta'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
-      return (bytes: bytes, meta: meta);
+      return (url: url, meta: meta);
     } on CoverAiServiceException {
       rethrow;
     } on TimeoutException {
       throw CoverAiServiceException('Таймаут, попробуйте ещё раз');
     } catch (e) {
       if (kDebugMode) debugPrint('[CoverAiService] error: $e');
-      // Handle 402 NO_CREDITS
       final msg = e.toString();
       if (msg.contains('402') || msg.contains('NO_CREDITS')) {
         throw CoverAiServiceException('Недостаточно кредитов для генерации обложки. Пополните баланс.');

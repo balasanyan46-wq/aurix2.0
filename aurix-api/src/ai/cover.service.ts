@@ -1,6 +1,11 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Inject, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Pool } from 'pg';
 import axios from 'axios';
-import { EdenAiService } from './eden-ai.service';
+import { randomUUID } from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { PG_POOL } from '../database/database.module';
+import { AiGatewayService } from './ai-gateway.service';
 
 const COVER_PROMPT_INSTRUCTION = `Ты — арт-директор музыкального лейбла.
 
@@ -35,7 +40,7 @@ interface CoverParams {
 
 export interface CoverResult {
   ok: boolean;
-  b64_png: string;
+  url: string;
   meta: Record<string, unknown>;
 }
 
@@ -43,45 +48,49 @@ export interface CoverResult {
 export class CoverService {
   private readonly logger = new Logger(CoverService.name);
 
-  constructor(private readonly ai: EdenAiService) {}
+  constructor(
+    private readonly ai: AiGatewayService,
+  ) {}
 
-  /** Full pipeline: prompt → Eden AI image → base64 PNG */
+  /** Full pipeline: prompt → AI Gateway image → URL */
   async generate(params: CoverParams): Promise<CoverResult> {
-    const { prompt, size = '1024x1024', quality = 'high' } = params;
+    const { prompt, quality = 'high' } = params;
 
-    this.logger.log(`[cover] generating (${prompt.length} chars, size=${size}, quality=${quality})`);
+    this.logger.log(`[cover] generating (${prompt.length} chars, quality=${quality})`);
 
     try {
       const result = await this.ai.generate({
         type: 'image',
         prompt,
-        resolution: size,
       });
 
-      // result.content is either a URL or a data: URI with base64
-      let b64: string;
+      this.logger.log(`[cover] done (provider=${result.provider}, url=${result.content.slice(0, 80)})`);
 
-      if (result.content.startsWith('data:')) {
-        // Extract base64 from data URI
-        b64 = result.content.split(',')[1] || '';
-      } else {
-        // It's a URL — download and convert to base64
-        this.logger.log(`[cover] downloading from ${result.provider}…`);
-        const imgResponse = await axios.get(result.content, {
-          responseType: 'arraybuffer',
-          timeout: 60_000,
-        });
-        b64 = Buffer.from(imgResponse.data).toString('base64');
+      // Download image and serve from our domain to avoid CORS issues
+      let finalUrl = result.content;
+      try {
+        const imgRes = await axios.get(result.content, { responseType: 'arraybuffer', timeout: 30000 });
+        const fileName = `cover-${randomUUID()}.png`;
+        const uploadDir = '/tmp/aurix-covers';
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, fileName);
+        fs.writeFileSync(filePath, imgRes.data);
+
+        // Copy to web-accessible directory
+        const webDir = '/root/aurix/web/generated';
+        if (!fs.existsSync(webDir)) fs.mkdirSync(webDir, { recursive: true });
+        fs.copyFileSync(filePath, path.join(webDir, fileName));
+        finalUrl = `https://aurixmusic.ru/generated/${fileName}`;
+        this.logger.log(`[cover] saved locally: ${finalUrl}`);
+      } catch (dlErr: any) {
+        this.logger.warn(`[cover] download failed, using direct URL: ${dlErr.message}`);
       }
-
-      this.logger.log(`[cover] done (${Math.round(b64.length / 1024)}KB base64, provider=${result.provider})`);
 
       return {
         ok: true,
-        b64_png: b64,
+        url: finalUrl,
         meta: {
           provider: result.provider,
-          size,
           quality,
           style_preset: params.style_preset ?? null,
           prompt_length: prompt.length,
@@ -94,7 +103,7 @@ export class CoverService {
     }
   }
 
-  /** Simple pipeline: idea → AI prompt → Eden AI image → content URL */
+  /** Simple pipeline: idea → AI prompt → AI Gateway image → content URL */
   async generateFromIdea(idea: string): Promise<{ image: string; prompt: string }> {
     this.logger.log('[cover] generating prompt from idea…');
 
@@ -110,7 +119,6 @@ export class CoverService {
     const result = await this.ai.generate({
       type: 'image',
       prompt,
-      resolution: '1024x1024',
     });
 
     if (!result.content) {

@@ -103,7 +103,7 @@ class _AdminReleaseSheetState extends ConsumerState<_AdminReleaseSheet> {
       _loading = true;
     });
     try {
-      await ref.read(releaseRepositoryProvider).updateRelease(widget.release.id, status: _status);
+      await ref.read(releaseRepositoryProvider).updateRelease(widget.release.id, {'status': _status});
       if (_noteController.text.trim().isNotEmpty) {
         final adminId = ref.read(currentUserProvider)?.id;
         if (adminId != null) {

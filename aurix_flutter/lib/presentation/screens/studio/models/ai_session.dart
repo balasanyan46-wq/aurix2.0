@@ -13,6 +13,11 @@ class AiSession {
     final parts = <String>[];
 
     switch (characterId) {
+      case 'producer':
+        if (idea != null && idea!.isNotEmpty && producerResult != null) {
+          parts.add(producerResult!);
+          parts.add('\n$idea');
+        }
       case 'writer':
         if (producerResult != null) {
           parts.add('Продюсер уже подготовил концепцию:\n\n$producerResult');

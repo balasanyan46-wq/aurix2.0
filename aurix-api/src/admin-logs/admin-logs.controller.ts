@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
 import { AdminLogsService } from './admin-logs.service';
 import { SystemService } from '../system/system.service';
-import { EdenAiService } from '../ai/eden-ai.service';
+import { AiGatewayService } from '../ai/ai-gateway.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller()
@@ -14,7 +14,7 @@ export class AdminLogsController {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly svc: AdminLogsService,
     private readonly systemService: SystemService,
-    private readonly ai: EdenAiService,
+    private readonly ai: AiGatewayService,
   ) {}
 
   @Get('admin-logs')
@@ -123,23 +123,31 @@ export class AdminLogsController {
   @UseGuards(AdminGuard)
   async userDetail(@Req() req: any) {
     const userId = req.params.id;
-    const [user, profile, releases, tickets] = await Promise.all([
-      this.pool.query('SELECT id, email, created_at, verified FROM users WHERE id = $1', [userId]).catch(() => ({ rows: [] })),
+    const [user, profile, releases, tickets, lastLogin, recentActions] = await Promise.all([
+      this.pool.query('SELECT id, email, created_at, verified, email_verified FROM users WHERE id = $1', [userId]).catch(() => ({ rows: [] })),
       this.pool.query('SELECT * FROM profiles WHERE user_id = $1', [userId]).catch(() => ({ rows: [] })),
       this.pool.query(`SELECT r.id, r.title, r.status, r.created_at
          FROM releases r JOIN artists a ON a.id = r.artist_id
          WHERE a.user_id = $1::int ORDER BY r.created_at DESC`, [userId]).catch(() => ({ rows: [] })),
       this.pool.query('SELECT id, subject, status, created_at FROM support_tickets WHERE user_id::text = $1::text ORDER BY created_at DESC', [userId]).catch(() => ({ rows: [] })),
+      this.pool.query(`SELECT created_at FROM user_events WHERE user_id = $1::int AND event = 'login' ORDER BY created_at DESC LIMIT 1`, [userId]).catch(() => ({ rows: [] })),
+      this.pool.query(`SELECT event, target_type, target_id, meta, created_at FROM user_events WHERE user_id = $1::int ORDER BY created_at DESC LIMIT 30`, [userId]).catch(() => ({ rows: [] })),
     ]);
+    const userRow = user.rows[0] || null;
+    if (userRow) {
+      userRow.last_login = lastLogin.rows[0]?.created_at || null;
+      userRow.email_verified = userRow.email_verified ?? userRow.verified ?? false;
+    }
     return {
-      user: user.rows[0] || null,
+      user: userRow,
       profile: profile.rows[0] || null,
       releases: releases.rows,
       tickets: tickets.rows,
+      recent_actions: recentActions.rows,
     };
   }
 
-  /** AI-powered platform analysis using Eden AI. */
+  /** AI-powered platform analysis using AI Gateway. */
   @Get('admin/ai-insights')
   @UseGuards(AdminGuard)
   async aiInsights() {
@@ -476,6 +484,22 @@ export class AdminLogsController {
       retention_targets: [...inactive.rows, ...noOnboarding.rows],
       fraud_alerts: fraud.rows,
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  //  USER AI STUDIO MESSAGES (admin view)
+  // ═══════════════════════════════════════════════════════════
+
+  @Get('admin/users/:id/ai-messages')
+  @UseGuards(AdminGuard)
+  async userAiMessages(@Req() req: any, @Query('limit') limit?: string) {
+    const userId = req.params.id;
+    const lim = +(limit || 200);
+    const { rows } = await this.pool.query(
+      'SELECT id, role, content, meta, created_at FROM ai_studio_messages WHERE user_id=$1 ORDER BY created_at ASC LIMIT $2',
+      [userId, lim],
+    );
+    return rows;
   }
 
   // ═══════════════════════════════════════════════════════════

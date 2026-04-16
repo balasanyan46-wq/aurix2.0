@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 
-/// Animated dark gradient background with floating glowing orbs.
+/// Фон с «магической» подсветкой.
+/// Desktop: 3 плавающие сферы + шумовой оверлей (анимация 8сек).
+/// Mobile: статичный градиент с одной сферой БЕЗ blur — в 10+ раз легче.
 class AiMagicBackground extends StatefulWidget {
   final Widget child;
   const AiMagicBackground({super.key, required this.child});
@@ -12,34 +14,84 @@ class AiMagicBackground extends StatefulWidget {
 }
 
 class _AiMagicBackgroundState extends State<AiMagicBackground>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  AnimationController? _ctrl;
+  bool _isMobile = false;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final w = MediaQuery.sizeOf(context).width;
+    final mobile = w < 700;
+    if (mobile != _isMobile || (!mobile && _ctrl == null)) {
+      _isMobile = mobile;
+      _ctrl?.dispose();
+      _ctrl = null;
+      if (!mobile) {
+        _ctrl = AnimationController(
+          vsync: this,
+          duration: const Duration(seconds: 8),
+        )..repeat();
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Пауза анимации когда вкладка неактивна — экономит батарею
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _ctrl?.stop();
+    } else if (state == AppLifecycleState.resumed && !_isMobile) {
+      _ctrl?.repeat();
+    }
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _ctrl?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Mobile: статичный градиент + одна мягкая засветка через RadialGradient
+    // (без blurRadius — это дёшево). НИКАКОЙ анимации.
+    if (_isMobile) {
+      return Stack(fit: StackFit.expand, children: [
+        const DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [AurixTokens.bg0, AurixTokens.bg1, Color(0xFF0D0D18)]))),
+        DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
+          center: const Alignment(0.6, -0.8), radius: 1.3,
+          colors: [
+            AurixTokens.accent.withValues(alpha: 0.08),
+            Colors.transparent,
+          ]))),
+        DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(
+          center: const Alignment(-0.7, 0.6), radius: 1.1,
+          colors: [
+            AurixTokens.aiAccent.withValues(alpha: 0.06),
+            Colors.transparent,
+          ]))),
+        widget.child,
+      ]);
+    }
+
+    // Desktop: прежняя версия с анимацией
     return AnimatedBuilder(
-      animation: _ctrl,
+      animation: _ctrl!,
       builder: (context, child) {
-        final t = _ctrl.value;
+        final t = _ctrl!.value;
         return Stack(
           fit: StackFit.expand,
           children: [
-            // Base gradient
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -53,8 +105,6 @@ class _AiMagicBackgroundState extends State<AiMagicBackground>
                 ),
               ),
             ),
-
-            // Orb 1 — large orange, top-right
             Positioned(
               top: -60 + sin(t * 2 * pi) * 20,
               right: -40 + cos(t * 2 * pi) * 15,
@@ -64,8 +114,6 @@ class _AiMagicBackgroundState extends State<AiMagicBackground>
                 blur: 120,
               ),
             ),
-
-            // Orb 2 — purple, bottom-left
             Positioned(
               bottom: -80 + cos(t * 2 * pi + 1.5) * 25,
               left: -60 + sin(t * 2 * pi + 1.5) * 18,
@@ -75,8 +123,6 @@ class _AiMagicBackgroundState extends State<AiMagicBackground>
                 blur: 100,
               ),
             ),
-
-            // Orb 3 — warm orange, center
             Positioned(
               top: MediaQuery.of(context).size.height * 0.4 + sin(t * 2 * pi + 3) * 30,
               left: MediaQuery.of(context).size.width * 0.3 + cos(t * 2 * pi + 3) * 20,
@@ -86,8 +132,6 @@ class _AiMagicBackgroundState extends State<AiMagicBackground>
                 blur: 90,
               ),
             ),
-
-            // Noise overlay
             Positioned.fill(
               child: IgnorePointer(
                 child: Opacity(
@@ -101,8 +145,6 @@ class _AiMagicBackgroundState extends State<AiMagicBackground>
                 ),
               ),
             ),
-
-            // Content
             widget.child,
           ],
         );

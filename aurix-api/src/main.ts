@@ -9,7 +9,7 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // ── Validate critical env vars ──────────────────────────
-  const required = ['JWT_SECRET', 'PG_PASSWORD', 'SMTP_USER', 'SMTP_PASS', 'EDEN_AI_API_KEY'];
+  const required = ['JWT_SECRET', 'PG_PASSWORD', 'SMTP_USER', 'SMTP_PASS'];
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     logger.error(`Missing required env vars: ${missing.join(', ')}`);
@@ -50,7 +50,8 @@ async function bootstrap() {
   });
 
   // ── Global exception filter (always JSON, never HTML) ──
-  app.useGlobalFilters(new AllExceptionsFilter());
+  const pool = app.get('PG_POOL');
+  app.useGlobalFilters(new AllExceptionsFilter(pool));
 
   // ── Global validation pipe ─────────────────────────────
   app.useGlobalPipes(

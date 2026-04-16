@@ -92,6 +92,79 @@ export class UploadService implements OnModuleInit {
     return { url, expires_in: ttl };
   }
 
+  /**
+   * Стримит файл из S3/MinIO напрямую в Express Response с корректными
+   * Content-Type и Content-Disposition: attachment.
+   */
+  async streamDownload(
+    key: string,
+    filename: string,
+    res: any,
+    opts?: { ip?: string; userAgent?: string; adminId?: string },
+  ): Promise<void> {
+    const mime = this.guessMimeType(key);
+    const asciiSafe = filename.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+    const disposition = `attachment; filename="${asciiSafe}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+
+    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    const obj = await this.s3.send(command);
+
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', disposition);
+    if (obj.ContentLength) res.setHeader('Content-Length', String(obj.ContentLength));
+    res.setHeader('Cache-Control', 'private, no-store');
+
+    // Логируем скачивание (не блокирующе)
+    this.pool.query(
+      `INSERT INTO signed_url_log (user_id, file_key, folder, ip, user_agent)
+       VALUES ($1, $2, $3, $4::inet, $5)`,
+      [opts?.adminId ?? null, key, key.split('/')[0], opts?.ip ?? null, opts?.userAgent ?? null],
+    ).catch(() => {});
+
+    const body: any = obj.Body;
+    if (body && typeof body.pipe === 'function') {
+      body.pipe(res);
+      return new Promise((resolve, reject) => {
+        body.on('end', resolve);
+        body.on('error', reject);
+      });
+    }
+    // Fallback: буферизуем (на случай если SDK вернул buffer)
+    const buf = await obj.Body?.transformToByteArray();
+    if (buf) res.end(Buffer.from(buf));
+    else res.end();
+  }
+
+  /** Догадка MIME-типа по расширению ключа. */
+  private guessMimeType(key: string): string {
+    const ext = key.split('.').pop()?.toLowerCase() || '';
+    switch (ext) {
+      case 'wav': return 'audio/wav';
+      case 'mp3': return 'audio/mpeg';
+      case 'flac': return 'audio/flac';
+      case 'aac': case 'm4a': return 'audio/aac';
+      case 'ogg': case 'oga': return 'audio/ogg';
+      case 'png': return 'image/png';
+      case 'jpg': case 'jpeg': return 'image/jpeg';
+      case 'webp': return 'image/webp';
+      case 'gif': return 'image/gif';
+      default: return 'application/octet-stream';
+    }
+  }
+
+  /** Безопасное имя файла для скачивания. */
+  sanitizeDownloadFilename(raw: string | undefined, key: string): string {
+    const ext = key.split('.').pop()?.toLowerCase() || 'bin';
+    const cleaned = (raw || '').trim()
+      .replace(/[\/\\:*?"<>|]/g, '_')
+      .replace(/\s+/g, ' ')
+      .slice(0, 180);
+    if (!cleaned) return `download.${ext}`;
+    // Если имя не оканчивается на расширение — добавим
+    if (!/\.[a-zA-Z0-9]{2,5}$/.test(cleaned)) return `${cleaned}.${ext}`;
+    return cleaned;
+  }
+
   /** Resolve key → signed URL for API responses. Null-safe. */
   async resolveUrl(
     key: string | null | undefined,

@@ -1,14 +1,14 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
-import { EdenAiService } from '../ai/eden-ai.service';
+import { AiGatewayService } from '../ai/ai-gateway.service';
 import { AiContextService } from '../ai/ai-context.service';
 
 @Injectable()
 export class BrainService {
   constructor(
     @Inject(PG_POOL) private pool: Pool,
-    private ai: EdenAiService,
+    private ai: AiGatewayService,
     private aiContext: AiContextService,
   ) {}
 
@@ -276,6 +276,59 @@ Return ONLY valid JSON (no markdown, no code blocks):
     ) {
       return res.rows[0].strategy_json;
     }
-    return this.generateStrategy(userId);
+
+    // Return stale cache if exists (while regenerating in background)
+    if (res.rows[0]) {
+      // Fire-and-forget regeneration
+      this.generateStrategy(userId).catch(() => {});
+      return res.rows[0].strategy_json;
+    }
+
+    // No cache at all — try AI, fallback to static recommendations
+    try {
+      return await this.generateStrategy(userId);
+    } catch {
+      return this.buildFallbackStrategy(userId);
+    }
+  }
+
+  /** Fallback strategy when AI is unavailable */
+  private async buildFallbackStrategy(userId: number) {
+    const relCount = await this.pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM releases WHERE user_id = $1`, [userId],
+    ).then(r => r.rows[0]?.cnt || 0).catch(() => 0);
+
+    const tasks: Array<{ title: string; description: string; category: string }> = [];
+    if (relCount === 0) {
+      tasks.push({ title: 'Создай первый релиз', description: 'Загрузи трек и обложку в разделе Релизы', category: 'release' });
+      tasks.push({ title: 'Настрой профиль артиста', description: 'Заполни имя, жанр и цели в разделе Артист', category: 'content' });
+      tasks.push({ title: 'Попробуй AI Studio', description: 'Сгенерируй текст или обложку с помощью AI', category: 'content' });
+    } else {
+      tasks.push({ title: 'Продвигай свою музыку', description: 'Открой раздел Промо и создай кампанию', category: 'promo' });
+      tasks.push({ title: 'Сгенерируй обложку', description: 'AI создаст обложку под твой стиль', category: 'content' });
+      tasks.push({ title: 'Проверь статистику', description: 'Загрузи отчёты платформ в разделе Статистика', category: 'analytics' });
+    }
+
+    return {
+      problem: relCount === 0 ? 'У тебя пока нет релизов' : 'Продвижение поможет вырасти',
+      opportunity: relCount === 0 ? 'Начни с первого трека — платформы ждут' : 'Используй промо-инструменты для роста стримов',
+      strategy: relCount === 0 ? 'release' : 'promo',
+      today_tasks: tasks,
+      week_plan: [
+        { day: 1, task: tasks[0]?.description || 'Работай над музыкой', category: tasks[0]?.category || 'content' },
+        { day: 2, task: 'Работай над обложкой релиза', category: 'content' },
+        { day: 3, task: 'Изучи AI Studio — попробуй генерацию', category: 'content' },
+        { day: 4, task: 'Подготовь метаданные релиза', category: 'release' },
+        { day: 5, task: 'Опубликуй в соцсетях', category: 'promo' },
+        { day: 6, task: 'Проверь аналитику', category: 'analytics' },
+        { day: 7, task: 'Спланируй следующую неделю', category: 'content' },
+      ],
+      quick_actions: [
+        { title: 'AI Studio', description: 'Открой AI-ассистента' },
+        { title: 'Релизы', description: 'Проверь статус релизов' },
+        { title: 'Промо', description: 'Запусти продвижение' },
+      ],
+      _fallback: true,
+    };
   }
 }

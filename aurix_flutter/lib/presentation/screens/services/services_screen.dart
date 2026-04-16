@@ -8,6 +8,7 @@ import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/presentation/screens/services/service_detail_modal.dart';
 import 'package:aurix_flutter/presentation/screens/services/service_order_form_modal.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 class _ServiceData {
   final String title;
@@ -99,7 +100,7 @@ class ServicesScreen extends ConsumerWidget {
     _ServiceData(
       title: 'Съёмка Reels',
       description: 'Видеоконтент для соцсетей',
-      available: false,
+      available: true,
       icon: Icons.videocam_rounded,
       offer: 'Клипы и Reels для продвижения в соцсетях.',
       whatYouGet: ['Сценарий', 'Съёмка', 'Монтаж'],
@@ -136,6 +137,7 @@ class ServicesScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          SectionOnboarding(tip: OnboardingTips.services),
           FadeInSlide(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

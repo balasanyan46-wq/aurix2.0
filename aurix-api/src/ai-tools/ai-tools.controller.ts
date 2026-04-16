@@ -19,18 +19,18 @@ export class AiToolsController {
   }
 
   @Get('ai-studio-messages')
-  async getMessages(@Req() req: any, @Query('limit') limit?: string) {
-    return this.svc.getMessages(req.user.id, +(limit || 50));
+  async getMessages(@Req() req: any, @Query('limit') limit?: string, @Query('generativeType') generativeType?: string) {
+    return this.svc.getMessages(req.user.id, +(limit || 50), generativeType || undefined);
   }
 
   @Post('ai-studio-messages')
-  async addMessage(@Req() req: any, @Body() body: { role: string; content: string }) {
-    return this.svc.addMessage(req.user.id, body.role, body.content);
+  async addMessage(@Req() req: any, @Body() body: { role: string; content: string; meta?: Record<string, unknown> }) {
+    return this.svc.addMessage(req.user.id, body.role, body.content, body.meta);
   }
 
   @Delete('ai-studio-messages')
-  async clearMessages(@Req() req: any) {
-    await this.svc.clearMessages(req.user.id);
+  async clearMessages(@Req() req: any, @Query('generativeType') generativeType?: string) {
+    await this.svc.clearMessages(req.user.id, generativeType || undefined);
     return { success: true };
   }
 

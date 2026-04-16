@@ -250,8 +250,45 @@ export class ReleasesController {
       );
     }
 
+    // In-app notification
     this.sendReleaseNotification(updated.artist_id, updated.title, 'rejected', dto.reason).catch(() => {});
+    // Email
+    this.notifyArtistRejected(updated.artist_id, updated.title, dto.reason).catch(() => {});
     return { success: true, status: updated.status };
+  }
+
+  // ── Admin: send to revision ─────────────────────────────
+  @UseGuards(AdminGuard)
+  @Post(':id/revision')
+  async sendToRevision(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    const releaseId = parseInt(id, 10);
+    if (isNaN(releaseId)) {
+      throw new HttpException('invalid release id', HttpStatus.BAD_REQUEST);
+    }
+
+    const release = await this.releasesService.findById(releaseId);
+    if (!release) {
+      throw new HttpException('release not found', HttpStatus.NOT_FOUND);
+    }
+
+    const reason = body.reason || 'Требуются исправления';
+
+    await this.releasesService.update(releaseId, {
+      needs_revision: true,
+      revision_reason: reason,
+    });
+    await this.releasesService.updateStatus(releaseId, 'draft');
+
+    // In-app notification
+    this.sendReleaseNotification(release.artist_id, release.title, 'rejected', reason).catch(() => {});
+
+    // Email notification
+    this.notifyArtistRevision(release.artist_id, release.title, reason).catch(() => {});
+
+    return { success: true };
   }
 
   // ── Release notes (admin) ───────────────────────────────
@@ -329,6 +366,24 @@ export class ReleasesController {
       type: msg.type,
       meta: { release_title: releaseTitle, status },
     });
+  }
+
+  /** Send revision email to artist */
+  private async notifyArtistRevision(artistId: number, releaseTitle: string, reason: string) {
+    const artist = await this.artistsService.findById(artistId);
+    if (!artist) return;
+    const user = await this.usersService.findById(artist.user_id);
+    if (!user) return;
+    await this.mailService.sendReleaseRevision(user.email, artist.artist_name, releaseTitle, reason);
+  }
+
+  /** Send rejection email to artist */
+  private async notifyArtistRejected(artistId: number, releaseTitle: string, reason?: string) {
+    const artist = await this.artistsService.findById(artistId);
+    if (!artist) return;
+    const user = await this.usersService.findById(artist.user_id);
+    if (!user) return;
+    await this.mailService.sendReleaseRejected(user.email, artist.artist_name, releaseTitle, reason);
   }
 
   /** Look up artist → user → send email */

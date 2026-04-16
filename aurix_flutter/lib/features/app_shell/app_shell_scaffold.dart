@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui';
+// dart:ui removed — BackdropFilter removed for performance
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,12 +11,12 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_backdrop.dart';
 import 'package:aurix_flutter/design/widgets/app_back_button.dart';
 import 'package:aurix_flutter/design/widgets/premium_ui.dart';
+import 'package:aurix_flutter/design/widgets/aurix_logo.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/data/providers/releases_provider.dart';
 import 'package:aurix_flutter/core/admin_config.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
-import 'package:aurix_flutter/ai/ai_assistant_overlay.dart';
 import 'package:aurix_flutter/data/providers/billing_providers.dart';
 import 'package:aurix_flutter/data/providers/notification_providers.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
@@ -39,7 +39,8 @@ class AppShellScaffold extends ConsumerStatefulWidget {
 
 class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  String? _paywallShownForUser;
+  /// Static so it persists across State rebuilds / ProviderScope rekeys.
+  static String? _paywallShownForUser;
   bool _checkedIn = false;
 
   @override
@@ -150,7 +151,9 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
               currentLocation: widget.currentLocation,
               isAdmin: isAdmin,
               onTap: (path) {
-                Navigator.of(context).pop();
+                Navigator.of(context).pop(); // close drawer
+                // Pop any imperative routes pushed via Navigator.push (AI chat etc.)
+                Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
                 context.go(path);
               },
             ),
@@ -182,19 +185,6 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
                   ),
                 ],
               ),
-              Positioned(
-                right: 16,
-                bottom: 16,
-                width: isDesktop ? 420 : (MediaQuery.sizeOf(context).width * 0.9).clamp(280.0, 420.0),
-                height: isDesktop ? 560 : 400,
-                child: AiAssistantOverlay(
-                  page: widget.currentLocation.startsWith('/releases/create') ? 'release_form' : 'cabinet',
-                  onNavigate: (screen, [releaseId]) {
-                    final path = _screenToPath(screen, releaseId);
-                    if (context.mounted) context.go(path);
-                  },
-                ),
-              ),
             ],
           ),
         ),
@@ -204,25 +194,25 @@ class _AppShellScaffoldState extends ConsumerState<AppShellScaffold> {
 }
 
 String _screenToPath(AppScreen screen, [String? releaseId]) => switch (screen) {
-      AppScreen.home => '/home',
-      AppScreen.releases => '/releases',
-      AppScreen.uploadRelease => '/releases/create',
-      AppScreen.releaseDetails => '/releases/${releaseId ?? ''}',
-      AppScreen.analytics => '/stats',
-      AppScreen.promotion => '/promo',
-      AppScreen.progress => '/progress',
-      AppScreen.studioAi => '/ai',
-      AppScreen.services => '/services',
-      AppScreen.finances => '/finance',
-      AppScreen.team => '/team',
-      AppScreen.subscription => '/subscription',
-      AppScreen.support => '/support',
-      AppScreen.settings => '/settings',
-      AppScreen.profile => '/profile',
-      AppScreen.aurixIndex => '/index',
-      AppScreen.admin => '/admin',
-      AppScreen.legal => '/legal',
-      AppScreen.aurixDnk => '/dnk',
+    AppScreen.home => '/home',
+    AppScreen.releases => '/releases',
+    AppScreen.uploadRelease => '/releases/create',
+    AppScreen.releaseDetails => '/releases/${releaseId ?? ''}',
+    AppScreen.analytics => '/stats',
+    AppScreen.promotion => '/promo',
+    AppScreen.progress => '/progress',
+    AppScreen.studioAi => '/ai',
+    AppScreen.services => '/services',
+    AppScreen.finances => '/finance',
+    AppScreen.team => '/team',
+    AppScreen.subscription => '/subscription',
+    AppScreen.support => '/support',
+    AppScreen.settings => '/settings',
+    AppScreen.profile => '/profile',
+    AppScreen.aurixIndex => '/index',
+    AppScreen.admin => '/admin',
+    AppScreen.legal => '/legal',
+    AppScreen.aurixDnk => '/dnk',
     };
 
 class _NavGroup {
@@ -238,6 +228,8 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     _NavItem(path: '/artist', icon: Icons.person_pin_rounded, label: '\u0410\u0440\u0442\u0438\u0441\u0442'),
     _NavItem(path: '/promo', icon: Icons.campaign_rounded, labelKey: 'promo'),
     _NavItem(path: '/releases', icon: Icons.album_rounded, labelKey: 'releases'),
+    _NavItem(path: '/beats', icon: Icons.graphic_eq_rounded, label: 'Биты'),
+    _NavItem(path: '/studio', icon: Icons.mic_rounded, label: 'Студия'),
   ]),
   _NavGroup(titleKey: 'navGroupTools', items: [
     _NavItem(path: '/stats', icon: Icons.insights_rounded, labelKey: 'statistics'),
@@ -250,6 +242,7 @@ List<_NavGroup> _appNavGroups(bool isAdmin) => [
     _NavItem(path: '/finance', icon: Icons.account_balance_wallet_rounded, labelKey: 'finances'),
     _NavItem(path: '/subscription', icon: Icons.diamond_rounded, labelKey: 'subscription'),
     _NavItem(path: '/services', icon: Icons.build_circle_rounded, labelKey: 'services'),
+    _NavItem(path: '/referral', icon: Icons.card_giftcard_rounded, label: 'Рефералы'),
     _NavItem(path: '/team', icon: Icons.groups_rounded, label: '\u041f\u0440\u043e\u0434\u0430\u043a\u0448\u043d'),
     if (isAdmin) _NavItem(path: '/admin', icon: Icons.admin_panel_settings_rounded, labelKey: 'admin'),
   ]),
@@ -274,6 +267,7 @@ class _NavDrawerContent extends StatelessWidget {
       currentLocation == i.path ||
       (currentLocation.startsWith('/production') && i.path == '/team') ||
       (currentLocation.startsWith('/releases/') && i.path == '/releases') ||
+      (currentLocation.startsWith('/beats') && i.path == '/beats') ||
       (currentLocation.startsWith('/legal') && i.path == '/legal') ||
       (currentLocation.startsWith('/index') && i.path == '/index') ||
       (currentLocation.startsWith('/progress') && i.path == '/progress') ||
@@ -290,18 +284,9 @@ class _NavDrawerContent extends StatelessWidget {
       child: ListView(
         shrinkWrap: true,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              'AURIX',
-              style: TextStyle(
-                fontFamily: AurixTokens.fontDisplay,
-                color: AurixTokens.orange,
-                fontSize: 18,
-                letterSpacing: 5,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: AurixPremiumLogo(),
           ),
           const SizedBox(height: 28),
           ...groups.expand((g) => [
@@ -337,6 +322,7 @@ bool _isSelected(String currentLocation, _NavItem i) =>
     currentLocation == i.path ||
     (currentLocation.startsWith('/production') && i.path == '/team') ||
     (currentLocation.startsWith('/releases/') && i.path == '/releases') ||
+    (currentLocation.startsWith('/beats') && i.path == '/beats') ||
     (currentLocation.startsWith('/legal') && i.path == '/legal') ||
     (currentLocation.startsWith('/index') && i.path == '/index') ||
     (currentLocation.startsWith('/progress') && i.path == '/progress') ||
@@ -366,56 +352,9 @@ class _Sidebar extends StatelessWidget {
       child: Column(
         children: [
           // Logo
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AurixTokens.accent,
-                        AurixTokens.accentWarm,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AurixTokens.accent.withValues(alpha: 0.3),
-                        blurRadius: 12,
-                        spreadRadius: -4,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Text(
-                      'A',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'AURIX',
-                  style: TextStyle(
-                    fontFamily: AurixTokens.fontDisplay,
-                    color: AurixTokens.text,
-                    fontSize: 15,
-                    letterSpacing: 3,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 22),
+            child: AurixPremiumLogo(),
           ),
           const SizedBox(height: 24),
           // Divider
@@ -463,7 +402,11 @@ class _Sidebar extends StatelessWidget {
                           icon: i.icon,
                           label: i.label ?? L10n.t(context, i.labelKey!),
                           selected: _isSelected(currentLocation, i),
-                          onTap: () => context.go(i.path),
+                          onTap: () {
+                            // Pop any imperative routes pushed via Navigator.push (AI chat etc.)
+                            Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst);
+                            context.go(i.path);
+                          },
                         )),
                   ]),
                 ],
@@ -610,62 +553,52 @@ class _TopBar extends ConsumerWidget {
           bottom: BorderSide(color: AurixTokens.stroke(0.1)),
         ),
       ),
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Row(
-            children: [
-              if (showBack)
-                AppBackButton(
-                  tooltip: L10n.t(context, 'back'),
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/home');
-                    }
-                  },
-                ),
-              if (showBack) const SizedBox(width: 6),
-              if (onMenuTap != null)
-                IconButton(
-                  icon: const Icon(Icons.menu_rounded, color: AurixTokens.text, size: 22),
-                  onPressed: onMenuTap,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                ),
-              if (onMenuTap != null) const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontFamily: AurixTokens.fontHeading,
-                    color: AurixTokens.text,
-                    fontWeight: FontWeight.w700,
-                    fontSize: isDesktop ? 18 : 16,
-                    letterSpacing: -0.2,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+      child: Row(
+        children: [
+          if (showBack)
+            AppBackButton(
+              tooltip: L10n.t(context, 'back'),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/home');
+                }
+              },
+            ),
+          if (showBack) const SizedBox(width: 6),
+          if (onMenuTap != null)
+            IconButton(
+              icon: const Icon(Icons.menu_rounded, color: AurixTokens.text, size: 22),
+              onPressed: onMenuTap,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            ),
+          if (onMenuTap != null) const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontFamily: AurixTokens.fontHeading,
+                color: AurixTokens.text,
+                fontWeight: FontWeight.w700,
+                fontSize: isDesktop ? 18 : 16,
+                letterSpacing: -0.2,
               ),
-              if (isDesktop)
-                SizedBox(
-                  width: 220,
-                  child: _SearchField(
-                    onSelectRelease: (id) => context.go('/releases/$id'),
-                  ),
-                ),
-              if (isDesktop) const SizedBox(width: 12),
-              const _LocaleToggle(),
-              const SizedBox(width: 8),
-              const _NotificationBell(),
-              const SizedBox(width: 8),
-              const _CreditChip(),
-              const SizedBox(width: 8),
-              _ProfileAvatar(onTap: () => context.go('/profile')),
-            ],
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
+          if (isDesktop)
+            _CastingTopBarBtn(onTap: () => context.go('/casting')),
+          if (isDesktop) const SizedBox(width: 12),
+          if (isDesktop) const _LocaleToggle(),
+          if (isDesktop) const SizedBox(width: 8),
+          const _NotificationBell(),
+          const SizedBox(width: 8),
+          if (isDesktop) const _CreditChip(),
+          if (isDesktop) const SizedBox(width: 8),
+          _ProfileAvatar(onTap: () => context.go('/profile')),
+        ],
       ),
     );
   }
@@ -1218,5 +1151,53 @@ class _NotificationPopupState extends ConsumerState<_NotificationPopup> {
     if (diff.inHours < 24) return '${diff.inHours} ч назад';
     if (diff.inDays < 7) return '${diff.inDays} дн назад';
     return DateFormat('dd.MM.yy').format(dt);
+  }
+}
+
+class _CastingTopBarBtn extends StatelessWidget {
+  final VoidCallback onTap;
+  const _CastingTopBarBtn({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: [
+              AurixTokens.accent.withValues(alpha: 0.14),
+              AurixTokens.aiAccent.withValues(alpha: 0.07),
+            ],
+          ),
+          border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6, height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AurixTokens.accent,
+                boxShadow: [BoxShadow(color: AurixTokens.accent.withValues(alpha: 0.6), blurRadius: 6)],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Код Артиста',
+              style: TextStyle(
+                fontFamily: AurixTokens.fontHeading,
+                color: AurixTokens.accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -1,5 +1,5 @@
 import { THEME } from '../mailer.config';
-import { emailLayout, heading, bodyText, ctaButton, mutedText } from './layout';
+import { emailLayout, heading, bodyText, ctaButton, mutedText, esc } from './layout';
 
 export function buildTicketReplyTemplate(opts: {
   subject: string;
@@ -15,9 +15,9 @@ export function buildTicketReplyTemplate(opts: {
         <span style="font-size:48px;">💬</span>
       </div>
       ${heading('Ответ от поддержки')}
-      ${bodyText(`По вашему обращению <strong style="color:${T.accent};">«${opts.subject}»</strong> получен ответ:`)}
+      ${bodyText(`По вашему обращению <strong style="color:${T.accent};">«${esc(opts.subject)}»</strong> получен ответ:`)}
       <div style="padding:16px 20px;background:rgba(255,106,26,0.08);border-radius:12px;border:1px solid rgba(255,106,26,0.15);margin-bottom:24px;">
-        <p style="margin:0;font-size:14px;line-height:1.7;color:${T.textPrimary};white-space:pre-line;">${opts.replyText}</p>
+        <p style="margin:0;font-size:14px;line-height:1.7;color:${T.textPrimary};white-space:pre-line;">${esc(opts.replyText)}</p>
       </div>
       ${ctaButton('https://aurixmusic.ru', 'Открыть AURIX')}
     `,

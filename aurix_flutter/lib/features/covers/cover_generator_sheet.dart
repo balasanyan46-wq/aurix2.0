@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:aurix_flutter/core/api/api_client.dart' show ApiClient;
 
 import 'package:aurix_flutter/ai/cover_ai_service.dart';
 import 'package:aurix_flutter/config/responsive.dart';
@@ -10,6 +12,7 @@ import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CoverGeneratorSheet extends ConsumerStatefulWidget {
   const CoverGeneratorSheet({
@@ -29,7 +32,7 @@ class CoverGeneratorSheet extends ConsumerStatefulWidget {
   final void Function(String coverUrl, String coverPath)? onApplied;
   final VoidCallback? onClosed;
 
-  static Future<Uint8List?> open(
+  static Future<String?> open(
     BuildContext context, {
     String? releaseId,
     String? initialArtistName,
@@ -37,7 +40,7 @@ class CoverGeneratorSheet extends ConsumerStatefulWidget {
     String? initialGenre,
     void Function(String coverUrl, String coverPath)? onApplied,
   }) async {
-    return await showModalBottomSheet<Uint8List?>(
+    return await showModalBottomSheet<String?>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -80,7 +83,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
   bool _loading = false;
   bool _briefLoading = false;
   String? _error;
-  Uint8List? _bytes;
+  String? _imageUrl;
   Map<String, dynamic>? _meta;
 
   @override
@@ -173,7 +176,6 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
         safeZoneGuide: _safeZoneGuide,
         stylePreset: _style,
         colorProfile: switch (_accentLevel) { 0 => 'muted', 2 => 'high-contrast', _ => 'balanced' },
-        size: _size,
         quality: _quality,
         outputFormat: 'png',
         background: 'opaque',
@@ -183,7 +185,7 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
       );
       if (!mounted) return;
       setState(() {
-        _bytes = resp.bytes;
+        _imageUrl = resp.url;
         _meta = resp.meta;
         _loading = false;
       });
@@ -245,24 +247,41 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
     }
   }
 
+  Future<void> _downloadImage() async {
+    final url = _imageUrl;
+    if (url == null || url.isEmpty) return;
+    try {
+      final response = await ApiClient.dio.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (response.data != null && mounted) {
+        await downloadCoverPng(
+          context: context,
+          bytes: Uint8List.fromList(response.data!),
+          fileName: 'aurix-cover-${DateTime.now().millisecondsSinceEpoch}.png',
+        );
+      }
+    } catch (e) {
+      // Fallback: open in browser
+      if (mounted) launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _applyToRelease() async {
-    final bytes = _bytes;
-    if (bytes == null || bytes.isEmpty) return;
+    final url = _imageUrl;
+    if (url == null || url.isEmpty) return;
     final releaseId = widget.releaseId;
     if (releaseId == null) return;
-    final userId = ref.read(currentUserProvider)?.id;
-    if (userId == null) return;
 
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final fileRepo = ref.read(fileRepositoryProvider);
       final releaseRepo = ref.read(releaseRepositoryProvider);
-      final uploaded = await fileRepo.uploadCoverBytes(userId, releaseId, bytes, 'generated_cover.png');
-      await releaseRepo.updateRelease(releaseId, coverUrl: uploaded.publicUrl, coverPath: uploaded.coverPath);
-      widget.onApplied?.call(uploaded.publicUrl, uploaded.coverPath);
+      await releaseRepo.updateRelease(releaseId, {'cover_url': url, 'cover_path': url});
+      widget.onApplied?.call(url, url);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
@@ -466,19 +485,37 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                       ),
                       const SizedBox(height: 12),
                       AurixButton(
-                        text: _bytes == null ? 'Сгенерировать' : 'Регенерировать',
+                        text: _imageUrl == null ? 'Сгенерировать' : 'Регенерировать',
                         icon: Icons.auto_awesome_rounded,
                         onPressed: _loading ? null : () => _generate(variant: false),
                       ),
                       const SizedBox(height: 12),
                       if (_loading)
                         const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2))),
-                      if (_bytes != null) ...[
+                      if (_imageUrl != null) ...[
                         AspectRatio(
                           aspectRatio: 1,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(14),
-                            child: Image.memory(_bytes!, fit: BoxFit.cover),
+                            child: Image.network(
+                              _imageUrl!,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (_, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                  color: AurixTokens.bg2,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(color: AurixTokens.orange, strokeWidth: 2),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (_, __, ___) => Container(
+                                color: AurixTokens.bg2,
+                                child: const Center(
+                                  child: Icon(Icons.broken_image_rounded, color: AurixTokens.muted, size: 48),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -617,43 +654,47 @@ class _CoverGeneratorSheetState extends ConsumerState<CoverGeneratorSheet> {
                               : const SizedBox.shrink(),
                         ),
                         const SizedBox(height: 12),
+                        // Download + Use buttons
                         Row(
                           children: [
                             Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _loading ? null : () => downloadCoverPng(context: context, bytes: _bytes!, fileName: 'cover.png'),
+                              child: FilledButton.icon(
+                                onPressed: _loading ? null : () => _downloadImage(),
                                 icon: const Icon(Icons.download_rounded, size: 18),
-                                label: const Text('Скачать (HQ)'),
-                                style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.orange),
+                                label: const Text('Скачать'),
+                                style: FilledButton.styleFrom(backgroundColor: AurixTokens.accent, foregroundColor: Colors.white),
                               ),
                             ),
-                            if (canUseInForm) ...[
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: _loading
-                                      ? null
-                                      : () {
-                                          Navigator.of(context).pop(_bytes);
-                                        },
-                                  icon: const Icon(Icons.check_circle_rounded, size: 18),
-                                label: const Text('Использовать в форме'),
-                                  style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: AurixTokens.bg0),
-                                ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _loading ? null : () => _generate(variant: false),
+                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                label: const Text('Попробовать ещё'),
+                                style: OutlinedButton.styleFrom(foregroundColor: AurixTokens.textSecondary),
                               ),
-                            ],
-                            if (canApply) ...[
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FilledButton.icon(
-                                  onPressed: _loading ? null : _applyToRelease,
-                                  icon: const Icon(Icons.check_circle_rounded, size: 18),
-                                  label: const Text('Применить к релизу'),
-                                  style: FilledButton.styleFrom(backgroundColor: AurixTokens.orange, foregroundColor: AurixTokens.bg0),
-                                ),
-                              ),
-                            ],
+                            ),
                           ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Use in release button
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: _loading ? null : () {
+                              if (canApply) {
+                                _applyToRelease();
+                              } else {
+                                Navigator.of(context).pop(_imageUrl);
+                              }
+                            },
+                            icon: const Icon(Icons.album_rounded, size: 18),
+                            label: Text(canApply ? 'Применить к релизу' : 'Использовать в релизе'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AurixTokens.surface2,
+                              foregroundColor: AurixTokens.text,
+                            ),
+                          ),
                         ),
                       ],
                       const SizedBox(height: 8),

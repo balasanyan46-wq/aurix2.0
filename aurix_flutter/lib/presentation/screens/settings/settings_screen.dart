@@ -13,6 +13,7 @@ import 'package:aurix_flutter/data/providers/repositories_provider.dart';
 import 'package:aurix_flutter/data/repositories/legal_compliance_repository.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart';
 import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 final _latestAccountDeletionStatusProvider =
     FutureProvider<String?>((ref) async {
@@ -78,6 +79,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              SectionOnboarding(tip: OnboardingTips.settings),
               // Page header
               FadeInSlide(
                 child: Padding(
@@ -182,9 +184,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           children: [
             _linkChip(context, 'Политика конфиденциальности', '/legal/privacy'),
             _linkChip(context, 'Пользовательское соглашение', '/legal/terms'),
-            _linkChip(context, 'Privacy Choices', '/legal/privacy-choices'),
+            _linkChip(context, 'Управление конфиденциальностью', '/legal/privacy-choices'),
             _linkChip(context, 'Удаление данных', '/legal/data-deletion'),
-            _linkChip(context, 'Refunds', '/legal/refunds'),
+            _linkChip(context, 'Возвраты и возмещение', '/legal/refunds'),
           ],
         ),
         const SizedBox(height: 20),
@@ -216,7 +218,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'Загружаем privacy choices…',
+                  'Загружаем настройки…',
                   style: TextStyle(color: AurixTokens.muted, fontSize: 12),
                 ),
               ],

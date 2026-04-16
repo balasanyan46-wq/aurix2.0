@@ -11,7 +11,7 @@ class ReportRepository {
   }
 
   Future<List<ReportModel>> getReports() async {
-    final res = await ApiClient.get('/reports', query: {'order': 'created_at.desc'});
+    final res = await ApiClient.get('/reports/', query: {'order': 'created_at.desc'});
     final list = asList(res.data);
     return list.map((e) => ReportModel.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -50,7 +50,7 @@ class ReportRepository {
     if (releaseId != null && releaseId.isNotEmpty) payload['release_id'] = releaseId;
     if (importHash != null && importHash.isNotEmpty) payload['import_hash'] = importHash;
     try {
-      final res = await ApiClient.post('/reports', data: payload);
+      final res = await ApiClient.post('/reports/', data: payload);
       final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
       return ReportModel.fromJson(body);
     } catch (e) {
@@ -59,7 +59,7 @@ class ReportRepository {
         final fallback = Map<String, dynamic>.from(payload)
           ..remove('user_id')
           ..remove('release_id');
-        final fbRes = await ApiClient.post('/reports', data: fallback);
+        final fbRes = await ApiClient.post('/reports/', data: fallback);
         final fbBody = fbRes.data is Map ? Map<String, dynamic>.from(fbRes.data as Map) : <String, dynamic>{};
         return ReportModel.fromJson(fbBody);
       }
@@ -67,7 +67,7 @@ class ReportRepository {
           importHash.isNotEmpty &&
           (txt.contains('23505') || txt.toLowerCase().contains('import_hash'))) {
         try {
-          final existing = await ApiClient.get('/reports', query: {'import_hash': importHash});
+          final existing = await ApiClient.get('/reports/', query: {'import_hash': importHash});
           final list = asList(existing.data);
           if (list.isNotEmpty && list.first is Map) return ReportModel.fromJson(Map<String, dynamic>.from(list.first as Map));
         } catch (_) {}
@@ -120,7 +120,7 @@ class ReportRepository {
   }
 
   Future<List<ReportRowModel>> getReportRows(String reportId) async {
-    final res = await ApiClient.get('/report-rows', query: {'report_id': reportId, 'order': 'created_at.asc'});
+    final res = await ApiClient.get('/report-rows/', query:{'report_id': reportId, 'order': 'created_at.asc'});
     final list = asList(res.data);
     return list.map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -163,7 +163,7 @@ class ReportRepository {
   }
 
   Future<List<ReportRowModel>> getAllReportRows() async {
-    final res = await ApiClient.get('/report-rows', query: {
+    final res = await ApiClient.get('/report-rows/', query:{
       'order': 'created_at.desc',
       'limit': '5000',
     });
@@ -171,6 +171,31 @@ class ReportRepository {
     return list
         .map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Быстрый массовый матч: один SQL UPDATE на сервере.
+  /// Возвращает matched, unmatched и разбивку по релизам.
+  Future<Map<String, dynamic>> matchReportRowsByIsrcBulk(String reportId) async {
+    final res = await ApiClient.post('/report-rows/match-isrc/$reportId');
+    return res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+  }
+
+  /// Админский метод: строки отчётов конкретного пользователя (для preview-as-artist).
+  Future<List<ReportRowModel>> getRowsByUserAdmin(String userId) async {
+    final res = await ApiClient.get('/report-rows/', query:{
+      'user_id': userId,
+      'order': 'created_at.desc',
+      'limit': '5000',
+    });
+    final list = asList(res.data);
+    return list.map((e) => ReportRowModel.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Админский метод: все треки пользователя (с release_title) для предпросмотра матча.
+  Future<List<Map<String, dynamic>>> getTracksByUser(String userId) async {
+    final res = await ApiClient.get('/tracks/by-user/$userId');
+    final list = asList(res.data);
+    return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
   Future<int> matchReportRowsByIsrc(String reportId) async {

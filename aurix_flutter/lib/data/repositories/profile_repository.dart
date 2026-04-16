@@ -113,7 +113,7 @@ class ProfileRepository {
   }
 
   Future<void> updateAccountStatus(String userId, String status) async {
-    await ApiClient.put('/profiles/$userId/status', data: {'status': status});
+    await ApiClient.put('/profiles/$userId/status', data: {'account_status': status});
   }
 
   Future<int> bulkUpdateAccountStatus(
@@ -130,7 +130,8 @@ class ProfileRepository {
         if (reason != null) 'reason': reason,
       });
       final body = _asMap(res.data);
-      return body['count'] as int? ?? ids.length;
+      final c = body['count'];
+      return c is num ? c.toInt() : int.tryParse(c?.toString() ?? '') ?? ids.length;
     } catch (e) {
       debugPrint('[ProfileRepository] bulkUpdateAccountStatus failed: $e');
       return 0;

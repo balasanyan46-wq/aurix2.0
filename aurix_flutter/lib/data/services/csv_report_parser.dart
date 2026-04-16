@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'xlsx_sheet_reader.dart';
 
 class CsvParseResult {
   final List<Map<String, dynamic>> rows;
@@ -16,12 +17,21 @@ class CsvParseResult {
 class CsvReportParser {
   static const _bom = '\uFEFF';
 
-  /// Parse CSV bytes and return detailed result with error info.
+  /// Parse CSV or XLSX bytes and return detailed result with error info.
   static CsvParseResult parseWithDetails(
     List<int> bytes, {
     DateTime? periodStart,
     DateTime? periodEnd,
   }) {
+    // XLSX: декодируем в строки/ячейки и дальше работаем как с уже разобранным CSV
+    if (XlsxSheetReader.isXlsx(bytes)) {
+      final sheet = XlsxSheetReader.readFirstSheet(bytes);
+      if (sheet == null || sheet.isEmpty) {
+        return CsvParseResult(rows: [], error: 'Не удалось прочитать xlsx-файл');
+      }
+      return _parseMatrix(sheet);
+    }
+
     String text;
     try {
       text = utf8.decode(bytes, allowMalformed: true);
@@ -84,6 +94,48 @@ class CsvReportParser {
     return CsvParseResult(rows: rows, detectedHeaders: headers, columnMap: colMap);
   }
 
+  /// Работает с уже разобранной 2D-матрицей (например, результат xlsx reader).
+  static CsvParseResult _parseMatrix(List<List<String>> matrix) {
+    if (matrix.length < 2) {
+      return CsvParseResult(rows: [], error: 'Нужен заголовок и хотя бы 1 строка данных. Найдено строк: ${matrix.length}');
+    }
+    final headers = matrix.first.map((h) => h.trim()).toList();
+    if (headers.isEmpty) {
+      return CsvParseResult(rows: [], error: 'Не удалось разделить заголовок');
+    }
+    final colMap = _buildColumnMap(headers);
+    if (!colMap.containsKey('streams') && !colMap.containsKey('revenue')) {
+      return CsvParseResult(
+        rows: [],
+        detectedHeaders: headers,
+        columnMap: colMap,
+        error: 'Не найдены колонки streams или revenue.\n'
+            'Найденные колонки: ${headers.join(", ")}\n\n'
+            'Проверьте, что в файле есть колонка с количеством прослушиваний или вознаграждением.',
+      );
+    }
+    final rows = <Map<String, dynamic>>[];
+    for (var i = 1; i < matrix.length; i++) {
+      final parts = matrix[i];
+      if (parts.every((c) => c.trim().isEmpty)) continue;
+      final raw = <String, dynamic>{};
+      for (var j = 0; j < parts.length && j < headers.length; j++) {
+        raw[headers[j]] = parts[j];
+      }
+      final row = _mapToRow(colMap, parts, headers, raw);
+      if (row != null) rows.add(row);
+    }
+    if (rows.isEmpty) {
+      return CsvParseResult(
+        rows: [],
+        detectedHeaders: headers,
+        columnMap: colMap,
+        error: 'Колонки найдены, но все строки пустые (streams=0, revenue=0).',
+      );
+    }
+    return CsvParseResult(rows: rows, detectedHeaders: headers, columnMap: colMap);
+  }
+
   /// Legacy method for backward compatibility.
   static List<Map<String, dynamic>> parse(
     List<int> bytes, {
@@ -93,7 +145,9 @@ class CsvReportParser {
     return parseWithDetails(bytes, periodStart: periodStart, periodEnd: periodEnd).rows;
   }
 
-  /// Converts partial dates like "2025-06" or "06.2025" to "2025-06-01".
+  /// Converts partial dates like "2025-06", "06.2025", "2025-4 кв." to ISO "YYYY-MM-DD".
+  /// Quarter notation maps to the first day of the quarter:
+  ///   Q1 → Jan, Q2 → Apr, Q3 → Jul, Q4 → Oct.
   static String? _normalizeDate(String? raw) {
     if (raw == null || raw.isEmpty) return null;
     final s = raw.trim();
@@ -101,8 +155,26 @@ class CsvReportParser {
     // Already full ISO date: 2025-06-01
     if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(s)) return s;
 
-    // YYYY-MM → YYYY-MM-01
-    if (RegExp(r'^\d{4}-\d{1,2}$').hasMatch(s)) return '$s-01';
+    // Quarter: "2025-4 кв.", "2025-IV кв.", "2025-4 квартал", "Q4 2025"
+    final qCyr = RegExp(r'^(\d{4})[-\s]?(\d|[IV]{1,4})\s*кв\.?', caseSensitive: false).firstMatch(s);
+    if (qCyr != null) {
+      final year = qCyr.group(1)!;
+      final q = _parseQuarter(qCyr.group(2)!);
+      if (q != null) return '$year-${_quarterMonth(q).toString().padLeft(2, '0')}-01';
+    }
+    final qEn = RegExp(r'^Q(\d)\s*(\d{4})$', caseSensitive: false).firstMatch(s);
+    if (qEn != null) {
+      final q = int.tryParse(qEn.group(1)!);
+      if (q != null && q >= 1 && q <= 4) return '${qEn.group(2)}-${_quarterMonth(q).toString().padLeft(2, '0')}-01';
+    }
+
+    // YYYY-MM → YYYY-MM-01 (supports "2026-01" and "2026-1")
+    final ym = RegExp(r'^(\d{4})-(\d{1,2})$').firstMatch(s);
+    if (ym != null) {
+      final year = ym.group(1)!;
+      final month = ym.group(2)!.padLeft(2, '0');
+      return '$year-$month-01';
+    }
 
     // MM.YYYY or MM/YYYY → YYYY-MM-01
     final dotMatch = RegExp(r'^(\d{1,2})[./](\d{4})$').firstMatch(s);
@@ -129,6 +201,21 @@ class CsvReportParser {
       return null;
     }
   }
+
+  static int? _parseQuarter(String raw) {
+    final s = raw.trim().toUpperCase();
+    final num = int.tryParse(s);
+    if (num != null && num >= 1 && num <= 4) return num;
+    switch (s) {
+      case 'I': return 1;
+      case 'II': return 2;
+      case 'III': return 3;
+      case 'IV': return 4;
+      default: return null;
+    }
+  }
+
+  static int _quarterMonth(int q) => (q - 1) * 3 + 1;
 
   static String _detectDelimiter(String line) {
     final tab = '\t'.allMatches(line).length;

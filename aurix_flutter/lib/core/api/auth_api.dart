@@ -45,12 +45,14 @@ class AuthApi {
     required String password,
     String? name,
     String? phone,
+    String? ref,
   }) async {
     await ApiClient.post('/users/register', data: {
       'email': email,
       'password': password,
       if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
       if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      if (ref != null && ref.trim().isNotEmpty) 'ref': ref.trim(),
     });
   }
 

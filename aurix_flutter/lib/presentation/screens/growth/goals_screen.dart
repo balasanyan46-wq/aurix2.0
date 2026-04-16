@@ -4,6 +4,7 @@ import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/data/providers/growth_providers.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
 
 class GoalsScreen extends ConsumerStatefulWidget {
   const GoalsScreen({super.key});
@@ -110,6 +111,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              SectionOnboarding(tip: OnboardingTips.goals),
               if (active.isNotEmpty) ...[
                 _Header('Активные', active.length, AurixTokens.accent),
                 const SizedBox(height: 10),

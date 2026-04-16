@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
-import { EdenAiService } from '../ai/eden-ai.service';
+import { AiGatewayService } from '../ai/ai-gateway.service';
 
 @Injectable()
 export class InsightsService {
@@ -9,7 +9,7 @@ export class InsightsService {
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly ai: EdenAiService,
+    private readonly ai: AiGatewayService,
   ) {}
 
   // ── Analytics Dashboard ──────────────────────────────────

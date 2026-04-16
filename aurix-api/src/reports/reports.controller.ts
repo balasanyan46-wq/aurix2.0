@@ -66,4 +66,13 @@ export class ReportsController {
     await this.svc.deleteRowsByReport(+reportId);
     return { success: true };
   }
+
+  // Одним SQL-запросом проставляет track_id всем строкам отчёта по ISRC.
+  // Триггер report_rows_fill_scope() автоматически заполняет user_id/release_id.
+  @Post('report-rows/match-isrc/:reportId')
+  @UseGuards(AdminGuard)
+  async matchIsrcBulk(@Param('reportId') reportId: string) {
+    return this.svc.matchRowsByIsrcBulk(+reportId);
+  }
+
 }

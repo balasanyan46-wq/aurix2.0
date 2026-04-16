@@ -11,6 +11,8 @@ import 'package:aurix_flutter/design/widgets/premium_page_scaffold.dart';
 import 'package:aurix_flutter/design/widgets/premium_ui.dart';
 import 'package:aurix_flutter/design/widgets/fade_in_slide.dart';
 import 'package:aurix_flutter/core/services/event_tracker.dart';
+import 'package:aurix_flutter/design/widgets/section_onboarding.dart';
+import 'package:aurix_flutter/presentation/screens/analytics/analytics_charts.dart';
 
 // \u2500\u2500 Screen \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
@@ -111,44 +113,81 @@ class _AnalyticsDashboard extends StatelessWidget {
       color: AurixTokens.accent,
       onRefresh: onRefresh,
       child: PremiumPageScaffold(
-        title: '\u0414\u0438\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u0430',
-        subtitle: '\u0427\u0442\u043e \u043f\u0440\u043e\u0438\u0441\u0445\u043e\u0434\u0438\u0442 \u0441 \u0442\u0432\u043e\u0435\u0439 \u043c\u0443\u0437\u044b\u043a\u043e\u0439 \u043f\u0440\u044f\u043c\u043e \u0441\u0435\u0439\u0447\u0430\u0441',
-        systemLabel: 'ANALYTICS ENGINE',
+        title: 'Статистика',
+        subtitle: 'Стримы, доходы и динамика твоих релизов',
+        systemLabel: 'ANALYTICS',
         systemColor: AurixTokens.accent,
         children: [
+          SectionOnboarding(tip: OnboardingTips.stats),
           // KPI Grid
           FadeInSlide(
             delayMs: 60,
             child: _KpiGrid(
               isDesktop: isDesktop,
               totalStreams: totalStreams,
-              growthPct: 0,
-              engagement: 0,
-              viral: 0,
-              totalClicks: 0,
               totalRevenue: totalRevenue,
+              totalReleases: releases.length,
+              liveReleases: releases.where((r) => r.isLive).length,
             ),
-          ),
-
-          // Action row
-          const SizedBox(height: 20),
-          FadeInSlide(
-            delayMs: 180,
-            child: _ActionRow(isDesktop: isDesktop),
           ),
 
           // Chart
           const SizedBox(height: 20),
           FadeInSlide(
-            delayMs: 240,
+            delayMs: 180,
             child: _StreamChartBlock(series: series),
           ),
+
+          // AI Insights — самое важное, сверху разделов
+          if (reports.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            FadeInSlide(
+              delayMs: 220,
+              child: AiInsightsPanel(rows: reports, totalReleases: releases.length),
+            ),
+          ],
+
+          // Чарты: платформы + типы использования (двумя колонками на десктопе)
+          if (reports.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            FadeInSlide(
+              delayMs: 260,
+              child: isDesktop
+                  ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(child: PlatformDonutChart(rows: reports)),
+                      const SizedBox(width: 12),
+                      Expanded(child: UsageTypeChart(rows: reports)),
+                    ])
+                  : Column(children: [
+                      PlatformDonutChart(rows: reports),
+                      const SizedBox(height: 12),
+                      UsageTypeChart(rows: reports),
+                    ]),
+            ),
+
+            // География + Топ треков
+            const SizedBox(height: 20),
+            FadeInSlide(
+              delayMs: 300,
+              child: isDesktop
+                  ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(child: CountriesBarChart(rows: reports)),
+                      const SizedBox(width: 12),
+                      Expanded(child: TopTracksChart(rows: reports)),
+                    ])
+                  : Column(children: [
+                      CountriesBarChart(rows: reports),
+                      const SizedBox(height: 12),
+                      TopTracksChart(rows: reports),
+                    ]),
+            ),
+          ],
 
           // Releases
           if (releaseStats.isNotEmpty) ...[
             const SizedBox(height: 20),
             FadeInSlide(
-              delayMs: 300,
+              delayMs: 340,
               child: _ReleasesSection(releases: releaseStats),
             ),
           ],
@@ -166,51 +205,35 @@ class _KpiGrid extends StatelessWidget {
   const _KpiGrid({
     required this.isDesktop,
     required this.totalStreams,
-    required this.growthPct,
-    required this.engagement,
-    required this.viral,
-    required this.totalClicks,
     required this.totalRevenue,
+    required this.totalReleases,
+    required this.liveReleases,
   });
   final bool isDesktop;
-  final int totalStreams, growthPct, engagement, viral, totalClicks;
+  final int totalStreams, totalReleases, liveReleases;
   final double totalRevenue;
 
   @override
   Widget build(BuildContext context) {
     final kpis = [
       _KpiData(
-        label: '\u0421\u0442\u0440\u0438\u043c\u044b',
+        label: 'Стримы',
         value: _formatNumber(totalStreams),
-        icon: Icons.play_circle_rounded,
-        color: growthPct >= 0 ? AurixTokens.positive : AurixTokens.danger,
-        change: growthPct,
-      ),
-      _KpiData(
-        label: '\u0412\u043e\u0432\u043b\u0435\u0447\u0451\u043d\u043d\u043e\u0441\u0442\u044c',
-        value: '$engagement',
-        suffix: '/ 100',
-        icon: Icons.favorite_rounded,
-        color: AurixTokens.warning,
-      ),
-      _KpiData(
-        label: '\u0412\u0438\u0440\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u044c',
-        value: '$viral',
-        suffix: '/ 100',
-        icon: Icons.whatshot_rounded,
+        icon: Icons.headphones_rounded,
         color: AurixTokens.accent,
       ),
       _KpiData(
-        label: '\u041a\u043b\u0438\u043a\u0438',
-        value: _formatNumber(totalClicks),
-        icon: Icons.touch_app_rounded,
-        color: AurixTokens.aiAccent,
-      ),
-      _KpiData(
-        label: '\u0414\u043e\u0445\u043e\u0434',
+        label: 'Доход',
         value: '${totalRevenue.toStringAsFixed(0)} \u20bd',
         icon: Icons.account_balance_wallet_rounded,
         color: AurixTokens.positive,
+      ),
+      _KpiData(
+        label: 'Релизы',
+        value: '$liveReleases',
+        suffix: '/ $totalReleases',
+        icon: Icons.album_rounded,
+        color: AurixTokens.aiAccent,
       ),
     ];
 
@@ -605,27 +628,6 @@ class _DiagnosisCard extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          if (!isPositive)
-            Padding(
-              padding: const EdgeInsets.only(top: 12, left: 34),
-              child: Row(
-                children: [
-                  _MiniAction(
-                    label: '\u0421\u0434\u0435\u043b\u0430\u0442\u044c \u044d\u0442\u043e',
-                    icon: Icons.check_circle_outline_rounded,
-                    color: AurixTokens.accent,
-                    onTap: () => context.push('/stats/release-plan'),
-                  ),
-                  const SizedBox(width: 8),
-                  _MiniAction(
-                    label: '\u041f\u0440\u043e\u043c\u043e-\u043f\u043b\u0430\u043d \u043e\u0442 AI',
-                    icon: Icons.auto_awesome_rounded,
-                    color: AurixTokens.warning,
-                    onTap: () => context.push('/stats/promo-ideas'),
                   ),
                 ],
               ),

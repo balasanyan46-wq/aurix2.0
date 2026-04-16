@@ -12,6 +12,7 @@ import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/aurix_button.dart';
 import 'package:aurix_flutter/design/widgets/aurix_glass_card.dart';
 import 'package:aurix_flutter/design/widgets/premium_ui.dart';
+import 'package:aurix_flutter/app/auth/auth_store_provider.dart';
 import 'package:aurix_flutter/presentation/providers/auth_provider.dart'
     show currentProfileProvider, currentUserProvider;
 import 'package:aurix_flutter/presentation/providers/subscription_provider.dart';
@@ -235,9 +236,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void _showSnack(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(text),
-        backgroundColor: AurixTokens.bg2,
+        content: Text(text, style: const TextStyle(color: Colors.white)),
+        backgroundColor: text.startsWith('Ошибка') ? AurixTokens.danger : AurixTokens.positive,
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -279,6 +281,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ref.listen(currentProfileProvider, (prev, next) {
       next.whenData((p) => _fillFromProfile(p));
     });
+
+    // Fill form on first build if profile already loaded
+    if (!_initialFillDone) {
+      final existingProfile = profileAsync.valueOrNull;
+      if (existingProfile != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _fillFromProfile(existingProfile);
+        });
+      }
+    }
 
     if (user == null) {
       return _buildCentered(
@@ -448,8 +460,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           enabled: isDesktop,
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              await ref.read(authRepositoryProvider).signOut();
-                              // AuthGate/router will switch screens when session updates.
+                              await ref.read(authStoreProvider).signOut();
                             },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AurixTokens.orange,

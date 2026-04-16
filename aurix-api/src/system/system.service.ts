@@ -238,6 +238,68 @@ export class SystemService {
     }
   }
 
+  // ─── Cron: hourly error digest ─────────────────────────────
+
+  @Interval(3_600_000) // every hour
+  async hourlyErrorDigest(): Promise<void> {
+    try {
+      const { rows } = await this.pool.query(
+        `SELECT path, status_code, error_message, COUNT(*) as count
+         FROM error_logs
+         WHERE created_at > NOW() - INTERVAL '1 hour'
+         GROUP BY path, status_code, error_message
+         ORDER BY count DESC
+         LIMIT 10`,
+      );
+
+      if (rows.length === 0) return;
+
+      const total = rows.reduce((s, r) => s + parseInt(r.count), 0);
+      const serverErrors = rows.filter(r => r.status_code >= 500);
+
+      // Log digest to system_logs
+      await this.logSystemEvent('error_digest', `${total} errors in last hour`, {
+        total,
+        server_errors: serverErrors.length,
+        top_errors: rows.slice(0, 5),
+      });
+
+      // Send Telegram if 5xx errors exist
+      if (serverErrors.length > 0) {
+        await this.sendTelegramDigest(total, serverErrors);
+      }
+
+      this.logger.log(`[ErrorDigest] ${total} errors in last hour (${serverErrors.length} server errors)`);
+    } catch (e: any) {
+      this.logger.error(`Hourly error digest failed: ${e.message}`);
+    }
+  }
+
+  private async sendTelegramDigest(total: number, serverErrors: any[]) {
+    const gwUrl = process.env.AI_GATEWAY_URL;
+    const gwSecret = process.env.AI_GATEWAY_SECRET;
+    if (!gwUrl) return;
+
+    const lines = serverErrors.slice(0, 5).map(e =>
+      `• ${e.count}× \`${e.status_code} ${e.path}\`\n  ${e.error_message?.slice(0, 80)}`
+    );
+
+    const text = [
+      `⚠️ *AURIX — ${total} ошибок за час*`,
+      `Серверных (5xx): ${serverErrors.length}`,
+      '',
+      ...lines,
+    ].join('\n');
+
+    try {
+      const axios = require('axios');
+      await axios.post(`${gwUrl}/telegram/send`, { text, parse_mode: 'Markdown' }, {
+        headers: { 'X-Gateway-Secret': gwSecret || '', 'Content-Type': 'application/json' },
+        timeout: 10000,
+      });
+    } catch {}
+  }
+
   // ─── Internals ─────────────────────────────────────────────
 
   private async ensureSystemLogs(): Promise<void> {

@@ -16,7 +16,9 @@ import {
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/roles.guard';
 import { TracksService } from './tracks.service';
+import { ReportsService } from '../reports/reports.service';
 import { CreateTrackDto } from './dto/create-track.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -25,6 +27,7 @@ export class TracksController {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly tracksService: TracksService,
+    private readonly reportsService: ReportsService,
   ) {}
 
   /** Verify user owns the release that contains this track (admin bypasses). */
@@ -86,6 +89,14 @@ export class TracksController {
       return tracks;
     }
     return [];
+  }
+
+  // ВАЖНО: эта точка должна быть ДО @Get(':id'), иначе NestJS интерпретирует
+  // "by-user" как параметр id и улетает в getOne() с NaN → 404.
+  @Get('by-user/:userId')
+  @UseGuards(AdminGuard)
+  async tracksByUser(@Param('userId') userId: string) {
+    return this.reportsService.getTracksByUser(userId);
   }
 
   @Get(':id')

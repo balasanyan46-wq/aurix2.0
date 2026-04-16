@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { PG_POOL } from '../database/database.module';
 import { CreditsService } from '../billing/credits.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReferralService } from '../referral/referral.service';
 
 // ── PRICING ──────────────────────────────────────────────
 
@@ -47,12 +48,13 @@ export class TBankService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly credits: CreditsService,
     private readonly notifications: NotificationsService,
+    private readonly referral: ReferralService,
   ) {
-    this.terminalKey = process.env.TINKOFF_TERMINAL_KEY || '1773571445092DEMO';
-    this.password = process.env.TINKOFF_PASSWORD || '1B$Ryrj$KRmqNk7i';
+    this.terminalKey = process.env.TINKOFF_TERMINAL_KEY || '';
+    this.password = process.env.TINKOFF_PASSWORD || '';
     this.appUrl = process.env.APP_URL || 'https://aurixmusic.ru';
     if (!this.terminalKey || !this.password) {
-      this.log.warn('TINKOFF_TERMINAL_KEY or TINKOFF_PASSWORD not set');
+      this.log.error('CRITICAL: TINKOFF_TERMINAL_KEY or TINKOFF_PASSWORD not set — payments will not work!');
     }
   }
 
@@ -366,16 +368,11 @@ export class TBankService {
       }
 
       if (Status === 'CONFIRMED') {
-        // Save RebillId for future recurring charges
-        const rebillUpdate = RebillId
-          ? `, rebill_id = '${String(RebillId).replace(/'/g, "''")}'`
-          : '';
-
         await client.query(
           `UPDATE payments SET status = 'confirmed', tbank_payment_id = $1,
-           confirmed_at = now(), updated_at = now()${rebillUpdate}
+           confirmed_at = now(), updated_at = now(), rebill_id = COALESCE($3, rebill_id)
            WHERE id = $2`,
-          [String(PaymentId), payment.id],
+          [String(PaymentId), payment.id, RebillId ? String(RebillId) : null],
         );
 
         if (payment.payment_type === 'credits') {
@@ -398,6 +395,14 @@ export class TBankService {
         }
 
         this.log.log(`Payment CONFIRMED: user=${payment.user_id} type=${payment.payment_type} plan=${payment.plan} amount=${payment.amount}`);
+
+        // Process referral reward (10% passive income to referrer)
+        this.referral.processReferralReward(
+          payment.user_id,
+          payment.amount,
+          payment.payment_type === 'credits' ? 'credits' : 'subscription',
+          String(payment.id),
+        ).catch(e => this.log.warn(`Referral reward failed: ${e.message}`));
       } else if (['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'AUTH_FAIL'].includes(Status)) {
         await client.query(
           `UPDATE payments SET status = 'failed', updated_at = now() WHERE id = $1`,
@@ -442,20 +447,17 @@ export class TBankService {
     const subscriptionEnd = new Date(baseDate);
     subscriptionEnd.setDate(subscriptionEnd.getDate() + daysToAdd);
 
-    // Store rebillId on profile for future auto-renewals
-    const rebillClause = rebillId ? `, last_rebill_id = '${String(rebillId).replace(/'/g, "''")}'` : '';
-
     await client.query(
       `UPDATE profiles SET
          plan = $1, plan_id = $1,
          billing_period = $2,
          subscription_status = 'active',
          subscription_end = $3,
-         cancel_at_period_end = false
-         ${rebillClause},
+         cancel_at_period_end = false,
+         last_rebill_id = COALESCE($5, last_rebill_id),
          updated_at = now()
        WHERE user_id = $4`,
-      [payment.plan, payment.billing_period, subscriptionEnd.toISOString(), payment.user_id],
+      [payment.plan, payment.billing_period, subscriptionEnd.toISOString(), payment.user_id, rebillId ? String(rebillId) : null],
     );
 
     // Reset usage limits for new period

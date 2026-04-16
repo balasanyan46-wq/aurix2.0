@@ -361,8 +361,6 @@ class _OrdersTabState extends ConsumerState<_OrdersTab> {
                               serviceIds: selectedServices.toList(),
                             );
                         ref.invalidate(_ordersProvider);
-                        ref.invalidate(adminCrmDealsProvider);
-                        ref.invalidate(adminCrmInvoicesProvider);
                         if (context.mounted) Navigator.pop(context);
                       } catch (e) {
                         setDialogState(() => error = _shortError(e));
@@ -446,7 +444,9 @@ class _AdminItemTileState extends ConsumerState<_AdminItemTile> {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           DropdownButton<String>(
-            value: item.status,
+            value: const ['not_started', 'waiting_artist', 'in_progress', 'review', 'done', 'canceled'].contains(item.status)
+                ? item.status
+                : 'not_started',
             items: const [
               DropdownMenuItem(value: 'not_started', child: Text('Не начато')),
               DropdownMenuItem(value: 'waiting_artist', child: Text('Ожидает артиста')),
@@ -464,10 +464,13 @@ class _AdminItemTileState extends ConsumerState<_AdminItemTile> {
                     });
                   },
           ),
-          DropdownButton<String>(
-            value: item.assigneeId,
+          DropdownButton<String?>(
+            value: widget.assignees.any((a) => a.id == item.assigneeId) ? item.assigneeId : null,
             hint: const Text('Исполнитель'),
-            items: widget.assignees.map((a) => DropdownMenuItem(value: a.id, child: Text(a.fullName))).toList(),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('Не назначен')),
+              ...widget.assignees.map((a) => DropdownMenuItem<String?>(value: a.id, child: Text(a.fullName))),
+            ],
             onChanged: _saving
                 ? null
                 : (v) async {
@@ -511,7 +514,6 @@ class _AdminItemTileState extends ConsumerState<_AdminItemTile> {
     try {
       await fn();
       widget.onChanged();
-      ref.invalidate(adminCrmDealsProvider);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

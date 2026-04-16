@@ -5,9 +5,7 @@
   <meta charset="UTF-8">
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
   <meta name="theme-color" content="#050505">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Fonts loaded by Flutter engine from pubspec assets -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>AURIX — AI-платформа для артистов</title>
@@ -15,7 +13,13 @@
   <meta property="og:title" content="AURIX — система роста артиста">
   <meta property="og:description" content="Дистрибуция, AI-стратегия, аналитика — всё в одной системе.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="icons/Icon-512.png">
+  <meta property="og:image" content="https://aurixmusic.ru/icons/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://aurixmusic.ru/icons/og-image.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <meta name="keywords" content="AURIX, платформа для артистов, дистрибуция музыки, AI стратегия, аналитика музыки, продвижение артиста, музыкальная платформа">
   <link rel="canonical" href="https://aurixmusic.ru/">
   <link rel="manifest" href="manifest.json">
@@ -25,51 +29,56 @@
     html,body{width:100%;height:100%;overflow:hidden;background:#050505}
     #loading{
       position:fixed;inset:0;z-index:9999;
-      display:flex;align-items:center;justify-content:center;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
       background:#050505;
-      transition:opacity .6s ease;
+      transition:opacity .5s ease;
     }
     #loading.done{opacity:0;pointer-events:none}
     .l-logo{
-      font-family:'Unbounded',sans-serif;
-      font-size:24px;font-weight:700;letter-spacing:6px;
+      font-family:'Unbounded',system-ui,sans-serif;
+      font-size:28px;font-weight:700;letter-spacing:8px;
       color:#FF6A1A;
-      animation:pulse 2s ease-in-out infinite;
+      animation:pulse 1.8s ease-in-out infinite;
     }
-    @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+    .l-bar-wrap{
+      margin-top:24px;width:120px;height:3px;
+      background:rgba(255,106,26,0.12);border-radius:2px;overflow:hidden;
+    }
+    .l-bar{
+      height:100%;width:0%;background:#FF6A1A;border-radius:2px;
+      animation:load-bar 4s ease-out forwards;
+    }
+    .l-hint{
+      margin-top:12px;
+      font-family:'Manrope',system-ui,sans-serif;
+      font-size:11px;color:rgba(255,255,255,0.2);letter-spacing:1px;
+    }
+    @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+    @keyframes load-bar{0%{width:0%}15%{width:20%}40%{width:45%}65%{width:65%}85%{width:80%}100%{width:92%}}
   </style>
 </head>
 <body>
   <div id="loading">
     <div class="l-logo">AURIX</div>
+    <div class="l-bar-wrap"><div class="l-bar"></div></div>
+    <div class="l-hint">Загружаем платформу...</div>
   </div>
   <script>
     window.addEventListener('flutter-first-frame', function() {
       var el = document.getElementById('loading');
-      if (el) { el.classList.add('done'); setTimeout(function() { el.remove(); }, 700); }
+      if (el) { el.classList.add('done'); setTimeout(function() { el.remove(); }, 600); }
     });
     setTimeout(function() {
       var el = document.getElementById('loading');
       if (el && !el.classList.contains('done')) {
         if (document.querySelector('flt-glass-pane') || document.querySelector('flutter-view')) {
           el.classList.add('done');
-          setTimeout(function() { el.remove(); }, 700);
+          setTimeout(function() { el.remove(); }, 600);
         }
       }
-    }, 6000);
+    }, 4000);
   </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs) {
-        regs.forEach(function(r) { r.unregister(); });
-      });
-    }
-    if ('caches' in window) {
-      caches.keys().then(function(names) {
-        names.forEach(function(n) { caches.delete(n); });
-      });
-    }
-  </script>
+  <script src="studio_engine.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

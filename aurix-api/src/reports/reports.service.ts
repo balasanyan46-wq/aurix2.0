@@ -87,4 +87,85 @@ export class ReportsService {
   async deleteRowsByReport(reportId: number) {
     await this.pool.query('DELETE FROM report_rows WHERE report_id = $1', [reportId]);
   }
+
+  /**
+   * Быстрый массовый матч строк отчёта к трекам по ISRC.
+   * Возвращает сколько строк подматчилось + сводку по релизам.
+   */
+  async matchRowsByIsrcBulk(reportId: number): Promise<{
+    matched: number;
+    unmatched: number;
+    by_release: Array<{ release_id: string | null; title: string | null; rows: number; revenue: number; streams: number }>;
+  }> {
+    // Матчим одним апдейтом: проставляем track_id + release_id + user_id.
+    // ISRC нормализуем по регистру и пробелам.
+    await this.pool.query(
+      `UPDATE report_rows rr
+         SET track_id = t.id,
+             release_id = t.release_id,
+             user_id = a.user_id
+       FROM tracks t
+       JOIN releases r ON r.id = t.release_id
+       JOIN artists a ON a.id = r.artist_id
+       WHERE rr.report_id = $1
+         AND rr.track_id IS NULL
+         AND rr.isrc IS NOT NULL
+         AND length(trim(rr.isrc)) > 0
+         AND upper(trim(rr.isrc)) = upper(trim(t.isrc))`,
+      [reportId],
+    );
+
+    // Сводка
+    const { rows: counts } = await this.pool.query(
+      `SELECT
+         count(*) FILTER (WHERE track_id IS NOT NULL)::int AS matched,
+         count(*) FILTER (WHERE track_id IS NULL)::int AS unmatched
+       FROM report_rows WHERE report_id = $1`,
+      [reportId],
+    );
+    const matched = counts[0]?.matched ?? 0;
+    const unmatched = counts[0]?.unmatched ?? 0;
+
+    // Разбивка по релизам
+    const { rows: byRel } = await this.pool.query(
+      `SELECT
+         rr.release_id,
+         r.title,
+         count(*)::int AS rows,
+         COALESCE(sum(rr.revenue), 0)::float AS revenue,
+         COALESCE(sum(rr.streams), 0)::bigint AS streams
+       FROM report_rows rr
+       LEFT JOIN releases r ON r.id = rr.release_id
+       WHERE rr.report_id = $1
+       GROUP BY rr.release_id, r.title
+       ORDER BY revenue DESC NULLS LAST`,
+      [reportId],
+    );
+
+    return {
+      matched,
+      unmatched,
+      by_release: byRel.map((r) => ({
+        release_id: r.release_id,
+        title: r.title,
+        rows: Number(r.rows),
+        revenue: Number(r.revenue),
+        streams: Number(r.streams),
+      })),
+    };
+  }
+
+  /** Все треки пользователя (для preview матча в админке). */
+  async getTracksByUser(userId: string): Promise<any[]> {
+    const { rows } = await this.pool.query(
+      `SELECT t.*, r.title AS release_title, a.user_id AS owner_id
+         FROM tracks t
+         JOIN releases r ON r.id = t.release_id
+         JOIN artists a ON a.id = r.artist_id
+        WHERE a.user_id = $1
+        ORDER BY r.created_at DESC, t.track_number ASC`,
+      [userId],
+    );
+    return rows;
+  }
 }

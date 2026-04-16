@@ -93,13 +93,12 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
   Future<void> _saveEdits(ReleaseModel r) async {
     setState(() => _saving = true);
     try {
-      await ref.read(releaseRepositoryProvider).updateRelease(
-        r.id,
-        title: _titleCtrl.text.trim(),
-        artist: _artistCtrl.text.trim(),
-        genre: _genreCtrl.text.trim().isEmpty ? null : _genreCtrl.text.trim(),
-        language: _languageCtrl.text.trim().isEmpty ? null : _languageCtrl.text.trim(),
-      );
+      await ref.read(releaseRepositoryProvider).updateRelease(r.id, {
+        'title': _titleCtrl.text.trim(),
+        'artist': _artistCtrl.text.trim(),
+        if (_genreCtrl.text.trim().isNotEmpty) 'genre': _genreCtrl.text.trim(),
+        if (_languageCtrl.text.trim().isNotEmpty) 'language': _languageCtrl.text.trim(),
+      });
       ref.invalidate(releaseDetailProvider(widget.releaseId));
       setState(() { _editing = false; _saving = false; });
       if (mounted) _snack('Сохранено');
@@ -124,7 +123,7 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
       setState(() => _saving = true);
       final fileRepo = ref.read(fileRepositoryProvider);
       final uploaded = await fileRepo.uploadCoverBytes(userId, r.id, bytes, f.name);
-      await ref.read(releaseRepositoryProvider).updateRelease(r.id, coverUrl: uploaded.publicUrl, coverPath: uploaded.coverPath);
+      await ref.read(releaseRepositoryProvider).updateRelease(r.id, {'cover_url': uploaded.publicUrl, 'cover_path': uploaded.coverPath});
       ref.invalidate(releaseDetailProvider(widget.releaseId));
       if (mounted) setState(() => _saving = false);
       if (mounted) _snack('Обложка обновлена');
@@ -288,12 +287,6 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
             children: [
               PremiumPageScaffold(
                 maxWidth: 720,
-                title: r.title,
-                subtitle: [
-                  if (r.artist != null && r.artist!.isNotEmpty) r.artist!,
-                  _releaseTypeLabel(r.releaseType),
-                  _statusLabel(r.status),
-                ].join(' · '),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -311,43 +304,83 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
                   ],
                 ),
                 children: [
-                  // Cover section
-                  _buildCoverSection(r, canEdit),
+                  // 1. Draft action banner (только для черновиков)
+                  if (canEdit) ...[
+                    FadeInSlide(
+                      child: _DraftActionBanner(
+                        hasCover: (r.coverUrl?.isNotEmpty ?? false) || (r.coverPath?.isNotEmpty ?? false),
+                        hasTrack: tracks.valueOrNull?.isNotEmpty ?? false,
+                        onUploadCover: () => _replaceCover(r),
+                        onAddTrack: () => _addTrack(r),
+                        onSubmit: () async {
+                          try {
+                            await ref.read(releaseRepositoryProvider).submitRelease(widget.releaseId);
+                            ref.invalidate(releaseDetailProvider(widget.releaseId));
+                            if (context.mounted) _snack('Релиз отправлен на модерацию');
+                          } catch (e) {
+                            if (context.mounted) _snack('Ошибка: $e');
+                          }
+                        },
+                        onEdit: () => setState(() => _editing = true),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // 2. Hero: название + артист + обложка
+                  _buildHeroSection(r, canEdit),
                   const SizedBox(height: 20),
 
-                  // Metadata section
+                  // 3. Rejected banner (если отклонён)
+                  if (r.status == 'rejected' && isOwner) ...[
+                    _buildRejectedBanner(r),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // 4. Треки (с плеером)
+                  _buildTracksSection(tracks, r, canEdit),
+                  const SizedBox(height: 20),
+
+                  // 5. Информация и метаданные
                   _buildMetadataSection(r, canEdit),
                   const SizedBox(height: 16),
 
-                  // AAI block
+                  // 6. AAI блок
                   FadeInSlide(
                     delayMs: 150,
                     child: ReleaseAaiBlock(aaiAsync: aai, dnkHintsAsync: dnkHints),
                   ),
                   const SizedBox(height: 12),
 
-                  // AI Analysis button
+                  // 7. Stats button для опубликованных
+                  if (r.status == 'live')
+                    FadeInSlide(
+                      delayMs: 180,
+                      child: Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        child: FilledButton.icon(
+                          onPressed: () => context.push('/stats'),
+                          icon: const Icon(Icons.bar_chart_rounded, size: 18),
+                          label: const Text('Посмотреть статистику'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AurixTokens.positive.withValues(alpha: 0.15),
+                            foregroundColor: AurixTokens.positive,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // 8. AI Analysis
                   if (isOwner)
                     FadeInSlide(
                       delayMs: 200,
                       child: _AiAnalyzeButton(releaseId: widget.releaseId, releaseTitle: r.title),
                     ),
-                  const SizedBox(height: 16),
 
-                  // Actions
-                  if (isOwner && r.isDraft) ...[
-                    _buildSubmitAction(r),
-                    const SizedBox(height: 12),
-                  ],
-                  if (r.status == 'rejected' && isOwner) ...[
-                    _buildRejectedBanner(r),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // Tracks section
-                  _buildTracksSection(tracks, r, canEdit),
-
-                  // Admin notes
+                  // 9. Admin notes
                   if (isAdmin.valueOrNull == true) ...[
                     const SizedBox(height: 20),
                     _buildAdminNotes(notes),
@@ -369,36 +402,96 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
     );
   }
 
-  // ─── Cover ────────────────────────────────────────────────────────────
+  // ─── Hero (cover + title + artist) ────────────────────────────────────
 
-  Widget _buildCoverSection(ReleaseModel r, bool canEdit) {
+  Widget _buildHeroSection(ReleaseModel r, bool canEdit) {
+    final hasCover = r.coverUrl != null && r.coverUrl!.isNotEmpty;
+    final artist = (r.artist ?? '').trim();
     return FadeInSlide(
       delayMs: 50,
       child: PremiumSectionCard(
         radius: AurixTokens.radiusCard,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: r.coverUrl != null && r.coverUrl!.isNotEmpty
-                  ? Image.network(
-                      ApiClient.fixUrl(r.coverUrl),
-                      height: 220,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _coverPlaceholder(),
-                    )
-                  : _coverPlaceholder(),
+            // Квадратная обложка, без обрезки
+            LayoutBuilder(builder: (context, c) {
+              final size = c.maxWidth.clamp(0.0, 360.0);
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  color: AurixTokens.bg2,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AurixTokens.bg0.withValues(alpha: 0.5),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: hasCover
+                      ? Image.network(
+                          ApiClient.fixUrl(r.coverUrl),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _coverPlaceholder(),
+                        )
+                      : _coverPlaceholder(),
+                ),
+              );
+            }),
+            const SizedBox(height: 20),
+
+            // Название
+            Text(
+              r.title,
+              style: const TextStyle(
+                color: AurixTokens.text,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+              ),
+              textAlign: TextAlign.center,
             ),
+            if (artist.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                artist,
+                style: TextStyle(
+                  color: AurixTokens.muted,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 12),
+
+            // Тип + статус как чипы
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _HeroChip(label: _releaseTypeLabel(r.releaseType), color: AurixTokens.accent),
+                _HeroChip(label: _statusLabel(r.status), color: _statusColor(r.status)),
+                if (r.explicit) _HeroChip(label: 'Explicit', color: AurixTokens.warning),
+              ],
+            ),
+
+            // Кнопки управления обложкой (только в черновике)
             if (canEdit) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: _SecondaryAction(
                       icon: Icons.image_rounded,
-                      label: r.coverUrl != null ? 'Заменить' : 'Загрузить',
+                      label: hasCover ? 'Заменить' : 'Загрузить',
                       onTap: _saving ? null : () => _replaceCover(r),
                     ),
                   ),
@@ -437,17 +530,12 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
 
   Widget _coverPlaceholder() {
     return Container(
-      height: 220,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: AurixTokens.bg2,
-        borderRadius: BorderRadius.circular(14),
-      ),
+      decoration: const BoxDecoration(color: AurixTokens.bg2),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.album_rounded, size: 48, color: AurixTokens.muted.withValues(alpha: 0.3)),
-          const SizedBox(height: 8),
+          Icon(Icons.album_rounded, size: 56, color: AurixTokens.muted.withValues(alpha: 0.3)),
+          const SizedBox(height: 10),
           Text('Нет обложки', style: TextStyle(color: AurixTokens.muted.withValues(alpha: 0.5), fontSize: 13)),
         ],
       ),
@@ -562,32 +650,6 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
 
   // ─── Actions ──────────────────────────────────────────────────────────
 
-  Widget _buildSubmitAction(ReleaseModel r) {
-    return FadeInSlide(
-      delayMs: 200,
-      child: PremiumHoverLift(
-        child: FilledButton.icon(
-          onPressed: _saving
-              ? null
-              : () async {
-                  try {
-                    await ref.read(releaseRepositoryProvider).submitRelease(widget.releaseId);
-                    ref.invalidate(releaseDetailProvider(widget.releaseId));
-                    if (context.mounted) _snack('Релиз отправлен на модерацию');
-                  } catch (e) {
-                    if (context.mounted) _snack('Ошибка: $e');
-                  }
-                },
-          icon: const Icon(Icons.send_rounded, size: 18),
-          label: const Text('Отправить на модерацию'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(double.infinity, 50),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildRejectedBanner(ReleaseModel r) {
     return FadeInSlide(
       delayMs: 200,
@@ -623,7 +685,7 @@ class _ReleaseDetailScreenState extends ConsumerState<ReleaseDetailScreen> {
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () async {
-                await ref.read(releaseRepositoryProvider).updateRelease(widget.releaseId, status: 'draft');
+                await ref.read(releaseRepositoryProvider).updateRelease(widget.releaseId, {'status': 'draft'});
                 ref.invalidate(releaseDetailProvider(widget.releaseId));
               },
               icon: const Icon(Icons.edit_note_rounded, size: 18),
@@ -943,6 +1005,28 @@ class _TrackItem extends StatelessWidget {
   }
 }
 
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+      ),
+    );
+  }
+}
+
 class _SecondaryAction extends StatefulWidget {
   const _SecondaryAction({required this.icon, required this.label, this.onTap, this.accent = false});
   final IconData icon;
@@ -1010,7 +1094,8 @@ class _AiAnalyzeButtonState extends State<_AiAnalyzeButton> {
       child: GestureDetector(
         onTap: () {
           // Navigate to studio tab with this release pre-selected
-          context.push('/studio?release=${widget.releaseId}');
+          final title = Uri.encodeComponent(widget.releaseTitle);
+          context.push('/ai?mode=analyze&prompt=Проанализируй мой релиз «$title». Дай стратегический разбор: аудитория, контент, продвижение, слабые места.');
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -1101,6 +1186,118 @@ class _GhostButtonState extends State<_GhostButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Draft Action Banner ───────────────────────────────────────────────
+
+class _DraftActionBanner extends StatelessWidget {
+  const _DraftActionBanner({
+    required this.hasCover,
+    required this.hasTrack,
+    required this.onUploadCover,
+    required this.onAddTrack,
+    required this.onSubmit,
+    required this.onEdit,
+  });
+  final bool hasCover;
+  final bool hasTrack;
+  final VoidCallback onUploadCover;
+  final VoidCallback onAddTrack;
+  final VoidCallback onSubmit;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final canSubmit = hasCover && hasTrack;
+
+    return PremiumSectionCard(
+      padding: const EdgeInsets.all(20),
+      glowColor: canSubmit ? AurixTokens.positive : AurixTokens.accent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                canSubmit ? Icons.check_circle_rounded : Icons.pending_rounded,
+                size: 20,
+                color: canSubmit ? AurixTokens.positive : AurixTokens.accent,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  canSubmit ? 'Готов к публикации' : 'Что нужно сделать',
+                  style: const TextStyle(color: AurixTokens.text, fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _StepRow(label: 'Обложка', done: hasCover, icon: Icons.image_rounded, actionLabel: hasCover ? 'Заменить' : 'Загрузить', onAction: onUploadCover),
+          const SizedBox(height: 8),
+          _StepRow(label: 'Треки', done: hasTrack, icon: Icons.music_note_rounded, actionLabel: hasTrack ? 'Ещё' : 'Добавить', onAction: onAddTrack),
+          const SizedBox(height: 8),
+          _StepRow(label: 'Метаданные', done: true, icon: Icons.edit_note_rounded, actionLabel: 'Изменить', onAction: onEdit),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: canSubmit ? onSubmit : null,
+              icon: Icon(canSubmit ? Icons.send_rounded : Icons.lock_rounded, size: 16),
+              label: Text(canSubmit ? 'Отправить на модерацию' : 'Заполни обложку и треки'),
+              style: FilledButton.styleFrom(
+                backgroundColor: AurixTokens.accent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AurixTokens.bg2,
+                disabledForegroundColor: AurixTokens.muted,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({required this.label, required this.done, required this.icon, required this.actionLabel, required this.onAction});
+  final String label;
+  final bool done;
+  final IconData icon;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: (done ? AurixTokens.positive : AurixTokens.accent).withValues(alpha: 0.1),
+            border: Border.all(color: (done ? AurixTokens.positive : AurixTokens.accent).withValues(alpha: 0.25)),
+          ),
+          child: Icon(done ? Icons.check_rounded : icon, size: 14, color: done ? AurixTokens.positive : AurixTokens.accent),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(label, style: TextStyle(color: done ? AurixTokens.text : AurixTokens.muted, fontSize: 14, fontWeight: FontWeight.w600)),
+        ),
+        TextButton(
+          onPressed: onAction,
+          style: TextButton.styleFrom(
+            foregroundColor: AurixTokens.accent,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          child: Text(actionLabel),
+        ),
+      ],
     );
   }
 }

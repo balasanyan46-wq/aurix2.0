@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:aurix_flutter/core/enums.dart';
+import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/data/models/release_model.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/design/widgets/premium_ui.dart';
@@ -35,24 +36,24 @@ class CreateFirstReleaseBlock extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            '\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0435\u0440\u0432\u044b\u0439 \u0440\u0435\u043b\u0438\u0437',
+            'Создать первый релиз',
             style: TextStyle(
               fontFamily: AurixTokens.fontHeading,
               color: AurixTokens.text,
               fontWeight: FontWeight.w700,
-              fontSize: 22,
+              fontSize: 18,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            '\u041d\u0430\u0447\u043d\u0438 \u0441 \u0442\u0440\u0435\u043a\u0430, \u043e\u0431\u043b\u043e\u0436\u043a\u0438 \u0438 \u0431\u0430\u0437\u043e\u0432\u044b\u0445 \u043c\u0435\u0442\u0430\u0434\u0430\u043d\u043d\u044b\u0445.',
+            'Загрузи трек и обложку — мы разместим на всех платформах.',
             style: TextStyle(color: AurixTokens.muted, fontSize: 14),
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: onCreate,
             icon: const Icon(Icons.rocket_launch_rounded, size: 16),
-            label: const Text('\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u0440\u0435\u043b\u0438\u0437'),
+            label: const Text('Создать релиз'),
             style: FilledButton.styleFrom(
               backgroundColor: AurixTokens.accent,
               foregroundColor: Colors.white,
@@ -90,8 +91,25 @@ class CurrentReleaseBlock extends StatelessWidget {
         ? AurixTokens.positive
         : release.isSubmitted
             ? AurixTokens.warning
-            : AurixTokens.orange;
+            : AurixTokens.accent;
     final status = releaseStatusFromString(release.status).label;
+
+    // Fix cover URL (IP → domain)
+    final coverUrl = ApiClient.fixUrl(release.coverUrl ?? '');
+    final coverPath = release.coverPath ?? '';
+    final hasCoverImage = coverUrl.isNotEmpty || coverPath.isNotEmpty;
+    final displayUrl = coverUrl.isNotEmpty ? coverUrl : coverPath;
+
+    // Figure out what's the next step
+    final nextStep = !hasCover
+        ? 'Добавь обложку'
+        : !hasMaterial
+            ? 'Загрузи треки'
+            : !hasLaunch
+                ? 'Отправь на модерацию'
+                : release.isLive
+                    ? 'Релиз на платформах'
+                    : 'Ожидает проверки';
 
     return HomeSectionCard(
       child: Column(
@@ -99,23 +117,30 @@ class CurrentReleaseBlock extends StatelessWidget {
         children: [
           Row(
             children: [
-              _CoverThumb(url: release.coverUrl),
+              // Cover image
+              _CoverThumb(url: hasCoverImage ? displayUrl : null),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '\u0422\u0415\u041a\u0423\u0429\u0418\u0419 \u0420\u0415\u041b\u0418\u0417',
-                      style: TextStyle(
-                        fontFamily: AurixTokens.fontBody,
-                        color: AurixTokens.micro,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: statusColor.withValues(alpha: 0.25)),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       release.title,
                       maxLines: 1,
@@ -127,52 +152,36 @@ class CurrentReleaseBlock extends StatelessWidget {
                         fontSize: 18,
                       ),
                     ),
+                    if (release.artist != null && release.artist!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        release.artist!,
+                        style: const TextStyle(color: AurixTokens.muted, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+
           // Progress bar
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(4),
             child: SizedBox(
-              height: 6,
+              height: 5,
               child: Stack(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AurixTokens.glass(0.08),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
+                  Container(color: AurixTokens.glass(0.08)),
                   FractionallySizedBox(
                     widthFactor: progress.clamp(0.0, 1.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AurixTokens.accent, AurixTokens.accentWarm],
-                        ),
-                        borderRadius: BorderRadius.circular(6),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AurixTokens.accent.withValues(alpha: 0.4),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        gradient: const LinearGradient(colors: [AurixTokens.accent, AurixTokens.accentWarm]),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),
@@ -180,18 +189,41 @@ class CurrentReleaseBlock extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          // Stage chips
-          Row(
-            children: [
-              Expanded(child: _StageChip(label: '\u041e\u0431\u0440\u0430\u0437', done: hasCover, icon: Icons.image_rounded)),
-              const SizedBox(width: 8),
-              Expanded(child: _StageChip(label: '\u041c\u0430\u0442\u0435\u0440\u0438\u0430\u043b', done: hasMaterial, icon: Icons.music_note_rounded)),
-              const SizedBox(width: 8),
-              Expanded(child: _StageChip(label: '\u0417\u0430\u043f\u0443\u0441\u043a', done: hasLaunch, icon: Icons.rocket_launch_rounded)),
-            ],
+          const SizedBox(height: 12),
+
+          // Next step hint
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AurixTokens.accent.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AurixTokens.accent.withValues(alpha: 0.12)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  hasLaunch ? Icons.check_circle_rounded : Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: hasLaunch ? AurixTokens.positive : AurixTokens.accent,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    nextStep,
+                    style: TextStyle(
+                      color: hasLaunch ? AurixTokens.positive : AurixTokens.accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
+
+          // CTA
           SizedBox(
             width: double.infinity,
             child: FilledButton(
@@ -199,53 +231,10 @@ class CurrentReleaseBlock extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AurixTokens.accent,
                 foregroundColor: Colors.white,
-                textStyle: TextStyle(fontFamily: AurixTokens.fontBody, fontWeight: FontWeight.w700),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                textStyle: TextStyle(fontFamily: AurixTokens.fontBody, fontWeight: FontWeight.w700, fontSize: 14),
               ),
-              child: const Text('\u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StageChip extends StatelessWidget {
-  const _StageChip({required this.label, required this.done, required this.icon});
-  final String label;
-  final bool done;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: done ? AurixTokens.accent.withValues(alpha: 0.08) : AurixTokens.glass(0.04),
-        borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
-        border: Border.all(
-          color: done ? AurixTokens.accent.withValues(alpha: 0.22) : AurixTokens.stroke(0.1),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            done ? Icons.check_circle_rounded : icon,
-            size: 14,
-            color: done ? AurixTokens.accent : AurixTokens.micro,
-          ),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: AurixTokens.fontBody,
-                color: done ? AurixTokens.text : AurixTokens.muted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              overflow: TextOverflow.ellipsis,
+              child: Text(release.isLive ? 'Открыть релиз' : 'Продолжить'),
             ),
           ),
         ],
@@ -260,13 +249,15 @@ class _CoverThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (url != null && url!.isNotEmpty) {
+    final fixedUrl = url != null && url!.isNotEmpty ? ApiClient.fixUrl(url!) : null;
+
+    if (fixedUrl != null && fixedUrl.isNotEmpty) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
+        borderRadius: BorderRadius.circular(12),
         child: Image.network(
-          url!,
-          width: 64,
-          height: 64,
+          fixedUrl,
+          width: 72,
+          height: 72,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _placeholder(),
         ),
@@ -277,14 +268,21 @@ class _CoverThumb extends StatelessWidget {
 
   Widget _placeholder() {
     return Container(
-      width: 64,
-      height: 64,
+      width: 72,
+      height: 72,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AurixTokens.radiusSm),
-        border: Border.all(color: AurixTokens.stroke(0.12)),
-        color: AurixTokens.surface1,
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AurixTokens.accent.withValues(alpha: 0.08),
+            AurixTokens.surface1,
+          ],
+        ),
+        border: Border.all(color: AurixTokens.stroke(0.1)),
       ),
-      child: const Icon(Icons.music_note_rounded, color: AurixTokens.micro, size: 24),
+      child: const Icon(Icons.music_note_rounded, color: AurixTokens.micro, size: 28),
     );
   }
 }
