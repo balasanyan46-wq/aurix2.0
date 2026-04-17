@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 import 'dart:ui' show Color;
 
 /// Single point in the energy-over-time structure.
@@ -31,7 +32,8 @@ class AudioSection {
   factory AudioSection.fromJson(Map<String, dynamic> j) => AudioSection(
         start: (j['start'] as num?)?.toDouble() ?? 0,
         end: (j['end'] as num?)?.toDouble() ?? 0,
-        type: j['type'] as String? ?? 'unknown',
+        // v2 uses 'label', legacy uses 'type'
+        type: j['label'] as String? ?? j['type'] as String? ?? 'unknown',
         energy: (j['energy'] as num?)?.toDouble() ?? 0,
       );
 }
@@ -353,15 +355,229 @@ class AudioAnalysisResult {
     this.lyricsIntelligence,
   });
 
-  /// Parse from API response.
+  // ══════════════════════════════════════════════════════════════
+  // Parse from API response — v2 first, legacy fallback
+  // ══════════════════════════════════════════════════════════════
+
   factory AudioAnalysisResult.fromApiResponse(Map<String, dynamic> resp) {
+    // Detect format: v2 has measured_data with bpm as object
+    final measured = _asMap(resp['measured_data']);
+    final isV2 = measured.isNotEmpty && measured['bpm'] is Map;
+
+    if (isV2) {
+      dev.log('[AnalysisResult] Parsing v2 format (measured_data/derived_insights/ai_explanation)');
+      return _parseV2(resp, measured);
+    }
+
+    dev.log('[AnalysisResult] Parsing legacy format (audioMetrics/aiAnalysis)');
+    return _parseLegacy(resp);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // V2 PARSER — new 3-layer format
+  // ══════════════════════════════════════════════════════════════
+
+  static AudioAnalysisResult _parseV2(
+    Map<String, dynamic> resp,
+    Map<String, dynamic> measured,
+  ) {
+    final derived = _asMap(resp['derived_insights']);
+    final aiExpl = _asMap(resp['ai_explanation']);
+    final spectral = _asMap(measured['spectral']);
+    final bpmObj = _asMap(measured['bpm']);
+    final keyObj = _asMap(measured['key']);
+    final transcript = _asMap(measured['transcript']);
+    final introMetrics = _asMap(measured['intro_metrics']);
+    // Log missing critical fields
+    if (derived.isEmpty) dev.log('[AnalysisResult] WARNING: derived_insights missing');
+    if (aiExpl.isEmpty) dev.log('[AnalysisResult] WARNING: ai_explanation missing');
+
+    // ── BPM: object {bpm, candidates, agreement} or fallback to number ──
+    final bpm = (bpmObj['bpm'] as num?)?.toDouble() ?? _num(measured['bpm']);
+
+    // ── Key: object {key, confidence} or fallback to string ──
+    final key = keyObj['key'] as String? ?? measured['estimated_key'] as String? ?? '?';
+
+    // ── Sections: section_candidates (v2) or sections (legacy in same response) ──
+    final sectionsRaw = measured['section_candidates'] as List<dynamic>?
+        ?? measured['sections'] as List<dynamic>?
+        ?? [];
+
+    // ── Hook time: from derived or from hook_candidates[0] ──
+    final hookTime = _num(derived['hook_time']) > 0
+        ? _num(derived['hook_time'])
+        : _hookTimeFromCandidates(measured['hook_candidates']);
+
+    // ── Drop time: from derived or from drop_candidates[0] ──
+    final dropTime = _num(derived['drop_time']) > 0
+        ? _num(derived['drop_time'])
+        : _dropTimeFromCandidates(measured['drop_candidates']);
+
+    // ── FreqBands: inside spectral.freq_bands (v2) or freq_bands (legacy) ──
+    final freqBandsMap = _asMap(spectral['freq_bands']).isNotEmpty
+        ? _asMap(spectral['freq_bands'])
+        : _asMap(measured['freq_bands']);
+
+    // ── Insights → problems list for UI ──
+    final insights = derived['insights'] as List<dynamic>? ?? [];
+    final problems = insights
+        .where((i) => i is Map && (i['severity'] == 'critical' || i['severity'] == 'warning'))
+        .map((i) => (i as Map)['title']?.toString() ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    // ── Top fixes → fixTimestamps + fixRecommendations ──
+    final topFixes = aiExpl['top_fixes'] as List<dynamic>? ?? [];
+    final fixTimestamps = topFixes
+        .map((f) {
+          if (f is Map) {
+            return FixTimestamp(
+              time: (f['time'] as num?)?.toDouble() ?? 0,
+              issue: f['issue']?.toString() ?? '',
+              fix: f['fix']?.toString() ?? '',
+            );
+          }
+          return null;
+        })
+        .whereType<FixTimestamp>()
+        .toList();
+    final fixRecommendations = topFixes
+        .map((f) => f is Map ? (f['fix']?.toString() ?? '') : '')
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    // ── Main problem: first critical insight ──
+    final firstCritical = insights.cast<Map?>().firstWhere(
+        (i) => i != null && i['severity'] == 'critical',
+        orElse: () => null,
+    );
+    final mainProblem = firstCritical?['title']?.toString() ?? '';
+    final killerIssue = firstCritical?['detail']?.toString() ?? '';
+
+    // ── Lyrics insight (from ai_explanation) ──
+    LyricsInsight lyricsInsight = const LyricsInsight();
+    if (aiExpl['lyrics_insight'] is Map) {
+      lyricsInsight = LyricsInsight.fromJson(
+          Map<String, dynamic>.from(aiExpl['lyrics_insight'] as Map));
+    }
+
+    // ── TikTok segment ──
+    String bestTiktok = '';
+    if (aiExpl['tiktok_segment'] is Map) {
+      final ts = aiExpl['tiktok_segment'] as Map;
+      final idea = ts['idea']?.toString() ?? '';
+      final start = (ts['start'] as num?)?.toInt() ?? 0;
+      final end = (ts['end'] as num?)?.toInt() ?? 0;
+      bestTiktok = idea.isNotEmpty ? '$start-${end}s: $idea' : '$start-${end}s';
+    }
+
+    // ── Energy (normalized, for UI percentage) ──
+    final rms = _num(measured['rms']);
+    final energy = rms > 0 ? (rms / 0.15).clamp(0.0, 1.0) : 0.0;
+
+    // ── Brightness (normalized) ──
+    final brightnessHz = _num(spectral['brightness_hz']);
+    final brightness = brightnessHz > 0
+        ? ((brightnessHz - 1000) / 7000).clamp(0.0, 1.0)
+        : 0.0;
+
+    return AudioAnalysisResult(
+      // ── Measured data ──
+      bpm: bpm,
+      duration: _num(measured['duration']),
+      energy: energy,
+      brightness: brightness,
+      tempoStability: _num(measured['tempo_stability']),
+      spectralContrast: _num(spectral['spectral_contrast']),
+      onsetDensity: _num(measured['onset_density']),
+      dynamicRange: _num(measured['dynamic_range']),
+      estimatedKey: key,
+      sections: sectionsRaw
+          .map((s) => AudioSection.fromJson(
+              s is Map<String, dynamic> ? s : Map<String, dynamic>.from(s as Map)))
+          .toList(),
+      structure: (measured['structure'] as List<dynamic>?)
+              ?.map((s) => StructurePoint.fromJson(
+                  s is Map<String, dynamic> ? s : Map<String, dynamic>.from(s as Map)))
+              .toList() ??
+          [],
+      hookTime: hookTime,
+      dropTime: dropTime,
+      introWeak: derived['intro_weak'] as bool? ?? introMetrics['ratio'] != null && _num(introMetrics['ratio']) < 0.4,
+      energyVariation: _num(derived['energy_variation']),
+      peakEnergy: _num(derived['peak_energy']),
+      energyStd: 0,
+      earlyEnergy: _num(derived['early_energy_ratio']),
+      lufs: _numOr(measured['lufs'], -14),
+      spectralFlux: _num(spectral['spectral_flux']),
+      freqBands: freqBandsMap.isNotEmpty
+          ? FreqBands.fromJson(freqBandsMap)
+          : const FreqBands(),
+      waveformPeaks: _doubleList(measured['waveform_peaks']),
+
+      // ── Derived insights ──
+      hitScore: (derived['hit_score'] as num?)?.toInt() ?? 50,
+      viralProbability: (aiExpl['viral_probability'] as num?)?.toInt() ?? 0,
+
+      // ── AI explanation ──
+      score: _numOr(aiExpl['score'], 5.0),
+      verdict: _str(aiExpl['verdict']),
+      genreGuess: _str(derived['genre']).isNotEmpty
+          ? _str(derived['genre'])
+          : _str(measured['primary_genre']),
+      viralProbabilityAi: (aiExpl['viral_probability'] as num?)?.toInt() ?? 0,
+      mainProblem: mainProblem,
+      killerIssue: killerIssue,
+      canBeHit: (derived['hit_score'] as num?)?.toInt() != null && (derived['hit_score'] as num).toInt() >= 60,
+      hitRecipe: fixRecommendations.join('; '),
+      strengths: _strList(aiExpl['strengths']),
+      problems: problems,
+      improvementsDetailed: const [],
+      hookPotential: 0,
+      productionQuality: 0,
+      viralPotential: 0,
+      playlistChance: 0,
+      bestTiktokSegment: bestTiktok,
+      mixNotes: '',
+      marketFit: '',
+      structureVerdict: _str(aiExpl['producer_notes']),
+      hookAnalysis: '',
+      dropAnalysis: '',
+      introAnalysis: '',
+      listenerDropout: '',
+      retentionKiller: mainProblem,
+      freqBalanceVerdict: '',
+      fixTimestamps: fixTimestamps,
+      finalOpinion: _str(aiExpl['producer_notes']),
+      lyrics: transcript['text']?.toString(),
+      lyricsAnalysis: '',
+      genre: _str(derived['genre']).isNotEmpty
+          ? _str(derived['genre'])
+          : _str(measured['primary_genre']),
+      // V6 — not in new format, zeros
+      hookScore: 0,
+      structureScore: 0,
+      emotionScore: 0,
+      originalityScore: 0,
+      keyMoments: const [],
+      viralMoments: const [],
+      lyricsInsight: lyricsInsight,
+      fixRecommendations: fixRecommendations,
+      lyricsIntelligence: null,
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // LEGACY PARSER — old audioMetrics/aiAnalysis format
+  // ══════════════════════════════════════════════════════════════
+
+  static AudioAnalysisResult _parseLegacy(Map<String, dynamic> resp) {
     final metrics = resp['audioMetrics'] as Map<String, dynamic>? ?? {};
     final aiRaw = resp['aiAnalysis'] as String? ?? '{}';
     final apiScore = (resp['score'] as num?)?.toDouble() ?? 5.0;
     final apiHitScore = (resp['hitScore'] as num?)?.toInt() ?? (metrics['hit_score'] as num?)?.toInt() ?? 50;
     final apiViralProb = (resp['viralProbability'] as num?)?.toInt() ?? 0;
 
-    // Parse AI JSON
     Map<String, dynamic> ai = {};
     try {
       var cleaned = aiRaw.trim();
@@ -376,14 +592,12 @@ class AudioAnalysisResult {
 
     final aiViralProb = (ai['viral_probability'] as num?)?.toInt() ?? apiViralProb;
 
-    // Parse lyrics intelligence (from separate GPT call)
     LyricsIntelligence? lyricsIntel;
     if (resp['lyricsAnalysis'] is Map) {
       lyricsIntel = LyricsIntelligence.fromJson(
           Map<String, dynamic>.from(resp['lyricsAnalysis'] as Map));
     }
 
-    // Parse lyrics insight (from main AI analysis)
     LyricsInsight lyricsInsight = const LyricsInsight();
     if (ai['lyrics_insight'] is Map) {
       lyricsInsight = LyricsInsight.fromJson(
@@ -422,10 +636,7 @@ class AudioAnalysisResult {
       freqBands: metrics['freq_bands'] is Map
           ? FreqBands.fromJson(Map<String, dynamic>.from(metrics['freq_bands'] as Map))
           : const FreqBands(),
-      waveformPeaks: (metrics['waveform_peaks'] as List<dynamic>?)
-              ?.map((e) => (e as num).toDouble())
-              .toList() ??
-          [],
+      waveformPeaks: _doubleList(metrics['waveform_peaks']),
       score: (ai['score'] as num?)?.toDouble() ?? apiScore,
       verdict: _str(ai['verdict']),
       genreGuess: _str(ai['genre']).isNotEmpty ? _str(ai['genre']) : _str(resp['genre']),
@@ -470,7 +681,6 @@ class AudioAnalysisResult {
       lyrics: resp['lyrics']?.toString() ?? metrics['lyrics']?.toString(),
       lyricsAnalysis: _str(ai['lyrics_analysis']),
       genre: _str(resp['genre']).isNotEmpty ? _str(resp['genre']) : _str(ai['genre']),
-      // V6 fields
       hookScore: (ai['hookScore'] as num?)?.toDouble() ?? 0,
       structureScore: (ai['structureScore'] as num?)?.toDouble() ?? 0,
       emotionScore: (ai['emotionScore'] as num?)?.toDouble() ?? 0,
@@ -497,6 +707,10 @@ class AudioAnalysisResult {
     );
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // Computed getters
+  // ══════════════════════════════════════════════════════════════
+
   String get durationFormatted {
     final m = duration ~/ 60;
     final s = (duration % 60).toInt();
@@ -515,7 +729,7 @@ class AudioAnalysisResult {
     return const Color(0xFFEF4444);
   }
 
-  String get lufsFormatted => '${lufs.toStringAsFixed(1)} LUFS';
+  String get lufsFormatted => '${lufs.toStringAsFixed(1)} LUFS'; // ignore: unnecessary_brace_in_string_interps
 
   String get lufsVerdict {
     if (lufs > -8) return 'Перекомпрессирован';
@@ -523,6 +737,10 @@ class AudioAnalysisResult {
     if (lufs > -16) return 'Норма (стрим)';
     return 'Тихо — нужен мастеринг';
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // Helpers
+  // ══════════════════════════════════════════════════════════════
 
   static String _str(dynamic v) {
     if (v == null) return '';
@@ -533,5 +751,42 @@ class AudioAnalysisResult {
   static List<String> _strList(dynamic v) {
     if (v is List) return v.map((e) => e.toString()).toList();
     return [];
+  }
+
+  static double _num(dynamic v) {
+    if (v is num) return v.toDouble();
+    return 0;
+  }
+
+  static double _numOr(dynamic v, double fallback) {
+    if (v is num) return v.toDouble();
+    return fallback;
+  }
+
+  static List<double> _doubleList(dynamic v) {
+    if (v is List) return v.map((e) => (e as num).toDouble()).toList();
+    return [];
+  }
+
+  static Map<String, dynamic> _asMap(dynamic v) {
+    if (v is Map<String, dynamic>) return v;
+    if (v is Map) return Map<String, dynamic>.from(v);
+    return {};
+  }
+
+  static double _hookTimeFromCandidates(dynamic candidates) {
+    if (candidates is List && candidates.isNotEmpty) {
+      final first = candidates[0];
+      if (first is Map) return (first['time'] as num?)?.toDouble() ?? 0;
+    }
+    return 0;
+  }
+
+  static double _dropTimeFromCandidates(dynamic candidates) {
+    if (candidates is List && candidates.isNotEmpty) {
+      final first = candidates[0];
+      if (first is Map) return (first['time'] as num?)?.toDouble() ?? 0;
+    }
+    return 0;
   }
 }
