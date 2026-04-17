@@ -14,6 +14,7 @@ import {
 } from './analysis/analysis.dto';
 import { deriveInsights } from './analysis/analysis-rule-engine';
 import { buildAnalysisPrompt } from './analysis/analysis-prompt-builder';
+import { mapToLegacyResponse } from './analysis/analysis-legacy.mapper';
 
 @Injectable()
 export class AudioAnalysisService {
@@ -71,10 +72,16 @@ export class AudioAnalysisService {
     // Step 3: Single LLM call for explanation
     const aiExplanation = await this.generateExplanation(measured, derived, effectiveLyrics);
 
-    return {
+    const newResult: TrackAnalysisResponse = {
       measured_data: measured,
       derived_insights: derived,
       ai_explanation: aiExplanation,
+    };
+
+    // Backward-compatible response: new structure + legacy fields for frontend
+    return {
+      ...newResult,
+      ...mapToLegacyResponse(newResult),
     };
   }
 
