@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreditGuard, CreditAction } from '../billing/credit.guard';
 import { StudioToolsService } from './studio-tools.service';
 import { PG_POOL } from '../database/database.module';
+import { UserEventsService } from '../user-events/user-events.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('tools')
@@ -22,6 +23,7 @@ export class StudioToolsController {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly svc: StudioToolsService,
+    private readonly events: UserEventsService,
   ) {}
 
   @Throttle({ default: { ttl: 60000, limit: 10 } })
@@ -54,6 +56,16 @@ export class StudioToolsController {
         HttpStatus.BAD_GATEWAY,
       );
     }
+
+    // Event: ai_chat — учитывается в lead_scoring (+20 за 7 дней) и
+    // next-action engine. meta хранит конкретный тул для диагностики.
+    this.events.log({
+      user_id: req.user.id,
+      event: 'ai_chat',
+      target_type: 'release',
+      target_id: releaseId || undefined,
+      meta: { tool: toolName, is_demo: result.is_demo ?? false },
+    }).catch(() => {});
 
     return {
       ok: true,

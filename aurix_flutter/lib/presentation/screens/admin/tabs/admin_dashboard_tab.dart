@@ -5,6 +5,8 @@ import 'package:aurix_flutter/config/responsive.dart';
 import 'package:aurix_flutter/core/api/api_client.dart';
 import 'package:aurix_flutter/design/aurix_theme.dart';
 import 'package:aurix_flutter/data/providers/admin_providers.dart';
+import 'package:aurix_flutter/presentation/screens/admin/widgets/registration_gate_card.dart';
+import 'package:aurix_flutter/presentation/screens/admin/widgets/confirm_dangerous_dialog.dart';
 
 /// Safely parse a value that may be int, String, or null to int.
 int _safeInt(dynamic v, [int fallback = 0]) {
@@ -72,6 +74,10 @@ class AdminDashboardTab extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 20),
+
+            // ── Registration gate (open/close with password) ──
+            const RegistrationGateCard(),
+            const SizedBox(height: 16),
 
             // ── SIGNALS — "Что происходит сейчас" ────────
             signalsAsync.when(
@@ -775,13 +781,64 @@ class _AiActionsCardState extends ConsumerState<_AiActionsCard> {
   Future<void> _apply(int index, Map<String, dynamic> action) async {
     setState(() => _applying.add(index));
     try {
-      await ApiClient.post('/admin/ai-actions/apply', data: {'action': action});
+      // SAFETY: новый flow apply = preview → confirm dialog → apply.
+      // 1) preview: получаем количество затронутых, sample, risk_level
+      final previewRes = await ApiClient.post('/admin/ai-actions/preview', data: {'action': action});
+      final preview = previewRes.data is Map ? previewRes.data as Map : const {};
+      final count = (preview['count'] as num?)?.toInt() ?? 0;
+      final risk = preview['risk_level']?.toString() ?? 'low';
+      final summary = preview['summary']?.toString() ?? '';
+      final sampleUsers = (preview['sample_users'] as List?) ?? const [];
+
+      if (count == 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Нет подходящих пользователей'),
+            backgroundColor: AurixTokens.orange,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        return;
+      }
+
+      // 2) Показываем диалог с превью + полем reason. Цвет/иконка зависят от risk.
+      if (!mounted) return;
+      final samplePreview = sampleUsers
+          .take(5)
+          .map((u) => '• ${u['email'] ?? 'user#${u['id']}'}')
+          .join('\n');
+      final confirm = await showDangerousActionDialog(
+        context,
+        title: 'Применить AI-действие?',
+        description: '$summary\n\nПример пользователей:\n$samplePreview',
+        confirmLabel: 'Применить',
+        destructiveColor: risk == 'high'
+            ? AurixTokens.danger
+            : (risk == 'medium' ? AurixTokens.orange : AurixTokens.accent),
+      );
+      if (confirm == null) return;
+
+      // 3) Apply с confirmed + reason.
+      final res = await ApiClient.post('/admin/ai-actions/apply', data: {
+        'action': action,
+        ...confirm,
+      });
+      final data = res.data is Map ? res.data as Map : const {};
+      final affected = (data['affected'] as num?)?.toInt() ?? 0;
+      final emailsSent = (data['emails_sent'] as num?)?.toInt() ?? 0;
+      final label = affected > 0
+          ? (emailsSent > 0
+              ? 'Затронуто $affected · email отправлен $emailsSent'
+              : 'Затронуто $affected пользователей')
+          : 'Нет подходящих пользователей';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Действие применено: ${action['title'] ?? action['type']}'),
-          backgroundColor: AurixTokens.positive,
+          content: Text(label),
+          backgroundColor: affected > 0 ? AurixTokens.positive : AurixTokens.orange,
           behavior: SnackBarBehavior.floating,
         ));
+        ref.invalidate(adminSignalsProvider);
+        ref.invalidate(adminAiActionsProvider);
       }
     } catch (e) {
       if (mounted) {
@@ -1174,30 +1231,7 @@ class _RetentionBlock extends ConsumerWidget {
                   ),
                   SizedBox(
                     height: 28,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final userId = t['id'];
-                        if (userId == null) return;
-                        try {
-                          await ApiClient.post('/admin/notifications/send', data: {
-                            'user_id': userId,
-                            'title': 'Мы скучаем!',
-                            'message': 'Вернитесь в AURIX — у вас есть незавершённые проекты и новые инструменты ждут!',
-                            'type': 'retention',
-                          });
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Напоминание отправлено: $email'), backgroundColor: AurixTokens.positive, behavior: SnackBarBehavior.floating));
-                          }
-                        } catch (_) {}
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AurixTokens.accent.withValues(alpha: 0.8),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      ),
-                      child: const Text('Вернуть', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
-                    ),
+                    child: _ReturnUserButton(userId: t['id'], email: email),
                   ),
                 ],
               ),
@@ -1206,6 +1240,82 @@ class _RetentionBlock extends ConsumerWidget {
         }),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RETURN USER BUTTON — sends retention email via backend
+// ═══════════════════════════════════════════════════════════
+
+class _ReturnUserButton extends ConsumerStatefulWidget {
+  const _ReturnUserButton({required this.userId, required this.email});
+  final dynamic userId;
+  final String email;
+
+  @override
+  ConsumerState<_ReturnUserButton> createState() => _ReturnUserButtonState();
+}
+
+class _ReturnUserButtonState extends ConsumerState<_ReturnUserButton> {
+  bool _busy = false;
+
+  Future<void> _run() async {
+    if (widget.userId == null) return;
+    setState(() => _busy = true);
+    try {
+      final res = await ApiClient.post('/admin/notifications/send', data: {
+        'user_id': widget.userId,
+        'title': 'Мы скучаем!',
+        'message':
+            'Вернитесь в AURIX — у вас есть незавершённые проекты и новые инструменты ждут!',
+        'type': 'retention',
+        'send_email': true,
+      });
+      if (!mounted) return;
+      final data = res.data is Map ? res.data as Map : const {};
+      final emailInfo = (data['email'] as Map?) ?? const {};
+      final emailOk = emailInfo['ok'] == true;
+      final label = emailOk
+          ? 'Email отправлен: ${widget.email}'
+          : 'Уведомление создано (email не доставлен)';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(label),
+        backgroundColor:
+            emailOk ? AurixTokens.positive : AurixTokens.orange,
+        behavior: SnackBarBehavior.floating,
+      ));
+      ref.invalidate(adminSignalsProvider);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Ошибка: $e'),
+        backgroundColor: AurixTokens.danger,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: _busy ? null : _run,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AurixTokens.accent.withValues(alpha: 0.8),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+      child: _busy
+          ? const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 1.6, color: Colors.white),
+            )
+          : const Text('Вернуть',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -1325,27 +1435,57 @@ class _UserQuickActionState extends ConsumerState<_UserQuickAction> {
                   label: 'Заблокировать',
                   color: AurixTokens.danger,
                   loading: _loading,
-                  onTap: () => _action('Пользователь заблокирован', () async {
-                    await ApiClient.post('/admin/users/${widget.userId}/block', data: {});
-                  }),
+                  onTap: () async {
+                    // SAFETY: confirmed + reason обязательны на бэкенде.
+                    final res = await showDangerousActionDialog(
+                      context,
+                      title: 'Заблокировать пользователя?',
+                      description: 'Аккаунт будет помечен как suspended. Юзер не сможет войти.',
+                      confirmLabel: 'Заблокировать',
+                    );
+                    if (res == null) return;
+                    await _action('Пользователь заблокирован', () async {
+                      await ApiClient.post('/admin/users/${widget.userId}/block', data: res);
+                    });
+                  },
                 ),
                 _ActionBtn(
                   icon: Icons.lock_open_rounded,
                   label: 'Разблокировать',
                   color: AurixTokens.positive,
                   loading: _loading,
-                  onTap: () => _action('Пользователь разблокирован', () async {
-                    await ApiClient.post('/admin/users/${widget.userId}/unblock', data: {});
-                  }),
+                  onTap: () async {
+                    final res = await showDangerousActionDialog(
+                      context,
+                      title: 'Разблокировать пользователя?',
+                      description: 'Аккаунт снова станет активным. Укажите причину.',
+                      confirmLabel: 'Разблокировать',
+                      destructiveColor: AurixTokens.positive,
+                    );
+                    if (res == null) return;
+                    await _action('Пользователь разблокирован', () async {
+                      await ApiClient.post('/admin/users/${widget.userId}/unblock', data: res);
+                    });
+                  },
                 ),
                 _ActionBtn(
                   icon: Icons.restart_alt_rounded,
                   label: 'Сбросить лимиты',
                   color: AurixTokens.accent,
                   loading: _loading,
-                  onTap: () => _action('Лимиты сброшены', () async {
-                    await ApiClient.post('/admin/users/${widget.userId}/reset-limits', data: {});
-                  }),
+                  onTap: () async {
+                    final res = await showDangerousActionDialog(
+                      context,
+                      title: 'Сбросить дневные лимиты?',
+                      description: 'Юзер сможет снова потреблять кредиты в обычном объёме.',
+                      confirmLabel: 'Сбросить',
+                      destructiveColor: AurixTokens.muted,
+                    );
+                    if (res == null) return;
+                    await _action('Лимиты сброшены', () async {
+                      await ApiClient.post('/admin/users/${widget.userId}/reset-limits', data: res);
+                    });
+                  },
                 ),
                 _ActionBtn(
                   icon: Icons.send_rounded,

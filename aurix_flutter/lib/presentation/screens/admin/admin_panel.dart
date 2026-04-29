@@ -8,6 +8,9 @@ import 'package:aurix_flutter/data/providers/crm_providers.dart';
 import 'package:aurix_flutter/data/providers/promo_providers.dart';
 import 'package:aurix_flutter/features/casting/data/casting_providers.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_dashboard_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_action_center_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_leads_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_conversion_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_users_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_releases_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_delete_requests_tab.dart';
@@ -25,6 +28,9 @@ import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_system_tab.d
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_services_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_errors_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_beats_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_ai_feedback_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_donations_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_payments_tab.dart';
 import 'package:aurix_flutter/features/casting/presentation/admin_casting_tab.dart';
 
 const _kDesktopBreak = 800.0;
@@ -38,6 +44,14 @@ class _TabDef {
 
 const _tabs = [
   _TabDef('dashboard', 'Обзор', Icons.dashboard_rounded),
+  // Action Center — "что сделать сегодня". Сразу после дашборда.
+  _TabDef('action_center', 'Что делать', Icons.dashboard_customize_rounded),
+  // Leads pipeline — sales-генерация выручки. Между Action Center и Users:
+  // менеджер сначала смотрит общую очередь, потом свои leads, потом юзеров.
+  _TabDef('leads', 'Leads', Icons.trending_up_rounded),
+  // Conversion — funnel с деньгами. Менеджер должен видеть, где артисты
+  // отваливаются и сколько денег теряется на каждом шаге.
+  _TabDef('conversion', 'Воронка', Icons.show_chart_rounded),
   _TabDef('users', 'Пользователи', Icons.people_rounded),
   _TabDef('releases', 'Релизы', Icons.album_rounded),
   _TabDef('delete_requests', 'Запросы на удаление', Icons.delete_sweep_rounded),
@@ -51,11 +65,14 @@ const _tabs = [
   _TabDef('logs', 'Логи', Icons.receipt_long_rounded),
   _TabDef('support', 'Поддержка', Icons.support_agent_rounded),
   _TabDef('billing', 'Биллинг', Icons.payments_rounded),
+  _TabDef('payments', 'Платежи', Icons.receipt_rounded),
+  _TabDef('donations', 'Донаты', Icons.favorite_rounded),
   _TabDef('services', 'Услуги', Icons.sell_rounded),
   _TabDef('errors', 'Ошибки', Icons.bug_report_rounded),
   _TabDef('system', 'Система', Icons.settings_rounded),
   _TabDef('beats', 'Биты', Icons.graphic_eq_rounded),
   _TabDef('casting', 'Код Артиста', Icons.mic_external_on_rounded),
+  _TabDef('ai_feedback', 'AI Feedback', Icons.psychology_rounded),
 ];
 
 class AdminPanel extends ConsumerStatefulWidget {
@@ -155,6 +172,11 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
     ref.invalidate(adminCrmDealsProvider);
     ref.invalidate(adminCrmInvoicesProvider);
     ref.invalidate(adminCrmTasksProvider);
+    ref.invalidate(adminActionCenterProvider);
+    ref.invalidate(adminConversionProvider);
+    ref.invalidate(adminAiSalesSignalsProvider);
+    ref.invalidate(adminMySalesDashboardProvider);
+    ref.invalidate(adminStaffListProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Данные обновлены'),
@@ -167,6 +189,9 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
 
   List<Widget> _buildTabWidgets() => [
         AdminDashboardTab(onGoToTab: goToTab),
+        const AdminActionCenterTab(),
+        const AdminLeadsTab(),
+        const AdminConversionTab(),
         const AdminUsersTab(),
         const AdminReleasesTab(),
         const AdminDeleteRequestsTab(),
@@ -180,11 +205,14 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
         const AdminLogsTab(),
         const AdminSupportTab(),
         const AdminBillingTab(),
+        const AdminPaymentsTab(),
+        const AdminDonationsTab(),
         const AdminServicesTab(),
         const AdminErrorsTab(),
         const AdminSystemTab(),
         const AdminBeatsTab(),
         const AdminCastingTab(),
+        const AdminAiFeedbackTab(),
       ];
 
   Widget _buildDesktop(BuildContext context) {
