@@ -31,6 +31,7 @@ import { UserEventsModule } from './user-events/user-events.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AutoActionsModule } from './auto-actions/auto-actions.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { SettingsModule } from './settings/settings.module';
 import { WsModule } from './ws/ws.module';
 import { BillingModule } from './billing/billing.module';
 import { GrowthModule } from './growth/growth.module';
@@ -42,6 +43,14 @@ import { BeatsModule } from './beats/beats.module';
 import { ReferralModule } from './referral/referral.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { CastingModule } from './casting/casting.module';
+import { DonationsModule } from './donations/donations.module';
+import { LeadScoringModule } from './lead-scoring/lead-scoring.module';
+import { ActionCenterModule } from './action-center/action-center.module';
+import { LeadsModule } from './leads/leads.module';
+import { NextActionModule } from './next-action/next-action.module';
+import { ConversionModule } from './conversion/conversion.module';
+import { AiSalesModule } from './ai-sales/ai-sales.module';
+import { SalesCronModule } from './sales-cron/sales-cron.module';
 
 @Module({
   imports: [
@@ -78,17 +87,30 @@ import { CastingModule } from './casting/casting.module';
     NotificationsModule,
     AutoActionsModule,
     SessionsModule,
+    SettingsModule,
     WsModule,
     BillingModule,
     GrowthModule,
     SmartLinkModule,
     StudioToolsModule,
     BrainModule,
+    // LeadsModule должен быть зарегистрирован ДО PaymentsModule, потому что
+    // TBankService инжектит LeadsService (через @Optional) для markConverted
+    // при успешном платеже. @Global делает его доступным везде, но явный
+    // порядок повышает предсказуемость bootstrap.
+    LeadsModule,
+    LeadScoringModule,
+    NextActionModule,
     PaymentsModule,
     CastingModule,
     BeatsModule,
     ReferralModule,
     TelegramModule,
+    DonationsModule,
+    ConversionModule,
+    AiSalesModule,
+    ActionCenterModule,   // зависит от всех sales-модулей
+    SalesCronModule,      // регулярные задачи: scoring, sweep, ai-sales
   ],
   controllers: [AppController],
   providers: [AppService],

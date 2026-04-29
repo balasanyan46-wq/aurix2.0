@@ -21,6 +21,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
 import { UploadService } from './upload.service';
+import { UserEventsService } from '../user-events/user-events.service';
 
 const MAX_COVER = 10 * 1024 * 1024;
 const MAX_AUDIO = 100 * 1024 * 1024;
@@ -67,7 +68,10 @@ function userAgent(req: any): string | undefined {
 @UseGuards(JwtAuthGuard)
 @Controller('upload')
 export class UploadController {
-  constructor(private readonly svc: UploadService) {}
+  constructor(
+    private readonly svc: UploadService,
+    private readonly events: UserEventsService,
+  ) {}
 
   // ── Upload cover ────────────────────────────────────────
 
@@ -128,6 +132,21 @@ export class UploadController {
     const userId = req.user?.id;
     await this.svc.trackDevice(userId, clientIp(req) ?? '0.0.0.0', userAgent(req));
     const { key, url } = await this.svc.uploadFile(file, 'tracks', userId);
+
+    // Event: track_uploaded — учитывается в lead_scoring (+25) и
+    // next-action engine (правило "загрузил трек, нет ai_chat").
+    this.events.log({
+      user_id: userId,
+      event: 'track_uploaded',
+      target_type: 'track',
+      target_id: key,
+      meta: {
+        size: file.size,
+        mime: file.mimetype,
+        source: 'upload_audio',
+      },
+    }).catch(() => {});
+
     return { success: true, url, key };
   }
 

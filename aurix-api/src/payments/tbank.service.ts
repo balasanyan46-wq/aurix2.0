@@ -1,10 +1,11 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import { createHash } from 'crypto';
 import { PG_POOL } from '../database/database.module';
 import { CreditsService } from '../billing/credits.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReferralService } from '../referral/referral.service';
+import { LeadsService } from '../leads/leads.service';
 
 // ── PRICING ──────────────────────────────────────────────
 
@@ -49,6 +50,9 @@ export class TBankService {
     private readonly credits: CreditsService,
     private readonly notifications: NotificationsService,
     private readonly referral: ReferralService,
+    // @Optional: leads-маркер опционален. Если LeadsModule не подключён —
+    // конверсия не запишется в leads, но платёж всё равно пройдёт.
+    @Optional() private readonly leads?: LeadsService,
   ) {
     this.terminalKey = process.env.TINKOFF_TERMINAL_KEY || '';
     this.password = process.env.TINKOFF_PASSWORD || '';
@@ -94,6 +98,51 @@ export class TBankService {
     return resp.json();
   }
 
+  /**
+   * Generic one-stage Init for non-subscription flows (donations, one-time purchases).
+   * Returns paymentUrl the client should redirect to.
+   */
+  async initOneStagePayment(params: {
+    orderId: string;
+    amount: number;
+    description: string;
+    customerKey: string;
+  }): Promise<{ success: boolean; paymentUrl?: string; tbankPaymentId?: string; error?: string }> {
+    if (!this.terminalKey || !this.password) {
+      return { success: false, error: 'Платёжная система не настроена' };
+    }
+
+    const initParams: Record<string, any> = {
+      TerminalKey: this.terminalKey,
+      Amount: params.amount,
+      OrderId: params.orderId,
+      Description: params.description.slice(0, 140),
+      PayType: 'O',
+      CustomerKey: params.customerKey,
+      NotificationURL: `${this.appUrl}/api/payments/webhook`,
+      SuccessURL: `${this.appUrl}/payment-result?orderId=${params.orderId}&status=success`,
+      FailURL: `${this.appUrl}/payment-result?orderId=${params.orderId}&status=fail`,
+    };
+    initParams.Token = this.generateToken(initParams);
+
+    try {
+      const resp = await fetch(`${TBANK_BASE}/Init`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(initParams),
+      });
+      const data = await resp.json() as Record<string, any>;
+      if (data.Success && data.PaymentURL) {
+        return { success: true, paymentUrl: data.PaymentURL, tbankPaymentId: String(data.PaymentId) };
+      }
+      this.log.error(`initOneStagePayment failed: ${JSON.stringify(data)}`);
+      return { success: false, error: data.Message || data.Details || 'T-Bank Init failed' };
+    } catch (e: any) {
+      this.log.error(`initOneStagePayment error: ${e.message}`);
+      return { success: false, error: 'Payment service unavailable' };
+    }
+  }
+
   // ══════════════════════════════════════════════════════════
   // CREATE SUBSCRIPTION PAYMENT (with Recurrent)
   // ══════════════════════════════════════════════════════════
@@ -121,6 +170,13 @@ export class TBankService {
     );
     const paymentId = rows[0].id;
 
+    // Event: checkout_started — пишется ДО запроса в T-Bank, чтобы факт
+    // намерения оплатить был зафиксирован даже если T-Bank Init упадёт.
+    // Используется в lead-scoring (+25) и next-action engine.
+    this.logUserEvent(userId, 'checkout_started', {
+      plan, billing_period: period, amount, source: 'subscription',
+    }).catch(() => {});
+
     if (!this.terminalKey || !this.password) {
       this.log.error('Cannot create payment: TINKOFF_TERMINAL_KEY or TINKOFF_PASSWORD not configured');
       return { success: false, error: 'Платёжная система не настроена. Обратитесь в поддержку.' };
@@ -131,7 +187,8 @@ export class TBankService {
       Amount: amount,
       OrderId: orderId,
       Description: description,
-      PayType: 'O', // One-stage payment (immediate charge)
+      PayType: 'O',
+      Recurrent: 'Y',
       CustomerKey: String(userId),
       NotificationURL: `${this.appUrl}/api/payments/webhook`,
       SuccessURL: `${this.appUrl}/payment-result?orderId=${orderId}&status=success`,
@@ -403,6 +460,28 @@ export class TBankService {
           payment.payment_type === 'credits' ? 'credits' : 'subscription',
           String(payment.id),
         ).catch(e => this.log.warn(`Referral reward failed: ${e.message}`));
+
+        // Mark active lead as converted (best-effort — не критично для платежа).
+        // Идемпотентно: если lead'а нет, тихо ничего не делает.
+        if (this.leads) {
+          this.leads.markConverted(payment.user_id).catch(e =>
+            this.log.warn(`Lead conversion mark failed for user ${payment.user_id}: ${e.message}`),
+          );
+        }
+
+        // События для воронки: payment_success + subscription_changed.
+        // payment_success — общий фактический успех (для analytics/scoring).
+        // subscription_changed — конкретное изменение плана (для lead_scoring и next_action).
+        this.logUserEvent(payment.user_id, 'payment_success', {
+          plan: payment.plan, amount: payment.amount, type: payment.payment_type,
+          payment_id: payment.id, source: 'tbank_webhook',
+        }).catch(() => {});
+        if (payment.payment_type === 'subscription') {
+          this.logUserEvent(payment.user_id, 'subscription_changed', {
+            plan: payment.plan, amount: payment.amount,
+            payment_id: payment.id, source: 'tbank_webhook',
+          }).catch(() => {});
+        }
       } else if (['REJECTED', 'CANCELED', 'DEADLINE_EXPIRED', 'AUTH_FAIL'].includes(Status)) {
         await client.query(
           `UPDATE payments SET status = 'failed', updated_at = now() WHERE id = $1`,
@@ -415,6 +494,13 @@ export class TBankService {
         );
         await client.query('COMMIT');
         this.log.log(`Payment FAILED: user=${payment.user_id} order=${OrderId} status=${Status}`);
+
+        // Event: payment_failed — горячий сигнал для lead scoring (+30).
+        // Юзер пытался платить, не получилось — приоритет менеджеру.
+        this.logUserEvent(payment.user_id, 'payment_failed', {
+          plan: payment.plan, amount: payment.amount, status: Status,
+          payment_id: payment.id, source: 'tbank_webhook',
+        }).catch(() => {});
       } else {
         await client.query('ROLLBACK');
         this.log.log(`Webhook: intermediate status ${Status} for order ${OrderId}`);
@@ -543,6 +629,138 @@ export class TBankService {
       type: 'success',
       meta: { credits: creditsAmount, balance: newBalance },
     }).catch(e => this.log.error(`Notification error: ${e.message}`));
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // REFUND — T-Bank Cancel API
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * Cancel/refund a confirmed T-Bank payment. Atomically rolls back the
+   * effects of a successful payment (revert credits/subscription/donation).
+   * Admin-only. Returns {ok, newStatus} or {ok: false, error}.
+   */
+  async refundPayment(
+    paymentId: number,
+    adminUserId: number,
+    reason: string,
+  ): Promise<{ ok: boolean; newStatus?: string; error?: string }> {
+    // Load payment (regular subscription/credits table)
+    const { rows } = await this.pool.query(
+      `SELECT id, user_id, plan, billing_period, amount, status, tbank_payment_id, payment_type,
+              credits_amount, confirmed_at
+       FROM payments WHERE id = $1`,
+      [paymentId],
+    );
+    if (!rows.length) {
+      return { ok: false, error: 'Платёж не найден' };
+    }
+    const p = rows[0];
+
+    if (p.status !== 'confirmed') {
+      return { ok: false, error: `Нельзя вернуть платёж в статусе "${p.status}"` };
+    }
+    if (!p.tbank_payment_id) {
+      return { ok: false, error: 'Отсутствует T-Bank PaymentId — возврат невозможен' };
+    }
+
+    // Call T-Bank Cancel
+    let tbankResp: any;
+    try {
+      tbankResp = await this.tbankPost('Cancel', {
+        PaymentId: p.tbank_payment_id,
+      });
+    } catch (e: any) {
+      this.log.error(`Refund Cancel error for payment ${paymentId}: ${e.message}`);
+      return { ok: false, error: `T-Bank недоступен: ${e.message}` };
+    }
+
+    if (!tbankResp?.Success) {
+      this.log.error(`Refund Cancel failed: ${JSON.stringify(tbankResp)}`);
+      return {
+        ok: false,
+        error: tbankResp?.Message || tbankResp?.Details || 'T-Bank отклонил возврат',
+      };
+    }
+
+    // Roll back side effects atomically
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE payments SET status = 'refunded', updated_at = now() WHERE id = $1`,
+        [paymentId],
+      );
+
+      if (p.payment_type === 'credits') {
+        const credits = p.credits_amount || 0;
+        if (credits > 0) {
+          const { rows: balRows } = await client.query(
+            `UPDATE user_balance
+               SET credits = GREATEST(credits - $2, 0), updated_at = now()
+             WHERE user_id = $1 RETURNING credits`,
+            [p.user_id, credits],
+          );
+          const newBalance = balRows[0]?.credits ?? 0;
+          await client.query(
+            `INSERT INTO credit_transactions (user_id, type, amount, balance_after, reason, meta)
+             VALUES ($1, 'refund', $2, $3, $4, $5)`,
+            [
+              p.user_id,
+              -credits,
+              newBalance,
+              `Refund платежа #${paymentId}${reason ? `: ${reason}` : ''}`,
+              JSON.stringify({ payment_id: paymentId, admin_id: adminUserId }),
+            ],
+          );
+        }
+      } else if (p.payment_type === 'subscription') {
+        // Expire subscription if this confirmed payment was what activated it.
+        await client.query(
+          `UPDATE profiles SET subscription_status = 'expired',
+                               cancel_at_period_end = true,
+                               updated_at = now()
+           WHERE user_id = $1`,
+          [p.user_id],
+        );
+        await client.query(
+          `INSERT INTO subscription_log (user_id, action, plan, payment_id, meta)
+           VALUES ($1, 'refunded', $2, $3, $4)`,
+          [p.user_id, p.plan, p.id, JSON.stringify({ reason, admin_id: adminUserId })],
+        );
+      }
+
+      await client.query(
+        `INSERT INTO admin_logs (admin_id, action, target_type, target_id, details)
+         VALUES ($1, 'payment_refunded', 'payment', $2, $3)`,
+        [adminUserId, paymentId, JSON.stringify({ amount: p.amount, payment_type: p.payment_type, reason })],
+      );
+
+      await client.query('COMMIT');
+
+      // Notify user (non-critical)
+      const rub = Math.round(Number(p.amount) / 100);
+      this.notifications.send({
+        user_id: p.user_id,
+        title: 'Возврат платежа',
+        message: `Возвращено ${rub} ₽${reason ? `. Причина: ${reason}` : ''}. Средства вернутся на карту в течение 1-3 рабочих дней.`,
+        type: 'warning',
+        meta: { payment_id: paymentId, amount_kopecks: p.amount },
+      }).catch((e) => this.log.warn(`Refund notification failed: ${e.message}`));
+
+      this.log.log(`Refund OK: payment=${paymentId} user=${p.user_id} amount=${p.amount} admin=${adminUserId}`);
+      return { ok: true, newStatus: 'refunded' };
+    } catch (e: any) {
+      await client.query('ROLLBACK').catch(() => {});
+      this.log.error(`Refund rollback failed for payment ${paymentId}: ${e.message}`);
+      return {
+        ok: false,
+        error: 'T-Bank вернул деньги, но не удалось обновить БД. Свяжитесь с админом.',
+      };
+    } finally {
+      client.release();
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -936,5 +1154,29 @@ export class TBankService {
       price_rub: Math.round(pkg.price / 100),
       label: pkg.label,
     }));
+  }
+
+  /**
+   * Backend-only event log helper. Пишет напрямую в user_events через pool —
+   * не зависит от UserEventsService, чтобы избежать circular DI и lifecycle
+   * issues внутри транзакции webhook'а.
+   *
+   * Используется для критичных sales-событий (checkout_started,
+   * payment_success, payment_failed, subscription_changed) которые клиент
+   * НЕ должен иметь возможность подделать (см. CLIENT_ALLOWED_EVENTS).
+   */
+  private async logUserEvent(
+    userId: number,
+    event: string,
+    meta?: Record<string, any>,
+  ): Promise<void> {
+    try {
+      await this.pool.query(
+        `INSERT INTO user_events (user_id, event, meta) VALUES ($1, $2, $3)`,
+        [userId, event, meta ? JSON.stringify(meta) : '{}'],
+      );
+    } catch (e: any) {
+      this.log.warn(`logUserEvent(${event}, user=${userId}) failed: ${e.message}`);
+    }
   }
 }
