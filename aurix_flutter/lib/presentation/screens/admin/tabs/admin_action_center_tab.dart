@@ -329,6 +329,11 @@ class _ActionCardState extends ConsumerState<_ActionCard> {
         'message': res['reason'],
         'type': 'internal', // transport: внутренняя in-app
         'source': 'action_center',
+        // A/B attribution: backend пишет в offer_sent.meta для conversion tracking.
+        'meta': {
+          if (widget.item.templateCode != null) 'template_code': widget.item.templateCode,
+          if (widget.item.templateVariant != null) 'template_variant': widget.item.templateVariant,
+        },
         ...res, // confirmed + reason
       });
       if (mounted) {
@@ -380,7 +385,13 @@ class _ActionCardState extends ConsumerState<_ActionCard> {
         'message': res['reason'],
         'type': 'internal', // transport
         'source': 'action_center_offer', // → backend выставит dbType='offer'
-        'meta': {'product_offer': offer, 'action_item_id': widget.item.id},
+        'meta': {
+          'product_offer': offer,
+          'action_item_id': widget.item.id,
+          // A/B attribution для conversion stats per variant.
+          if (widget.item.templateCode != null) 'template_code': widget.item.templateCode,
+          if (widget.item.templateVariant != null) 'template_variant': widget.item.templateVariant,
+        },
         ...res, // confirmed + reason
       });
       if (mounted) {

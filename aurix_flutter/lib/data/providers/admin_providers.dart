@@ -470,6 +470,9 @@ class ActionItem {
   final String? suggestedMessage;
   final int possibleRevenue;
   final String? productOffer;
+  // A/B template attribution.
+  final String? templateCode;
+  final String? templateVariant;
   final String? createdAt;
   final String source;
 
@@ -486,6 +489,8 @@ class ActionItem {
     this.suggestedMessage,
     this.possibleRevenue = 0,
     this.productOffer,
+    this.templateCode,
+    this.templateVariant,
     this.createdAt,
   });
 
@@ -501,6 +506,8 @@ class ActionItem {
         suggestedMessage: j['suggested_message']?.toString(),
         possibleRevenue: (j['possible_revenue'] as num?)?.toInt() ?? 0,
         productOffer: j['product_offer']?.toString(),
+        templateCode: j['template_code']?.toString(),
+        templateVariant: j['template_variant']?.toString(),
         createdAt: j['created_at']?.toString(),
         source: j['source']?.toString() ?? '',
       );
@@ -750,6 +757,9 @@ class NextActionResult {
   final String reason;
   final int possibleRevenue;
   final String? suggestedMessage;
+  // A/B template attribution: пробрасывается в meta.offer_sent при отправке.
+  final String? templateCode;
+  final String? templateVariant;
 
   const NextActionResult({
     required this.reason,
@@ -757,6 +767,8 @@ class NextActionResult {
     this.code,
     this.action,
     this.suggestedMessage,
+    this.templateCode,
+    this.templateVariant,
   });
 
   factory NextActionResult.fromJson(Map<String, dynamic> j) => NextActionResult(
@@ -765,6 +777,8 @@ class NextActionResult {
         reason: j['reason']?.toString() ?? '',
         possibleRevenue: (j['possible_revenue'] as num?)?.toInt() ?? 0,
         suggestedMessage: j['suggested_message']?.toString(),
+        templateCode: j['template_code']?.toString(),
+        templateVariant: j['template_variant']?.toString(),
       );
 }
 
@@ -817,6 +831,141 @@ class ConversionData {
   const ConversionData({required this.totalRevenueRub, required this.steps});
   static const empty = ConversionData(totalRevenueRub: 0, steps: []);
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  OFFER → PAYMENT FUNNEL
+//  GET /admin/offer-funnel
+// ════════════════════════════════════════════════════════════════════════
+
+class OfferFunnelTotal {
+  final int sent;
+  final int clicked;
+  final int checkout;
+  final int paid;
+  final int revenueRub;
+  final double paidPct;
+  const OfferFunnelTotal({
+    required this.sent,
+    required this.clicked,
+    required this.checkout,
+    required this.paid,
+    required this.revenueRub,
+    required this.paidPct,
+  });
+  static const empty = OfferFunnelTotal(
+    sent: 0, clicked: 0, checkout: 0, paid: 0, revenueRub: 0, paidPct: 0,
+  );
+}
+
+class OfferFunnelByOffer {
+  final String productOffer;
+  final int sent;
+  final int clicked;
+  final int checkout;
+  final int paid;
+  final int revenueRub;
+  final double clickPct;
+  final double checkoutPct;
+  final double paidPct;
+  const OfferFunnelByOffer({
+    required this.productOffer,
+    required this.sent,
+    required this.clicked,
+    required this.checkout,
+    required this.paid,
+    required this.revenueRub,
+    required this.clickPct,
+    required this.checkoutPct,
+    required this.paidPct,
+  });
+  factory OfferFunnelByOffer.fromJson(Map<String, dynamic> j) => OfferFunnelByOffer(
+        productOffer: j['product_offer']?.toString() ?? 'unknown',
+        sent: (j['sent'] as num?)?.toInt() ?? 0,
+        clicked: (j['clicked'] as num?)?.toInt() ?? 0,
+        checkout: (j['checkout'] as num?)?.toInt() ?? 0,
+        paid: (j['paid'] as num?)?.toInt() ?? 0,
+        revenueRub: (j['revenue_rub'] as num?)?.toInt() ?? 0,
+        clickPct: (j['click_pct'] as num?)?.toDouble() ?? 0,
+        checkoutPct: (j['checkout_pct'] as num?)?.toDouble() ?? 0,
+        paidPct: (j['paid_pct'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+class OfferFunnelData {
+  final OfferFunnelTotal total;
+  final List<OfferFunnelByOffer> byOffer;
+  const OfferFunnelData({required this.total, required this.byOffer});
+  static const empty = OfferFunnelData(total: OfferFunnelTotal.empty, byOffer: []);
+}
+
+final adminOfferFunnelProvider = FutureProvider<OfferFunnelData>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/offer-funnel');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final t = (d['total'] as Map?) ?? const {};
+    final byRaw = d['by_offer'];
+    return OfferFunnelData(
+      total: OfferFunnelTotal(
+        sent: (t['sent'] as num?)?.toInt() ?? 0,
+        clicked: (t['clicked'] as num?)?.toInt() ?? 0,
+        checkout: (t['checkout'] as num?)?.toInt() ?? 0,
+        paid: (t['paid'] as num?)?.toInt() ?? 0,
+        revenueRub: (t['revenue_rub'] as num?)?.toInt() ?? 0,
+        paidPct: (t['paid_pct'] as num?)?.toDouble() ?? 0,
+      ),
+      byOffer: byRaw is List
+          ? byRaw
+              .whereType<Map>()
+              .map((e) => OfferFunnelByOffer.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : const [],
+    );
+  } catch (e) {
+    return OfferFunnelData.empty;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  A/B TEMPLATES STATS
+//  GET /admin/message-templates/stats
+// ════════════════════════════════════════════════════════════════════════
+
+class TemplateStat {
+  final String code;
+  final String variantKey;
+  final int sent;
+  final int paid;
+  final double conversionPct;
+  const TemplateStat({
+    required this.code,
+    required this.variantKey,
+    required this.sent,
+    required this.paid,
+    required this.conversionPct,
+  });
+  factory TemplateStat.fromJson(Map<String, dynamic> j) => TemplateStat(
+        code: j['code']?.toString() ?? '',
+        variantKey: j['variant_key']?.toString() ?? '',
+        sent: (j['sent'] as num?)?.toInt() ?? 0,
+        paid: (j['paid'] as num?)?.toInt() ?? 0,
+        conversionPct: (j['conversion_pct'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+final adminTemplateStatsProvider = FutureProvider<List<TemplateStat>>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/message-templates/stats');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final items = d['items'];
+    if (items is! List) return const [];
+    return items
+        .whereType<Map>()
+        .map((e) => TemplateStat.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  } catch (e) {
+    return const [];
+  }
+});
 
 final adminConversionProvider = FutureProvider<ConversionData>((ref) async {
   try {

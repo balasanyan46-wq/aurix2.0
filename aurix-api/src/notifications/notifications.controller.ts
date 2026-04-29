@@ -153,6 +153,11 @@ export class NotificationsController {
           product_offer: body.meta?.product_offer ?? null,
           plan: body.meta?.plan ?? null,
           amount: body.meta?.amount ?? null,
+          // A/B template attribution: если фронт прислал template_code +
+          // template_variant (из next-action engine), пишем в offer_sent.meta.
+          // Используется MessageTemplatesService.getStats для conversion %.
+          template_code: body.meta?.template_code ?? null,
+          template_variant: body.meta?.template_variant ?? null,
         }),
       ],
     ).catch(() => {});

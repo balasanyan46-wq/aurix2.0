@@ -2,7 +2,8 @@ import { Controller, Get, Post, Patch, Body, Query, Req, Param, Inject, UseGuard
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AdminGuard } from '../auth/roles.guard';
+import { AdminGuard, RolesGuard, userHasPermission } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { requireConfirmation } from '../auth/dangerous-action.util';
 import { AdminLogsService } from './admin-logs.service';
 import { SystemService } from '../system/system.service';
@@ -950,8 +951,12 @@ export class AdminLogsController {
   //  REFUND — cancel a confirmed T-Bank payment
   // ═══════════════════════════════════════════════════════════
 
+  // Refund доступен finance_admin (специализированная роль) + admin + super_admin.
+  // RolesGuard проверяет роль из БД. AdminGuard заменён на RolesGuard, потому
+  // что finance_admin не входит в admin/super_admin allow-list AdminGuard'а.
   @Post('admin/payments/:id/refund')
-  @UseGuards(AdminGuard)
+  @UseGuards(RolesGuard)
+  @Roles('finance_admin', 'admin')
   async refundPayment(
     @Req() req: any,
     @Param('id') id: string,
@@ -960,6 +965,16 @@ export class AdminLogsController {
     // SAFETY: возврат денег — необратимая финансовая операция.
     // Обязательно confirmed + reason >= 5 символов.
     const reason = requireConfirmation(body);
+    // Тонкая проверка permission — refund доступен finance_admin/admin/super_admin
+    // (super_admin неявно через userHasPermission). Если у роли нет этого
+    // permission — 403 даже если AdminGuard пропустил.
+    const hasPerm = await userHasPermission(this.pool, req.user.id, 'admin.payments.refund');
+    if (!hasPerm) {
+      throw new HttpException(
+        { ok: false, error: 'permission_denied', message: 'Нужен permission admin.payments.refund' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
     const paymentId = Number(id);
     if (!Number.isFinite(paymentId) || paymentId <= 0) {
       throw new HttpException('Invalid payment id', HttpStatus.BAD_REQUEST);

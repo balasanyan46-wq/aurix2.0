@@ -1,7 +1,8 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { LeadsService } from '../leads/leads.service';
+import { MessageTemplatesService } from '../message-templates/message-templates.service';
 
 /**
  * Next Action Engine — детерминированные правила «что должен сделать
@@ -27,6 +28,9 @@ export class NextActionService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly leads: LeadsService,
+    // @Optional чтобы next-action не падал, если миграция 095 ещё не накатана
+    // или MessageTemplatesService недоступен по другим причинам.
+    @Optional() private readonly templates?: MessageTemplatesService,
   ) {}
 
   /**
@@ -63,6 +67,13 @@ export class NextActionService {
 
   /**
    * Главная функция: возвращает следующее действие для пользователя.
+   *
+   * suggested_message выбирается через A/B (MessageTemplatesService) если
+   * сервис доступен и в БД есть шаблоны для code'а. Иначе fallback на
+   * хардкоднутый текст из ACTIONS.
+   *
+   * `template_code` + `template_variant` нужны фронту, чтобы их положить
+   * в meta.offer_sent для A/B-атрибуции (см. MessageTemplatesService.getStats).
    */
   async getNextAction(userId: number): Promise<{
     code: keyof typeof NextActionService.ACTIONS | null;
@@ -70,6 +81,8 @@ export class NextActionService {
     reason: string;
     possible_revenue: number;
     suggested_message: string | null;
+    template_code: string | null;
+    template_variant: string | null;
   }> {
     // Один запрос — все нужные сигналы сразу.
     const { rows } = await this.pool.query(
@@ -102,19 +115,13 @@ export class NextActionService {
 
     // Правило 1: hot lead перебивает всё. Менеджер должен прямо позвонить/написать.
     if (score > 70) {
-      const a = NextActionService.ACTIONS.contact_hot_lead;
-      return {
-        code: 'contact_hot_lead',
-        action: a.action,
-        reason: `Lead score ${score} > 70 — артист активный, готов покупать`,
-        possible_revenue: a.possible_revenue,
-        suggested_message: a.suggested_message,
-      };
+      return await this.buildResult(
+        'contact_hot_lead',
+        `Lead score ${score} > 70 — артист активный, готов покупать`,
+      );
     }
 
     // Правило 2: уже платил, но активность остановилась — upsell.
-    // Считаем "нет повторной активности" как: после оплаты прошло > 7 дней,
-    // и за последние 7 дней событий нет.
     if (hasPayment && r.last_payment) {
       const lastPaymentMs = new Date(r.last_payment).getTime();
       const lastActiveMs = r.last_active ? new Date(r.last_active).getTime() : 0;
@@ -122,51 +129,35 @@ export class NextActionService {
       const paymentOlderThan7d = lastPaymentMs < sevenDaysAgo;
       const noRecentActivity = lastActiveMs < sevenDaysAgo;
       if (paymentOlderThan7d && noRecentActivity) {
-        const a = NextActionService.ACTIONS.upsell_promotion;
-        return {
-          code: 'upsell_promotion',
-          action: a.action,
-          reason: 'Оплатил подписку, но не активен 7+ дней — повторная вовлечённость через продвижение',
-          possible_revenue: a.possible_revenue,
-          suggested_message: a.suggested_message,
-        };
+        return await this.buildResult(
+          'upsell_promotion',
+          'Оплатил подписку, но не активен 7+ дней — повторная вовлечённость через продвижение',
+        );
       }
     }
 
     // Правило 3: создал релиз, не платил.
     if (hasRelease && !hasPayment) {
-      const a = NextActionService.ACTIONS.push_to_payment;
-      return {
-        code: 'push_to_payment',
-        action: a.action,
-        reason: 'Создал релиз, но не оплатил дистрибуцию',
-        possible_revenue: a.possible_revenue,
-        suggested_message: a.suggested_message,
-      };
+      return await this.buildResult(
+        'push_to_payment',
+        'Создал релиз, но не оплатил дистрибуцию',
+      );
     }
 
     // Правило 4: говорил с AI, нет релиза.
     if (hasAi && !hasRelease) {
-      const a = NextActionService.ACTIONS.suggest_release;
-      return {
-        code: 'suggest_release',
-        action: a.action,
-        reason: 'Использовал AI, но не оформил релиз',
-        possible_revenue: a.possible_revenue,
-        suggested_message: a.suggested_message,
-      };
+      return await this.buildResult(
+        'suggest_release',
+        'Использовал AI, но не оформил релиз',
+      );
     }
 
     // Правило 5: загрузил трек, нет AI-чата.
     if (hasTrack && !hasAi) {
-      const a = NextActionService.ACTIONS.suggest_analysis;
-      return {
-        code: 'suggest_analysis',
-        action: a.action,
-        reason: 'Загрузил трек, но не воспользовался AI-анализом',
-        possible_revenue: a.possible_revenue,
-        suggested_message: a.suggested_message,
-      };
+      return await this.buildResult(
+        'suggest_analysis',
+        'Загрузил трек, но не воспользовался AI-анализом',
+      );
     }
 
     return {
@@ -175,6 +166,48 @@ export class NextActionService {
       reason: 'Нет триггеров',
       possible_revenue: 0,
       suggested_message: null,
+      template_code: null,
+      template_variant: null,
+    };
+  }
+
+  /**
+   * Сборщик результата: action/reason/possible_revenue из ACTIONS,
+   * suggested_message — через MessageTemplatesService.pickVariant если
+   * доступен, иначе fallback на хардкоднутый текст.
+   */
+  private async buildResult(
+    code: keyof typeof NextActionService.ACTIONS,
+    reason: string,
+  ): Promise<{
+    code: keyof typeof NextActionService.ACTIONS;
+    action: string;
+    reason: string;
+    possible_revenue: number;
+    suggested_message: string;
+    template_code: string;
+    template_variant: string | null;
+  }> {
+    const a = NextActionService.ACTIONS[code];
+    let message: string = a.suggested_message;
+    let variantKey: string | null = null;
+
+    if (this.templates) {
+      const picked = await this.templates.pickVariant(code).catch(() => null);
+      if (picked) {
+        message = picked.message;
+        variantKey = picked.variant_key;
+      }
+    }
+
+    return {
+      code,
+      action: a.action,
+      reason,
+      possible_revenue: a.possible_revenue,
+      suggested_message: message,
+      template_code: code,
+      template_variant: variantKey,
     };
   }
 

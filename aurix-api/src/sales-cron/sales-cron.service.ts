@@ -5,6 +5,7 @@ import { PG_POOL } from '../database/database.module';
 import { LeadScoringService } from '../lead-scoring/lead-scoring.service';
 import { LeadsService } from '../leads/leads.service';
 import { AiSalesService } from '../ai-sales/ai-sales.service';
+import { NextActionService } from '../next-action/next-action.service';
 
 /**
  * Sales-Cron — расписание регулярных задач sales-pipeline.
@@ -26,6 +27,7 @@ export class SalesCronService {
     leadScoring: false,
     leadsSweep: false,
     aiSales: false,
+    nextAction: false,
   };
 
   constructor(
@@ -33,6 +35,7 @@ export class SalesCronService {
     private readonly leadScoring: LeadScoringService,
     private readonly leads: LeadsService,
     private readonly aiSales: AiSalesService,
+    private readonly nextAction: NextActionService,
   ) {}
 
   /**
@@ -132,6 +135,53 @@ export class SalesCronService {
       });
     } finally {
       this.locks.aiSales = false;
+    }
+  }
+
+  /**
+   * Next Action refresh: каждые 60 минут обновляет leads.next_action для
+   * активных leads (status NOT IN converted/lost).
+   *
+   * Зачем: next_action engine считается on-the-fly через GET endpoint,
+   * но в leads.next_action хранится snapshot — он показывается в Action
+   * Center и Leads tab. Чтобы snapshot не устаревал, регулярно sync'аем.
+   */
+  @Cron(CronExpression.EVERY_HOUR, { name: 'next_action_refresh' })
+  async cronNextActionRefresh() {
+    if (this.locks.nextAction) return;
+    this.locks.nextAction = true;
+    const startedAt = Date.now();
+    let updated = 0;
+    let errors = 0;
+    try {
+      // Берём только active leads — для converted/lost next_action не нужен.
+      const { rows } = await this.pool.query(`
+        SELECT user_id FROM leads
+         WHERE status NOT IN ('converted', 'lost')
+         LIMIT 500
+      `).catch(() => ({ rows: [] as Array<{ user_id: number }> }));
+
+      for (const r of rows as Array<{ user_id: number }>) {
+        try {
+          await this.nextAction.refreshAndPersist(r.user_id);
+          updated++;
+        } catch (e: any) {
+          errors++;
+          this.log.warn(`cronNextActionRefresh: user ${r.user_id} failed: ${e.message}`);
+        }
+      }
+      const durationMs = Date.now() - startedAt;
+      this.log.log(`Next action refresh: ${updated} updated, ${errors} errors in ${durationMs}ms`);
+      await this.writeAuditLog('cron_next_action_refresh', {
+        updated, errors, duration_ms: durationMs,
+      });
+    } catch (e: any) {
+      this.log.error(`cronNextActionRefresh failed: ${e.message}`);
+      await this.writeAuditLog('cron_next_action_refresh', {
+        error: e.message, duration_ms: Date.now() - startedAt,
+      });
+    } finally {
+      this.locks.nextAction = false;
     }
   }
 

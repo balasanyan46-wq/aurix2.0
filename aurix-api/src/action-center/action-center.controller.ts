@@ -379,6 +379,9 @@ export class ActionCenterController {
         next_action: r.next_action,
         suggested_message: next?.suggested_message ?? null,
         possible_revenue: next?.possible_revenue ?? 0,
+        // A/B template attribution — нужно пробросить дальше в meta.offer_sent.
+        template_code: next?.template_code ?? null,
+        template_variant: next?.template_variant ?? null,
         created_at: new Date().toISOString(),
         source: 'next_action_engine',
       });
@@ -428,11 +431,14 @@ interface ActionItem {
   description: string;
   user_id?: number;
   suggested_action: string;
-  // Новые поля (этап 5): для интеграции с next-action engine и sales signals.
+  // Этап 5: интеграция с next-action engine и sales signals.
   next_action?: string | null;
   suggested_message?: string | null;
   possible_revenue?: number;
   product_offer?: string | null;
+  // A/B template attribution — для трекинга которая версия текста сработала.
+  template_code?: string | null;
+  template_variant?: string | null;
   created_at: string;
   source: string;
 }

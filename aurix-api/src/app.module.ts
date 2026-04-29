@@ -52,6 +52,7 @@ import { ConversionModule } from './conversion/conversion.module';
 import { AiSalesModule } from './ai-sales/ai-sales.module';
 import { SalesCronModule } from './sales-cron/sales-cron.module';
 import { RevenueModule } from './revenue/revenue.module';
+import { MessageTemplatesModule } from './message-templates/message-templates.module';
 
 @Module({
   imports: [
@@ -100,6 +101,9 @@ import { RevenueModule } from './revenue/revenue.module';
     // при успешном платеже. @Global делает его доступным везде, но явный
     // порядок повышает предсказуемость bootstrap.
     LeadsModule,
+    // MessageTemplatesModule — глобальный, должен быть зарегистрирован
+    // ДО NextActionModule (next-action.service injects его через @Optional).
+    MessageTemplatesModule,
     LeadScoringModule,
     NextActionModule,
     PaymentsModule,
