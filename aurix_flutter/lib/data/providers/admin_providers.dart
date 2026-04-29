@@ -330,9 +330,39 @@ final adminUserSessionsProvider = FutureProvider.family<List<Map<String, dynamic
 final adminSessionReplayProvider = FutureProvider.family<List<Map<String, dynamic>>, int>((ref, sessionId) async {
   try {
     final res = await ApiClient.get('/admin/sessions/$sessionId/replay');
-    return (res.data as List?)?.cast<Map<String, dynamic>>() ?? [];
+    // Backend returns { session: {...}, events: [...] }.
+    final data = res.data;
+    if (data is Map && data['events'] is List) {
+      return (data['events'] as List).cast<Map<String, dynamic>>();
+    }
+    if (data is List) {
+      return data.cast<Map<String, dynamic>>();
+    }
+    return [];
   } catch (e) {
     return [];
+  }
+});
+
+/// Activity summary for a user (admin): totals, top screens, top actions, daily histogram.
+final adminUserActivitySummaryProvider =
+    FutureProvider.family<Map<String, dynamic>, int>((ref, userId) async {
+  try {
+    final res = await ApiClient.get('/admin/users/$userId/activity-summary');
+    return res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+  } catch (e) {
+    return <String, dynamic>{};
+  }
+});
+
+/// Last session for a user with all its events — "что делал последний раз".
+final adminUserLastSessionProvider =
+    FutureProvider.family<Map<String, dynamic>, int>((ref, userId) async {
+  try {
+    final res = await ApiClient.get('/admin/users/$userId/last-session');
+    return res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+  } catch (e) {
+    return <String, dynamic>{};
   }
 });
 
@@ -419,5 +449,592 @@ final adminSignalsProvider = FutureProvider<AdminSignalsData>((ref) async {
     );
   } catch (e) {
     return const AdminSignalsData();
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  ACTION CENTER — единый "что сделать сегодня"
+//  Источник: GET /admin/action-center
+// ════════════════════════════════════════════════════════════════════════
+
+class ActionItem {
+  final String id;
+  final String type;
+  final String priority; // critical | high | medium | low
+  final String title;
+  final String description;
+  final int? userId;
+  final String suggestedAction;
+  // Этап 5: интеграция с next_action и AI sales.
+  final String? nextAction;
+  final String? suggestedMessage;
+  final int possibleRevenue;
+  final String? productOffer;
+  final String? createdAt;
+  final String source;
+
+  const ActionItem({
+    required this.id,
+    required this.type,
+    required this.priority,
+    required this.title,
+    required this.description,
+    required this.suggestedAction,
+    required this.source,
+    this.userId,
+    this.nextAction,
+    this.suggestedMessage,
+    this.possibleRevenue = 0,
+    this.productOffer,
+    this.createdAt,
+  });
+
+  factory ActionItem.fromJson(Map<String, dynamic> j) => ActionItem(
+        id: j['id']?.toString() ?? '',
+        type: j['type']?.toString() ?? '',
+        priority: j['priority']?.toString() ?? 'low',
+        title: j['title']?.toString() ?? '',
+        description: j['description']?.toString() ?? '',
+        userId: (j['user_id'] as num?)?.toInt(),
+        suggestedAction: j['suggested_action']?.toString() ?? '',
+        nextAction: j['next_action']?.toString(),
+        suggestedMessage: j['suggested_message']?.toString(),
+        possibleRevenue: (j['possible_revenue'] as num?)?.toInt() ?? 0,
+        productOffer: j['product_offer']?.toString(),
+        createdAt: j['created_at']?.toString(),
+        source: j['source']?.toString() ?? '',
+      );
+}
+
+class ActionCenterData {
+  final int total;
+  final int possibleRevenueTotal;
+  final List<ActionItem> items;
+  final List<ActionItem> urgent;
+  final List<ActionItem> money;
+  final List<ActionItem> releases;
+  final List<ActionItem> support;
+  final List<ActionItem> retention;
+  final List<ActionItem> risks;
+
+  const ActionCenterData({
+    required this.total,
+    required this.items,
+    required this.urgent,
+    required this.money,
+    required this.releases,
+    required this.support,
+    required this.retention,
+    required this.risks,
+    this.possibleRevenueTotal = 0,
+  });
+
+  static const empty = ActionCenterData(
+    total: 0, possibleRevenueTotal: 0, items: [], urgent: [], money: [],
+    releases: [], support: [], retention: [], risks: [],
+  );
+}
+
+final adminActionCenterProvider = FutureProvider<ActionCenterData>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/action-center');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    List<ActionItem> parseList(dynamic raw) {
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map>()
+          .map((e) => ActionItem.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final groups = (d['groups'] as Map?) ?? const {};
+    return ActionCenterData(
+      total: (d['total'] as num?)?.toInt() ?? 0,
+      possibleRevenueTotal: (d['possible_revenue_total'] as num?)?.toInt() ?? 0,
+      items: parseList(d['items']),
+      urgent: parseList(groups['urgent']),
+      money: parseList(groups['money']),
+      releases: parseList(groups['releases']),
+      support: parseList(groups['support']),
+      retention: parseList(groups['retention']),
+      risks: parseList(groups['risks']),
+    );
+  } catch (e) {
+    return ActionCenterData.empty;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  LEAD SCORING
+//  GET /admin/users/:id/score      — score конкретного юзера
+//  GET /admin/leads?bucket=hot     — список по bucket
+//  POST /admin/leads/recalculate   — пересчёт всех
+// ════════════════════════════════════════════════════════════════════════
+
+class LeadScore {
+  final int userId;
+  final int score;
+  final String bucket; // cold | warm | hot
+  final List<Map<String, dynamic>> reasons;
+  final String? updatedAt;
+
+  const LeadScore({
+    required this.userId,
+    required this.score,
+    required this.bucket,
+    required this.reasons,
+    this.updatedAt,
+  });
+
+  factory LeadScore.fromJson(Map<String, dynamic> j) => LeadScore(
+        userId: (j['user_id'] as num?)?.toInt() ?? 0,
+        score: (j['score'] as num?)?.toInt() ?? 0,
+        bucket: j['bucket']?.toString() ?? 'cold',
+        reasons: (j['reasons'] as List?)
+                ?.whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList() ??
+            const [],
+        updatedAt: j['updated_at']?.toString(),
+      );
+}
+
+final adminUserScoreProvider =
+    FutureProvider.family<LeadScore?, int>((ref, userId) async {
+  try {
+    final res = await ApiClient.get('/admin/users/$userId/score');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    return LeadScore.fromJson(d);
+  } catch (e) {
+    return null;
+  }
+});
+
+final adminLeadsByBucketProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>((ref, bucket) async {
+  try {
+    final res = await ApiClient.get('/admin/leads', query: {'bucket': bucket});
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final items = d['items'];
+    if (items is! List) return const [];
+    return items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  } catch (e) {
+    return const [];
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  LEADS PIPELINE (новая таблица leads — этап 1 sales-генерации выручки)
+//  GET /admin/leads?status=&bucket=&assigned_to=
+//  PATCH /admin/leads/:id
+//  POST /admin/leads/:id/contacted
+// ════════════════════════════════════════════════════════════════════════
+
+class LeadRow {
+  final String id;
+  final int userId;
+  final String? email;
+  final String? displayName;
+  final int leadScore;
+  final String leadBucket;
+  final String status;
+  final int? assignedTo;
+  final String? lastContactAt;
+  final String? nextAction;
+  final String source;
+  final String createdAt;
+  final String updatedAt;
+
+  const LeadRow({
+    required this.id,
+    required this.userId,
+    required this.leadScore,
+    required this.leadBucket,
+    required this.status,
+    required this.source,
+    required this.createdAt,
+    required this.updatedAt,
+    this.email,
+    this.displayName,
+    this.assignedTo,
+    this.lastContactAt,
+    this.nextAction,
+  });
+
+  factory LeadRow.fromJson(Map<String, dynamic> j) => LeadRow(
+        id: j['id']?.toString() ?? '',
+        userId: (j['user_id'] as num?)?.toInt() ?? 0,
+        email: j['email']?.toString(),
+        displayName: j['display_name']?.toString(),
+        leadScore: (j['lead_score'] as num?)?.toInt() ?? 0,
+        leadBucket: j['lead_bucket']?.toString() ?? 'cold',
+        status: j['status']?.toString() ?? 'new',
+        assignedTo: (j['assigned_to'] as num?)?.toInt(),
+        lastContactAt: j['last_contact_at']?.toString(),
+        nextAction: j['next_action']?.toString(),
+        source: j['source']?.toString() ?? 'system',
+        createdAt: j['created_at']?.toString() ?? '',
+        updatedAt: j['updated_at']?.toString() ?? '',
+      );
+}
+
+class LeadsFilter {
+  final String? status;
+  final String? bucket;
+  final int? assignedTo;
+  const LeadsFilter({this.status, this.bucket, this.assignedTo});
+
+  @override
+  bool operator ==(Object other) =>
+      other is LeadsFilter &&
+      other.status == status &&
+      other.bucket == bucket &&
+      other.assignedTo == assignedTo;
+  @override
+  int get hashCode => Object.hash(status, bucket, assignedTo);
+}
+
+final adminLeadsListProvider =
+    FutureProvider.family<List<LeadRow>, LeadsFilter>((ref, filter) async {
+  final query = <String, dynamic>{};
+  if (filter.status != null) query['status'] = filter.status;
+  if (filter.bucket != null) query['bucket'] = filter.bucket;
+  if (filter.assignedTo != null) query['assigned_to'] = filter.assignedTo;
+  try {
+    final res = await ApiClient.get('/admin/leads', query: query);
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final items = d['items'];
+    if (items is! List) return const [];
+    return items
+        .whereType<Map>()
+        .map((e) => LeadRow.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  } catch (e) {
+    return const [];
+  }
+});
+
+/// Активный lead конкретного юзера (для Lead Info block в user detail).
+final adminUserActiveLeadProvider =
+    FutureProvider.family<LeadRow?, int>((ref, userId) async {
+  try {
+    final res = await ApiClient.get('/admin/leads', query: {'limit': 500});
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final items = d['items'];
+    if (items is! List) return null;
+    for (final raw in items.whereType<Map>()) {
+      final lead = LeadRow.fromJson(Map<String, dynamic>.from(raw));
+      if (lead.userId == userId &&
+          lead.status != 'converted' &&
+          lead.status != 'lost') {
+        return lead;
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  NEXT ACTION ENGINE
+//  GET /admin/users/:id/next-action
+// ════════════════════════════════════════════════════════════════════════
+
+class NextActionResult {
+  final String? code;
+  final String? action;
+  final String reason;
+  final int possibleRevenue;
+  final String? suggestedMessage;
+
+  const NextActionResult({
+    required this.reason,
+    required this.possibleRevenue,
+    this.code,
+    this.action,
+    this.suggestedMessage,
+  });
+
+  factory NextActionResult.fromJson(Map<String, dynamic> j) => NextActionResult(
+        code: j['code']?.toString(),
+        action: j['action']?.toString(),
+        reason: j['reason']?.toString() ?? '',
+        possibleRevenue: (j['possible_revenue'] as num?)?.toInt() ?? 0,
+        suggestedMessage: j['suggested_message']?.toString(),
+      );
+}
+
+final adminUserNextActionProvider =
+    FutureProvider.family<NextActionResult?, int>((ref, userId) async {
+  try {
+    final res = await ApiClient.get('/admin/users/$userId/next-action');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    return NextActionResult.fromJson(d);
+  } catch (e) {
+    return null;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  CONVERSION FUNNEL
+//  GET /admin/conversion
+// ════════════════════════════════════════════════════════════════════════
+
+class ConversionStep {
+  final String step;
+  final String label;
+  final int usersCount;
+  final double conversionPct;
+  final double dropOffPct;
+  final int revenueGeneratedRub;
+
+  const ConversionStep({
+    required this.step,
+    required this.label,
+    required this.usersCount,
+    required this.conversionPct,
+    required this.dropOffPct,
+    required this.revenueGeneratedRub,
+  });
+
+  factory ConversionStep.fromJson(Map<String, dynamic> j) => ConversionStep(
+        step: j['step']?.toString() ?? '',
+        label: j['label']?.toString() ?? '',
+        usersCount: (j['users_count'] as num?)?.toInt() ?? 0,
+        conversionPct: (j['conversion_pct'] as num?)?.toDouble() ?? 0,
+        dropOffPct: (j['drop_off_pct'] as num?)?.toDouble() ?? 0,
+        revenueGeneratedRub: (j['revenue_generated_rub'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class ConversionData {
+  final int totalRevenueRub;
+  final List<ConversionStep> steps;
+  const ConversionData({required this.totalRevenueRub, required this.steps});
+  static const empty = ConversionData(totalRevenueRub: 0, steps: []);
+}
+
+final adminConversionProvider = FutureProvider<ConversionData>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/conversion');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final raw = d['steps'];
+    final steps = (raw is List)
+        ? raw
+            .whereType<Map>()
+            .map((e) => ConversionStep.fromJson(Map<String, dynamic>.from(e)))
+            .toList()
+        : <ConversionStep>[];
+    return ConversionData(
+      totalRevenueRub: (d['total_revenue_rub'] as num?)?.toInt() ?? 0,
+      steps: steps,
+    );
+  } catch (e) {
+    return ConversionData.empty;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  AI SALES SIGNALS
+//  GET /admin/ai-sales-signals
+//  POST /admin/ai-sales-signals/refresh
+// ════════════════════════════════════════════════════════════════════════
+
+final adminAiSalesSignalsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/ai-sales-signals');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final items = d['items'];
+    if (items is! List) return const [];
+    return items
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  } catch (e) {
+    return const [];
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  STAFF (для назначения leads менеджеру)
+//  GET /admin/leads/staff
+// ════════════════════════════════════════════════════════════════════════
+
+class StaffMember {
+  final int id;
+  final String email;
+  final String? name;
+  final String role;
+  const StaffMember({
+    required this.id,
+    required this.email,
+    required this.role,
+    this.name,
+  });
+  factory StaffMember.fromJson(Map<String, dynamic> j) => StaffMember(
+        id: (j['id'] as num?)?.toInt() ?? 0,
+        email: j['email']?.toString() ?? '',
+        name: j['name']?.toString(),
+        role: j['role']?.toString() ?? 'admin',
+      );
+  String get displayName => (name?.isNotEmpty ?? false) ? name! : email;
+}
+
+final adminStaffListProvider = FutureProvider<List<StaffMember>>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/leads/staff');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final items = d['items'];
+    if (items is! List) return const [];
+    return items
+        .whereType<Map>()
+        .map((e) => StaffMember.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  } catch (e) {
+    return const [];
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  LEAD EXPLAINER
+//  GET /admin/leads/:id/explain
+// ════════════════════════════════════════════════════════════════════════
+
+class LeadExplain {
+  final LeadRow lead;
+  final Map<String, dynamic>? profile;
+  final int score;
+  final String bucket;
+  final List<Map<String, dynamic>> reasons;
+  final List<Map<String, dynamic>> recentEvents;
+  final NextActionResult? nextAction;
+  final Map<String, dynamic>? aiSignal;
+
+  const LeadExplain({
+    required this.lead,
+    required this.score,
+    required this.bucket,
+    required this.reasons,
+    required this.recentEvents,
+    this.profile,
+    this.nextAction,
+    this.aiSignal,
+  });
+}
+
+final adminLeadExplainProvider =
+    FutureProvider.family<LeadExplain?, String>((ref, leadId) async {
+  try {
+    final res = await ApiClient.get('/admin/leads/$leadId/explain');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    if (d['ok'] != true) return null;
+    final lead = LeadRow.fromJson(Map<String, dynamic>.from(d['lead'] as Map));
+    final scoring = (d['score_breakdown'] as Map?) ?? const {};
+    final reasons = (scoring['reasons'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+    final events = (d['recent_events'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+    final next = (d['next_action'] as Map?) != null
+        ? NextActionResult.fromJson(Map<String, dynamic>.from(d['next_action'] as Map))
+        : null;
+    final aiSignal = (d['ai_signal'] as Map?) != null
+        ? Map<String, dynamic>.from(d['ai_signal'] as Map)
+        : null;
+    final profile = (d['profile'] as Map?) != null
+        ? Map<String, dynamic>.from(d['profile'] as Map)
+        : null;
+    return LeadExplain(
+      lead: lead,
+      profile: profile,
+      score: (scoring['score'] as num?)?.toInt() ?? 0,
+      bucket: scoring['bucket']?.toString() ?? 'cold',
+      reasons: reasons,
+      recentEvents: events,
+      nextAction: next,
+      aiSignal: aiSignal,
+    );
+  } catch (e) {
+    return null;
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+//  MANAGER DASHBOARD ("Мои продажи сегодня")
+//  GET /admin/my-sales-dashboard
+// ════════════════════════════════════════════════════════════════════════
+
+class MySalesDashboard {
+  final List<Map<String, dynamic>> myNewLeads;
+  final List<Map<String, dynamic>> myInProgress;
+  final int contacted7d;
+  final int converted7d;
+  final int lost7d;
+  final int estimatedPossibleRevenue;
+  final int realRevenue7dRub;
+
+  const MySalesDashboard({
+    required this.myNewLeads,
+    required this.myInProgress,
+    required this.contacted7d,
+    required this.converted7d,
+    required this.lost7d,
+    required this.estimatedPossibleRevenue,
+    required this.realRevenue7dRub,
+  });
+
+  static const empty = MySalesDashboard(
+    myNewLeads: [], myInProgress: [],
+    contacted7d: 0, converted7d: 0, lost7d: 0,
+    estimatedPossibleRevenue: 0, realRevenue7dRub: 0,
+  );
+}
+
+final adminMySalesDashboardProvider = FutureProvider<MySalesDashboard>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/my-sales-dashboard');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    List<Map<String, dynamic>> parseList(dynamic raw) {
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return MySalesDashboard(
+      myNewLeads: parseList(d['my_new_leads']),
+      myInProgress: parseList(d['my_in_progress']),
+      contacted7d: (d['contacted_7d'] as num?)?.toInt() ?? 0,
+      converted7d: (d['converted_7d'] as num?)?.toInt() ?? 0,
+      lost7d: (d['lost_7d'] as num?)?.toInt() ?? 0,
+      estimatedPossibleRevenue: (d['estimated_possible_revenue'] as num?)?.toInt() ?? 0,
+      realRevenue7dRub: (d['real_revenue_7d_rub'] as num?)?.toInt() ?? 0,
+    );
+  } catch (e) {
+    return MySalesDashboard.empty;
+  }
+});
+
+/// Текущий админ — для фильтра "мои лиды". Источник: GET /users/me возвращает
+/// { success, user: { id, ... } }. Кэшируется Riverpod'ом до invalidate.
+final adminCurrentIdProvider = FutureProvider<int?>((ref) async {
+  try {
+    final res = await ApiClient.get('/users/me');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final user = d['user'];
+    if (user is Map) return (user['id'] as num?)?.toInt();
+    return null;
+  } catch (e) {
+    return null;
   }
 });

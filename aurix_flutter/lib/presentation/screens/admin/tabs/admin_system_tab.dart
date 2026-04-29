@@ -8,6 +8,7 @@ import 'package:aurix_flutter/data/providers/promo_providers.dart';
 import 'package:aurix_flutter/data/models/admin_log_model.dart';
 import 'package:aurix_flutter/data/models/support_ticket_model.dart';
 import 'package:aurix_flutter/data/models/release_delete_request_model.dart';
+import 'package:aurix_flutter/presentation/screens/admin/widgets/confirm_dangerous_dialog.dart';
 import 'package:aurix_flutter/data/models/promo_request_model.dart';
 
 class AdminSystemTab extends ConsumerStatefulWidget {
@@ -752,9 +753,18 @@ class _FraudAlertCardState extends State<_FraudAlertCard> {
   Future<void> _blockUser() async {
     final userId = widget.alert['user_id'];
     if (userId == null) return;
+    // SAFETY: confirm dialog обязателен — fraud-блок без причины раньше
+    // часто оказывался ошибочным. Заставляем оператора кратко описать что увидел.
+    final res = await showDangerousActionDialog(
+      context,
+      title: 'Заблокировать user #$userId по сигналу фрода?',
+      description: 'Опишите причину блокировки (что именно показалось подозрительным).',
+      confirmLabel: 'Заблокировать',
+    );
+    if (res == null) return;
     setState(() => _loading = true);
     try {
-      await ApiClient.post('/admin/users/$userId/block', data: {});
+      await ApiClient.post('/admin/users/$userId/block', data: res);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('User #$userId заблокирован'), backgroundColor: AurixTokens.positive, behavior: SnackBarBehavior.floating),
