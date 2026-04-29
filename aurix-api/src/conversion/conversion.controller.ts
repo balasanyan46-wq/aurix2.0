@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 /**
  * Conversion Tracking — артистическая воронка с деньгами.
@@ -15,7 +16,9 @@ import { AdminGuard } from '../auth/roles.guard';
  *   - drop_off_pct         — % отвалившихся на этом шаге
  *   - revenue_generated    — суммарный revenue юзеров, дошедших сюда (₽)
  */
+// Read-only аналитика — доступ: analyst, admin, finance_admin.
 @UseGuards(JwtAuthGuard, AdminGuard)
+@Roles('analyst', 'admin', 'finance_admin')
 @Controller()
 export class ConversionController {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}

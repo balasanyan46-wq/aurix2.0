@@ -53,6 +53,8 @@ import { AiSalesModule } from './ai-sales/ai-sales.module';
 import { SalesCronModule } from './sales-cron/sales-cron.module';
 import { RevenueModule } from './revenue/revenue.module';
 import { MessageTemplatesModule } from './message-templates/message-templates.module';
+import { SalesAlertsModule } from './sales-alerts/sales-alerts.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -104,6 +106,11 @@ import { MessageTemplatesModule } from './message-templates/message-templates.mo
     // MessageTemplatesModule — глобальный, должен быть зарегистрирован
     // ДО NextActionModule (next-action.service injects его через @Optional).
     MessageTemplatesModule,
+    // SalesAlertsModule — глобальный, инжектится в TBankService через @Optional
+    // для notifyPaymentFailed. Должен быть до PaymentsModule.
+    SalesAlertsModule,
+    // PushModule — глобальный, для notifications.controller transport='push'.
+    PushModule,
     LeadScoringModule,
     NextActionModule,
     PaymentsModule,

@@ -6,6 +6,7 @@ import { CreditsService } from '../billing/credits.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReferralService } from '../referral/referral.service';
 import { LeadsService } from '../leads/leads.service';
+import { SalesAlertsService } from '../sales-alerts/sales-alerts.service';
 
 // ── PRICING ──────────────────────────────────────────────
 
@@ -53,6 +54,9 @@ export class TBankService {
     // @Optional: leads-маркер опционален. Если LeadsModule не подключён —
     // конверсия не запишется в leads, но платёж всё равно пройдёт.
     @Optional() private readonly leads?: LeadsService,
+    // @Optional: TG-алерт о failed payment best-effort. Если модуль или
+    // TG gateway недоступен — webhook всё равно работает.
+    @Optional() private readonly alerts?: SalesAlertsService,
   ) {
     this.terminalKey = process.env.TINKOFF_TERMINAL_KEY || '';
     this.password = process.env.TINKOFF_PASSWORD || '';
@@ -501,6 +505,16 @@ export class TBankService {
           plan: payment.plan, amount: payment.amount, status: Status,
           payment_id: payment.id, source: 'tbank_webhook',
         }).catch(() => {});
+
+        // Real-time TG-alert менеджеру: не блокирующий, fire-and-forget.
+        if (this.alerts) {
+          this.alerts.notifyPaymentFailed({
+            id: payment.id,
+            user_id: payment.user_id,
+            plan: payment.plan,
+            amount: payment.amount,
+          }).catch(e => this.log.warn(`TG alert payment_failed failed: ${e.message}`));
+        }
       } else {
         await client.query('ROLLBACK');
         this.log.log(`Webhook: intermediate status ${Status} for order ${OrderId}`);

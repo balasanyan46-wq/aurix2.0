@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { PermissionsController } from './permissions.controller';
 import { UsersModule } from '../users/users.module';
 
 @Module({
@@ -14,6 +15,7 @@ import { UsersModule } from '../users/users.module';
       signOptions: { expiresIn: '15m' },
     }),
   ],
+  controllers: [PermissionsController],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService],
 })

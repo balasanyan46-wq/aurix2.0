@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Query, Param, Req, UseGuards, HttpException, HttpStatus, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, Req, UseGuards, HttpException, HttpStatus, Inject, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
 import { requireConfirmation } from '../auth/dangerous-action.util';
 import { NotificationsService } from './notifications.service';
 import { MailService } from '../mail/mail.service';
+import { PushService } from '../push/push.service';
 import { PG_POOL } from '../database/database.module';
 
 @UseGuards(JwtAuthGuard)
@@ -14,6 +15,9 @@ export class NotificationsController {
     private readonly svc: NotificationsService,
     private readonly mail: MailService,
     @Inject(PG_POOL) private readonly pool: Pool,
+    // PushService опционален — пока работает в stub-режиме, без него
+    // notifications endpoint не падает.
+    @Optional() private readonly push?: PushService,
   ) {}
 
   // ── User endpoints ─────────────────────────────────────
@@ -135,6 +139,21 @@ export class NotificationsController {
       }
     }
 
+    // Push transport — пытаемся отправить через PushService (stub до интеграции
+    // с FCM). Если миграция 098_push_tokens не накатана или у юзера нет
+    // зарегистрированных токенов — sent=0, и это норма.
+    let pushResult: { attempted: boolean; sent: number; failed: number } = {
+      attempted: false, sent: 0, failed: 0,
+    };
+    if (transport === 'push' && this.push) {
+      try {
+        const r = await this.push.sendToUser(body.user_id, body.title, body.message);
+        pushResult = { attempted: true, sent: r.sent, failed: r.failed };
+      } catch (e: any) {
+        pushResult = { attempted: true, sent: 0, failed: 0 };
+      }
+    }
+
     // 3) user_events: offer_sent если есть product_offer / source = offer;
     // иначе notification_sent.
     const eventName = isOffer ? 'offer_sent' : 'notification_sent';
@@ -187,6 +206,7 @@ export class NotificationsController {
       success: true,
       notification: notif,
       email: emailResult,
+      push: pushResult,
       event_logged: eventName,
     };
   }

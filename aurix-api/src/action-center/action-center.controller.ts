@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { LeadScoringService } from '../lead-scoring/lead-scoring.service';
 import { LeadsService } from '../leads/leads.service';
 import { NextActionService } from '../next-action/next-action.service';
@@ -29,7 +30,10 @@ import { AiSalesService } from '../ai-sales/ai-sales.service';
  * Каждый item: { id, type, priority, title, description, user_id?,
  *               suggested_action, created_at, source }
  */
+// Action Center видят все sales-roles: support отвечает на тикеты,
+// moderator модерирует релизы, analyst смотрит метрики.
 @UseGuards(JwtAuthGuard, AdminGuard)
+@Roles('support', 'moderator', 'analyst', 'admin', 'finance_admin')
 @Controller()
 export class ActionCenterController {
   constructor(

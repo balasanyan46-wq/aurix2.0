@@ -11,15 +11,26 @@ import { PG_POOL } from '../database/database.module';
 import { ROLES_KEY, hasAnyRole } from './roles.decorator';
 
 /**
- * Старый AdminGuard. Сохранён для обратной совместимости — все
- * существующие endpoint'ы под @UseGuards(AdminGuard) продолжают работать.
+ * AdminGuard — гибридный guard.
  *
- * Допускает: admin, super_admin. (Раньше — только admin.)
- * Никогда не доверяет JWT-клейму, всегда читает роль из БД.
+ * Поведение:
+ *   1) Если на endpoint'е есть `@Roles(role1, role2, ...)` → пропускает,
+ *      когда роль юзера в этом списке (или super_admin).
+ *   2) Если `@Roles` НЕ задан → fallback на admin/super_admin
+ *      (оригинальное поведение, бэквард-совместимо).
+ *
+ * Никогда не доверяет JWT — всегда читает роль из БД.
+ *
+ * Это позволяет постепенно переключать endpoints на тонкие роли (support,
+ * moderator, finance_admin, analyst) без массового переписывания: добавил
+ * `@Roles('moderator', 'admin')` сверху endpoint'а — и всё.
  */
 @Injectable()
 export class AdminGuard implements CanActivate {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
@@ -33,15 +44,33 @@ export class AdminGuard implements CanActivate {
       `SELECT role FROM users WHERE id = $1`,
       [userId],
     );
-
     const role = rows[0]?.role;
-    if (!role || !['admin', 'super_admin'].includes(role)) {
-      throw new ForbiddenException('admin access required');
+    if (!role) {
+      throw new ForbiddenException('role not found');
     }
 
-    // Прокидываем роль в request для дальнейшего использования
-    // (например, ограничение role-change только super_admin'ом).
+    // Прокидываем роль в request — нужно для проверок типа «только super_admin
+    // может менять роли» внутри контроллера.
     request.user.role = role;
+
+    // Если на endpoint указан @Roles — используем его список.
+    const required = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (required && required.length > 0) {
+      if (!hasAnyRole(role, required)) {
+        throw new ForbiddenException(
+          `requires one of: ${required.join(', ')} (you are ${role})`,
+        );
+      }
+      return true;
+    }
+
+    // Fallback: дефолтное admin-only поведение для старых endpoints.
+    if (!['admin', 'super_admin'].includes(role)) {
+      throw new ForbiddenException('admin access required');
+    }
     return true;
   }
 }
