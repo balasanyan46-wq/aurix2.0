@@ -56,6 +56,32 @@ export class SupportController {
     return ticket;
   }
 
+  /**
+   * Admin creates a ticket on behalf of a user.
+   *
+   * Used by Action Center "Тикет" quick action. user_id берётся из body
+   * (а не JWT), но валидируется через AdminGuard — обычные юзеры не могут
+   * создавать тикеты от чужого имени.
+   *
+   * meta.created_by_admin_id фиксируется для аудита.
+   */
+  @UseGuards(AdminGuard)
+  @Post('admin/support-tickets')
+  async adminCreateTicket(@Req() req: any, @Body() body: Record<string, any>) {
+    if (!body.user_id) throw new HttpException('user_id required', HttpStatus.BAD_REQUEST);
+    if (!body.subject) throw new HttpException('subject required', HttpStatus.BAD_REQUEST);
+    const ticket = await this.svc.createTicket({
+      ...body,
+      user_id: Number(body.user_id),
+      meta: {
+        ...(body.meta ?? {}),
+        created_by_admin_id: req.user.id,
+        source: body.source ?? 'admin',
+      },
+    });
+    return ticket;
+  }
+
   // Update ticket — admin can update anything, owner can bump updated_at / reopen
   @Put('support-tickets/:id')
   async updateTicket(@Req() req: any, @Param('id') id: string, @Body() body: Record<string, any>) {
