@@ -51,6 +51,7 @@ import { NextActionModule } from './next-action/next-action.module';
 import { ConversionModule } from './conversion/conversion.module';
 import { AiSalesModule } from './ai-sales/ai-sales.module';
 import { SalesCronModule } from './sales-cron/sales-cron.module';
+import { RevenueModule } from './revenue/revenue.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { SalesCronModule } from './sales-cron/sales-cron.module';
     DonationsModule,
     ConversionModule,
     AiSalesModule,
+    RevenueModule,        // SaaS-метрики: MRR, ARR, ARPU, LTV, churn, etc.
     ActionCenterModule,   // зависит от всех sales-модулей
     SalesCronModule,      // регулярные задачи: scoring, sweep, ai-sales
   ],

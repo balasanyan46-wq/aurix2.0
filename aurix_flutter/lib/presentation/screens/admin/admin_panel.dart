@@ -11,6 +11,7 @@ import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_dashboard_ta
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_action_center_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_leads_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_conversion_tab.dart';
+import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_revenue_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_users_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_releases_tab.dart';
 import 'package:aurix_flutter/presentation/screens/admin/tabs/admin_delete_requests_tab.dart';
@@ -52,6 +53,9 @@ const _tabs = [
   // Conversion — funnel с деньгами. Менеджер должен видеть, где артисты
   // отваливаются и сколько денег теряется на каждом шаге.
   _TabDef('conversion', 'Воронка', Icons.show_chart_rounded),
+  // Revenue — SaaS-метрики (MRR/ARR/ARPU/LTV/Churn/Conversion). Финансовый
+  // язык бизнеса; менеджер/CEO видит здоровье продукта.
+  _TabDef('revenue', 'Выручка', Icons.attach_money_rounded),
   _TabDef('users', 'Пользователи', Icons.people_rounded),
   _TabDef('releases', 'Релизы', Icons.album_rounded),
   _TabDef('delete_requests', 'Запросы на удаление', Icons.delete_sweep_rounded),
@@ -177,6 +181,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
     ref.invalidate(adminAiSalesSignalsProvider);
     ref.invalidate(adminMySalesDashboardProvider);
     ref.invalidate(adminStaffListProvider);
+    ref.invalidate(adminRevenueProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Данные обновлены'),
@@ -192,6 +197,7 @@ class _AdminPanelState extends ConsumerState<AdminPanel>
         const AdminActionCenterTab(),
         const AdminLeadsTab(),
         const AdminConversionTab(),
+        const AdminRevenueTab(),
         const AdminUsersTab(),
         const AdminReleasesTab(),
         const AdminDeleteRequestsTab(),

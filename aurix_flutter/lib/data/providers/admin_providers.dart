@@ -1025,6 +1025,128 @@ final adminMySalesDashboardProvider = FutureProvider<MySalesDashboard>((ref) asy
   }
 });
 
+// ════════════════════════════════════════════════════════════════════════
+//  REVENUE DASHBOARD — SaaS-метрики (MRR/ARR/ARPU/LTV/Churn/Conversion)
+//  GET /admin/revenue
+// ════════════════════════════════════════════════════════════════════════
+
+class RevenueMonthly {
+  final String month; // YYYY-MM
+  final int revenueRub;
+  final int payingUsers;
+  const RevenueMonthly({
+    required this.month,
+    required this.revenueRub,
+    required this.payingUsers,
+  });
+  factory RevenueMonthly.fromJson(Map<String, dynamic> j) => RevenueMonthly(
+        month: j['month']?.toString() ?? '',
+        revenueRub: (j['revenue_rub'] as num?)?.toInt() ?? 0,
+        payingUsers: (j['paying_users'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class RevenueByPlan {
+  final String plan;
+  final int revenue30dRub;
+  final int payingUsers;
+  const RevenueByPlan({
+    required this.plan,
+    required this.revenue30dRub,
+    required this.payingUsers,
+  });
+  factory RevenueByPlan.fromJson(Map<String, dynamic> j) => RevenueByPlan(
+        plan: j['plan']?.toString() ?? '',
+        revenue30dRub: (j['revenue_30d_rub'] as num?)?.toInt() ?? 0,
+        payingUsers: (j['paying_users'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class RevenueMetrics {
+  final int mrrRub;
+  final int arrRub;
+  final int arpu30dRub;
+  final int ltvRub;
+  final double churn30dPct;
+  final double conversionToPaidPct;
+  final double momGrowthPct;
+  final int failedPayments30dCount;
+  final int failedPayments30dTotalRub;
+  final int refunds30dCount;
+  final int refunds30dTotalRub;
+  final int forecastNextMonthRub;
+  final List<RevenueMonthly> monthlyRevenue12m;
+  final List<RevenueByPlan> revenueByPlan;
+  final String? generatedAt;
+
+  const RevenueMetrics({
+    required this.mrrRub,
+    required this.arrRub,
+    required this.arpu30dRub,
+    required this.ltvRub,
+    required this.churn30dPct,
+    required this.conversionToPaidPct,
+    required this.momGrowthPct,
+    required this.failedPayments30dCount,
+    required this.failedPayments30dTotalRub,
+    required this.refunds30dCount,
+    required this.refunds30dTotalRub,
+    required this.forecastNextMonthRub,
+    required this.monthlyRevenue12m,
+    required this.revenueByPlan,
+    this.generatedAt,
+  });
+
+  static const empty = RevenueMetrics(
+    mrrRub: 0, arrRub: 0, arpu30dRub: 0, ltvRub: 0,
+    churn30dPct: 0, conversionToPaidPct: 0, momGrowthPct: 0,
+    failedPayments30dCount: 0, failedPayments30dTotalRub: 0,
+    refunds30dCount: 0, refunds30dTotalRub: 0,
+    forecastNextMonthRub: 0,
+    monthlyRevenue12m: [], revenueByPlan: [],
+  );
+}
+
+final adminRevenueProvider = FutureProvider<RevenueMetrics>((ref) async {
+  try {
+    final res = await ApiClient.get('/admin/revenue');
+    final d = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final failed = (d['failed_payments_30d'] as Map?) ?? const {};
+    final refunds = (d['refunds_30d'] as Map?) ?? const {};
+    final monthlyRaw = d['monthly_revenue_12m'];
+    final byPlanRaw = d['revenue_by_plan'];
+    return RevenueMetrics(
+      mrrRub: (d['mrr_rub'] as num?)?.toInt() ?? 0,
+      arrRub: (d['arr_rub'] as num?)?.toInt() ?? 0,
+      arpu30dRub: (d['arpu_30d_rub'] as num?)?.toInt() ?? 0,
+      ltvRub: (d['ltv_rub'] as num?)?.toInt() ?? 0,
+      churn30dPct: (d['churn_30d_pct'] as num?)?.toDouble() ?? 0,
+      conversionToPaidPct: (d['conversion_to_paid_pct'] as num?)?.toDouble() ?? 0,
+      momGrowthPct: (d['mom_growth_pct'] as num?)?.toDouble() ?? 0,
+      failedPayments30dCount: (failed['count'] as num?)?.toInt() ?? 0,
+      failedPayments30dTotalRub: (failed['total_rub'] as num?)?.toInt() ?? 0,
+      refunds30dCount: (refunds['count'] as num?)?.toInt() ?? 0,
+      refunds30dTotalRub: (refunds['total_rub'] as num?)?.toInt() ?? 0,
+      forecastNextMonthRub: (d['forecast_next_month_rub'] as num?)?.toInt() ?? 0,
+      monthlyRevenue12m: monthlyRaw is List
+          ? monthlyRaw
+              .whereType<Map>()
+              .map((e) => RevenueMonthly.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : const [],
+      revenueByPlan: byPlanRaw is List
+          ? byPlanRaw
+              .whereType<Map>()
+              .map((e) => RevenueByPlan.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : const [],
+      generatedAt: d['generated_at']?.toString(),
+    );
+  } catch (e) {
+    return RevenueMetrics.empty;
+  }
+});
+
 /// Текущий админ — для фильтра "мои лиды". Источник: GET /users/me возвращает
 /// { success, user: { id, ... } }. Кэшируется Riverpod'ом до invalidate.
 final adminCurrentIdProvider = FutureProvider<int?>((ref) async {
